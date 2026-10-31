@@ -7,7 +7,7 @@ status: accepted
 
 One WorkspaceProvider and workbench shell own GitHub identity, file tree, source changes, Dockview tabs and status. FactoryProvider derives contract/architecture views and discrepancies; the native Explorer projects desired, observed or changed paths. Each perspective is a native Dockview tab type rendered inside the existing main surface, sharing the tab bar with editors and other tabs. The activity rail activates those same tabs. Persisted layouts without perspective tabs are migrated by adding native tabs; there is no overlay or second root.
 
-PR builds are staged under gh-pages/pr-N and published together with the last passing main artifact using GitHub Pages Actions, following the BoardGamesWithQuests deployment architecture.
+Only validated `main` builds are uploaded as GitHub Pages Actions artifacts and deployed with `actions/deploy-pages`. No `gh-pages` staging branch is used. PR previews are intentionally disabled on the production origin: hosting untrusted PR JavaScript alongside authenticated browser state would expose origin-wide credentials and IndexedDB data. Separate-origin previews require an explicitly provisioned isolated host.
 
 ## Machine-readable architecture
 

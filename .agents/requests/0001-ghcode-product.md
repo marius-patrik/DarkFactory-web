@@ -53,8 +53,8 @@ Provide a reliable GitHub development environment in which desired product inten
     },
     {
       "id": "REQ-007",
-      "title": "Pages previews",
-      "behavior": "Build PR head, stage independently and publish through GitHub Pages Actions without overwriting production."
+      "title": "Actions-only production deployment",
+      "behavior": "Publish only validated main builds via native GitHub Pages Actions artifacts. Never execute or publish unreviewed PR code on the authenticated production origin and do not require a gh-pages branch."
     },
     {
       "id": "REQ-008",
@@ -155,7 +155,7 @@ Provide a reliable GitHub development environment in which desired product inten
     },
     {
       "id": "ACC-005",
-      "title": "GitHub Pages previews verify HTTP and all entry JS/CSS assets"
+      "title": "GitHub Pages Actions deployment verifies HTTP and all entry JS/CSS assets"
     },
     {
       "id": "ACC-006",
@@ -171,4 +171,4 @@ The user chooses one GitHub repository/ref. Specification reads the project-owne
 
 ## Verification
 
-Cross-view switching, sidebar collapse, z-index interactions, source editing, browser layout, PR preview deploy and test discovery need behavior-driven tests. No fake success states or unverified live integration claims.
+Cross-view switching, sidebar collapse, z-index interactions, source editing, browser layout, production Pages Actions deployment and test discovery need behavior-driven tests. No fake success states or unverified live integration claims.

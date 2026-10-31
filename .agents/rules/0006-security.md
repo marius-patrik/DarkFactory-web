@@ -8,3 +8,5 @@ status: active
 - Make destructive actions explicit and auditable. Do not delete user work, rewrite history, discard branches or alter production state without verified authorization.
 - Ensure failures are observable: a missing dependency or blocked operation must not silently succeed.
 - Do not claim that a repository policy is enforced merely because a workflow or config file declares it; confirm the actual GitHub settings and checks.
+- Never host untrusted PR JavaScript on the same origin as authenticated production: pathname or storage-key separation cannot isolate origin-wide browser data.
+- Deploy published site assets only from passing, reviewed `main` through GitHub Pages Actions artifacts.

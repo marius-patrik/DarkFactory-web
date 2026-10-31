@@ -9,5 +9,5 @@ Deliver GHCode as one cohesive GitHub-native workbench for project definition, r
 - Sidebar collapse/resize does not remove the central workspace; overlays, menus and dialogs have consistent stacking.
 - The selected repo provides its real .agents canonical specifications and architecture; there is no hardcoded demo project.
 - All tests, fixtures and mocks live in .github/tests and assert real behavior and edge cases.
-- PR builds use GitHub Pages under /pr-N/ while preserving a validated main snapshot.
+- GitHub Pages is deployed directly from validated main via Actions artifacts; no production-origin PR previews or gh-pages branch.
 - Versioning uses immutable SemVer tags, development is integration, main is the gated release branch, and DarkFactory is a pinned submodule.

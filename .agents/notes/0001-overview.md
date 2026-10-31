@@ -9,4 +9,4 @@ Its UI uses React/TypeScript, Dockview, Monaco, Radix, Motion and Lucide Animate
 
 ## Open a project
 
-Use the repository control in the global header. Files in the selected GitHub revision and local overlays inform all perspectives. PR previews are published as independent GitHub Pages snapshots at `/GHCode/pr-N/` with the last successful main release preserved.
+Use the repository control in the global header. Files in the selected GitHub revision and local overlays inform all perspectives. Production is built from verified `main` through GitHub Pages Actions artifacts. PR source is never published under the authenticated production origin.

@@ -12,7 +12,7 @@ status: accepted
 - **`tags` (default):** no `VERSION` file is tracked. On a push to `main`, the release workflow finds any SemVer tag already pointing at that commit, or calculates the next patch tag using the highest existing `vMAJOR.MINOR.PATCH` tag. It creates an immutable tag and a GitHub Release. Pull requests do not bump versions.
 - **`file` (opt-in):** a `VERSION` file containing one strict `major.minor.patch` line is required. A same-repository PR gets exactly one automatic patch bump on its head (as in the previous file-driven release workflow); `main` releases must use that version. The proposed version must exceed all existing SemVer tags and may not reuse a tag on another commit.
 
-The release workflow is serialized, idempotent against retry on the same commit, and never moves existing tags. Both modes require verifying the actual release and branch refs.
+The release workflow uploads an independently verified main build directly to GitHub Pages Actions, verifies its live document and entry assets, and only then creates a release. No staging branch, overlapping PR preview path or `gh-pages` publishing lane is allowed. The release workflow is serialized, idempotent against retry on the same commit, and never moves existing tags. Both modes require verifying the actual release and branch refs.
 
 ## Rationale
 
