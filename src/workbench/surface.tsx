@@ -317,7 +317,12 @@ export function WorkbenchSurfaceView({
             }
             const hasPerspective = (api.panels ?? []).some((panel: any) => {
               const type = paramsOf(panel)?.type;
-              return type === "overview" || type === "specification" || type === "delta" || type === "repository";
+              return (
+                type === "overview" ||
+                type === "specification" ||
+                type === "delta" ||
+                type === "repository"
+              );
             });
             // Migrate earlier layouts that kept the main canvas outside Dockview.
             // Existing editors remain intact; perspectives become first-class tabs.
@@ -330,9 +335,11 @@ export function WorkbenchSurfaceView({
                   title: tab.title,
                   params: tab,
                   renderer: "always",
-                  ...(api.activePanel ? {
-                    position: { referencePanel: api.activePanel.id, direction: "within" },
-                  } : {}),
+                  ...(api.activePanel
+                    ? {
+                        position: { referencePanel: api.activePanel.id, direction: "within" },
+                      }
+                    : {}),
                 });
               }
             }

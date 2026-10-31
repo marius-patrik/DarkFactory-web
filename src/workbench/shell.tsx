@@ -40,7 +40,9 @@ import { WorkbenchRuntimeContext, type WorkbenchRuntime } from "./runtime";
 import { WorkbenchSurfaceView } from "./surface";
 
 function isFactoryPerspective(type: WorkbenchTabType): type is FactoryConcern {
-  return type === "overview" || type === "specification" || type === "delta" || type === "repository";
+  return (
+    type === "overview" || type === "specification" || type === "delta" || type === "repository"
+  );
 }
 
 const SURFACES: WorkbenchSurface[] = ["primary", "main", "secondary", "panel"];

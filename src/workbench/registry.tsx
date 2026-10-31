@@ -36,10 +36,34 @@ export type TabDefinition = {
 };
 
 const DEFINITIONS: TabDefinition[] = [
-  { type: "overview", title: "Overview", icon: "LayoutDashboardIcon", defaultSurface: "main", singleton: true },
-  { type: "specification", title: "Specification", icon: "BookOpenIcon", defaultSurface: "main", singleton: true },
-  { type: "delta", title: "Delta", icon: "GitCompareArrowsIcon", defaultSurface: "main", singleton: true },
-  { type: "repository", title: "Repository", icon: "GitBranchIcon", defaultSurface: "main", singleton: true },
+  {
+    type: "overview",
+    title: "Overview",
+    icon: "LayoutDashboardIcon",
+    defaultSurface: "main",
+    singleton: true,
+  },
+  {
+    type: "specification",
+    title: "Specification",
+    icon: "BookOpenIcon",
+    defaultSurface: "main",
+    singleton: true,
+  },
+  {
+    type: "delta",
+    title: "Delta",
+    icon: "GitCompareArrowsIcon",
+    defaultSurface: "main",
+    singleton: true,
+  },
+  {
+    type: "repository",
+    title: "Repository",
+    icon: "GitBranchIcon",
+    defaultSurface: "main",
+    singleton: true,
+  },
   {
     type: "editor",
     title: "Editor",
@@ -280,7 +304,12 @@ export function WorkbenchPanel({ props }: { props: any }) {
   return (
     <TabShell
       tab={tab}
-      hideToolbar={tab.type === "overview" || tab.type === "specification" || tab.type === "delta" || tab.type === "repository"}
+      hideToolbar={
+        tab.type === "overview" ||
+        tab.type === "specification" ||
+        tab.type === "delta" ||
+        tab.type === "repository"
+      }
       actions={{
         move: runtime.moveTab,
         split: runtime.splitTab,

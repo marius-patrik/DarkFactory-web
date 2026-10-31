@@ -454,7 +454,11 @@ export function FactoryWorkspaceView({ concern }: { concern: FactoryConcern }) {
               {delta.length} discrepancies · {drafts.length} reviewable issue drafts
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => runtime.openTab("specification", "main")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => runtime.openTab("specification", "main")}
+          >
             <BookOpen size={13} /> Inspect target
           </Button>
         </header>
@@ -561,7 +565,9 @@ export function FactoryWorkspaceView({ concern }: { concern: FactoryConcern }) {
             </p>
           ))}
           <div className="factory-actions">
-            <Button onClick={() => runtime.openTab("specification", "main")}>Open specification</Button>
+            <Button onClick={() => runtime.openTab("specification", "main")}>
+              Open specification
+            </Button>
             <Button variant="outline" onClick={() => runtime.openTab("delta", "main")}>
               Review discrepancies
             </Button>

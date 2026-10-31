@@ -67,7 +67,10 @@ export async function runLauncherEntry(
   if (entry.type) {
     runtime.openTab(
       entry.type,
-      entry.type === "overview" || entry.type === "specification" || entry.type === "delta" || entry.type === "repository"
+      entry.type === "overview" ||
+        entry.type === "specification" ||
+        entry.type === "delta" ||
+        entry.type === "repository"
         ? "main"
         : surface,
     );
