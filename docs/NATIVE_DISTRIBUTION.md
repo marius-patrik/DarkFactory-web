@@ -71,6 +71,9 @@ are not verified by Ubuntu runner acceptance.
 
 ## Limitations and release integration
 
+- Windows controlled workspace creation and filesystem operations are **BLOCKED**:
+  src/server/store.ts safeAbsolute requires POSIX '/'-prefixed paths and rejects
+  native Windows drive-letter paths. This is an integration-owned runtime fix.
 - Windows terminal panes are **BLOCKED**: the existing server fallback tries
   /bin/bash and Windows Bun PTY compatibility has not been established.
 - Windows shutdown is **BLOCKED** as graceful lifecycle acceptance:
