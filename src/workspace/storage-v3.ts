@@ -901,6 +901,26 @@ export async function pendingPushIntents(id: string) {
     ),
   );
 }
+/** A preparing intent cannot have attempted a remote ref update; it is safe to retry. */
+export function abandonUnsentPushes(id: string) {
+  return mutate(id, (tx, session, done, fail) => {
+    const store = tx.objectStore("v3_push_ops");
+    const query = store.getAll();
+    query.onsuccess = () => {
+      const pending = (query.result as PushIntent[]).filter(
+        (op) => op.sessionId === id && op.principalKey === session.principalKey &&
+          op.state !== "completed",
+      );
+      if (pending.some((op) => op.state !== "preparing" || op.targetSha)) {
+        fail(new StorageConflictError("An unresolved remote ref update must be reconciled."));
+        return;
+      }
+      for (const op of pending) store.delete(op.id);
+      done();
+    };
+  });
+}
+
 export function finishPushAtomic(
   snapshot: WorkspaceSnapshot,
   overlays: WorkingFile[],
