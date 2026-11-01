@@ -51,7 +51,10 @@ import {
   type Principal,
 } from "./identity";
 import {
-  clearLocalGitState,
+  beginPushIntent,
+  finishPushAtomic,
+  pendingPushIntents,
+  updatePushTarget,
   clearStaged,
   commitStagedAtomic,
   forkWorkspaceAtomic,
@@ -862,6 +865,29 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const lease = capture();
+      const pending = await pendingPushIntents(workspace.id);
+      assertCurrent(lease);
+      if (pending.length) {
+        const remote = await getGithubBranchRef(workspace.repository.fullName, workspace.ref, token);
+        assertCurrent(lease);
+        const recoverable = pending.find((op) => op.state === "target-ready" && op.targetSha === remote.object.sha);
+        if (!recoverable) {
+          throw new Error("A previous push has an unresolved outcome. Local commits are preserved; reconcile before retrying.");
+        }
+        const actualCommit = await getGithubCommit(workspace.repository.fullName, remote.object.sha, token);
+        const actualTree = await getGithubTree(workspace.repository.fullName, actualCommit.commit.tree.sha, token);
+        const recoveredSnapshot: WorkspaceSnapshot = {
+          ...workspace, baseSha: remote.object.sha,
+          treeSha: actualTree.sha, tree: actualTree.tree, updatedAt: Date.now(),
+        };
+        await finishPushAtomic(recoveredSnapshot, overlays, recoverable.id);
+        assertCurrent(lease);
+        setWorkspace(recoveredSnapshot);
+        setRemoteHeadSha(remote.object.sha);
+        setRecent(rememberWorkspace(recoveredSnapshot));
+        await loadLocalState(workspace.id, lease);
+        return remote.object.sha;
+      }
       const liveRef = await getGithubBranchRef(workspace.repository.fullName, workspace.ref, token);
       assertCurrent(lease);
       if (liveRef.object.sha !== workspace.baseSha) {
@@ -871,6 +897,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         );
       }
 
+      const pushOp = await beginPushIntent(workspace.id, workspace.baseSha, commits);
+      assertCurrent(lease);
       let parentSha = workspace.baseSha;
       let treeSha = workspace.treeSha;
 
@@ -918,6 +946,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
 
       assertCurrent(lease);
+      await updatePushTarget(workspace.id, pushOp, parentSha);
+      assertCurrent(lease);
       await updateGithubBranchRef(workspace.repository.fullName, workspace.ref, parentSha, token);
       assertCurrent(lease);
 
@@ -935,30 +965,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         updatedAt: Date.now(),
       };
       assertCurrent(lease);
-      await saveWorkspace(snapshot);
-      assertCurrent(lease);
-      await clearLocalGitState(workspace.id);
-
-      for (const overlay of overlays) {
-        const remoteEntry = remoteTree.tree.find(
-          (entry) => entry.type === "blob" && entry.path === overlay.path,
-        );
-        if (overlay.status === "deleted" && !remoteEntry) {
-          await removeOverlay(workspace.id, overlay.path);
-          continue;
-        }
-        if (overlay.status === "added" || overlay.status === "renamed") {
-          if (remoteEntry) {
-            await saveOverlay({
-              ...overlay,
-              status: "modified",
-              baseSha: remoteEntry.sha,
-              renamedFrom: undefined,
-              updatedAt: Date.now(),
-            });
-          }
-        }
-      }
+      await finishPushAtomic(snapshot, overlays, pushOp);
 
       assertCurrent(lease);
       setWorkspace(snapshot);
