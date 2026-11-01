@@ -28,6 +28,7 @@ import {
   writeRecords,
 } from "./storage-v3";
 export {
+  abandonUnsentPushes,
   beginPushIntent,
   finishPushAtomic,
   pendingPushIntents,
