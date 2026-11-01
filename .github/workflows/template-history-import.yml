@@ -1,0 +1,75 @@
+name: DarkFactory-template Git history preservation (one-time)
+on:
+  push:
+    branches:
+      - integration/ghcode-consolidation
+    paths:
+      - .github/workflows/template-history-import.yml
+      - .github/scripts/import-template-history.sh
+      - .github/scripts/export-source-metadata.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rscode-template-history-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    name: Preserve DarkFactory-template refs and complete commit ancestry
+    if: github.repository == 'marius-patrik/DarkFactory-web'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/ghcode-consolidation
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Import all publicly reachable DarkFactory-template Git ancestry
+        env:
+          TEMPLATE_URL: https://github.com/marius-patrik/DarkFactory-template.git
+          IMPORT_BRANCH: integration/ghcode-consolidation
+        run: bash .github/scripts/import-template-history.sh
+      - name: Back up imported Git graph as a portable bundle
+        run: |
+          set -euo pipefail
+          git bundle create darkfactory-web-three-source-history.bundle --all
+          git bundle verify darkfactory-web-three-source-history.bundle
+          sha256sum darkfactory-web-three-source-history.bundle > darkfactory-web-three-source-history.bundle.sha256
+      - name: Verify GHCode preserved source commit tip reachability
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          m=json.loads(Path('docs/migrations/GHCODE_GIT_HISTORY.json').read_text())
+          for sha in sorted({x['commit'] for x in m['refs']}):
+              subprocess.run(['git','merge-base','--is-ancestor',sha,'HEAD'],check=True)
+          print('Verified GHCode original commit tip ancestry:',len({x['commit'] for x in m['refs']}))
+          PY
+      - name: Export public hosted issues, PR discussions, releases and assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          METADATA_OUTPUT: ${{ runner.temp }}/source-metadata
+        run: |
+          python3 .github/scripts/export-source-metadata.py
+          tar -czf source-metadata.tar.gz -C "$METADATA_OUTPUT" .
+          sha256sum source-metadata.tar.gz > source-metadata.tar.gz.sha256
+      - name: Upload source hosted-metadata archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: darkfactory-web-source-hosted-metadata
+          path: |
+            source-metadata.tar.gz
+            source-metadata.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preserve migration backup as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: darkfactory-web-three-source-original-git-history
+          path: |
+            darkfactory-web-three-source-history.bundle
+            darkfactory-web-three-source-history.bundle.sha256
+          if-no-files-found: error
+          retention-days: 90
