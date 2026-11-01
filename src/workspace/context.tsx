@@ -304,10 +304,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         assertCurrent(lease);
         const remoteCommit = await getGithubCommit(repository.full_name, ref, token);
         assertCurrent(lease);
-        const id = cached?.id ?? ownedWorkspaceId(createOwnedWorkspaceIdentity(principal, repositoryKey, fullRef));
         const localState: [WorkingFile[], StagedFile[], CommittedFile[], LocalCommit[]] = cached
           ? await Promise.all([
-              loadOverlays(id), loadStaged(id), loadCommittedFiles(id), loadLocalCommits(id),
+              loadOverlays(cached.id), loadStaged(cached.id), loadCommittedFiles(cached.id), loadLocalCommits(cached.id),
             ]) : [[], [], [], []];
         assertCurrent(lease);
         const hasLocalState = localState.some((items) => items.length > 0);
@@ -372,6 +371,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const syncWorkspace = useCallback(async () => {
     if (!workspace) throw new Error("No workspace is open.");
+    const lease = capture();
+    assertCurrent(lease);
     setLoading(true);
     setError(null);
     try {
@@ -380,6 +381,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         workspace.ref,
         token,
       );
+      assertCurrent(lease);
       setRemoteHeadSha(remoteCommit.sha);
       if (remoteCommit.sha === workspace.baseSha) return;
 
@@ -388,6 +390,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         remoteCommit.commit.tree.sha,
         token,
       );
+      assertCurrent(lease);
       const hasLocalState =
         overlays.length > 0 || staged.length > 0 || committedFiles.length > 0 || commits.length > 0;
 
@@ -422,15 +425,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         tree: remoteTree.tree,
         updatedAt: Date.now(),
       };
+      assertCurrent(lease);
       await saveWorkspace(snapshot);
+      assertCurrent(lease);
       setWorkspace(snapshot);
       setRecent(rememberWorkspace(snapshot));
       setRemoteHeadSha(remoteCommit.sha);
-      setRefs(await listGithubRefs(workspace.repository.fullName, token).catch(() => refs));
+      const nextRefs = await listGithubRefs(workspace.repository.fullName, token).catch(() => refs);
+      assertCurrent(lease);
+      setRefs(nextRefs);
     } finally {
-      setLoading(false);
+      if (isCurrent(lease)) setLoading(false);
     }
-  }, [committedFiles, commits, overlays, refs, staged, token, workspace]);
+  }, [assertCurrent, capture, committedFiles, commits, isCurrent, overlays, refs, staged, token, workspace]);
 
   const readBaseFile = useCallback(
     async (path: string, sha?: string) => {
@@ -439,13 +446,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         ? { sha }
         : workspace.tree.find((candidate) => candidate.path === path && candidate.type === "blob");
       if (!entry?.sha) throw new Error(`File does not exist in the remote base tree: ${path}`);
+      const lease = capture();
+      assertCurrent(lease);
       const cached = await loadBlob(workspace.id, entry.sha);
+      assertCurrent(lease);
       if (cached !== null) return cached;
       const content = await getGithubBlob(workspace.repository.fullName, entry.sha, token);
+      assertCurrent(lease);
       await saveBlob(workspace.id, entry.sha, content);
+      assertCurrent(lease);
       return content;
     },
-    [token, workspace],
+    [assertCurrent, capture, token, workspace],
   );
 
   const readBaselineFile = useCallback(
@@ -485,17 +497,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const refreshOverlays = useCallback(async () => {
     if (!workspace) return;
-    setOverlays(await loadOverlays(workspace.id));
-  }, [workspace]);
+    const lease = capture();
+    const next = await loadOverlays(workspace.id);
+    assertCurrent(lease);
+    setOverlays(next);
+  }, [assertCurrent, capture, workspace]);
 
   const commitOverlay = useCallback(
     async (file: WorkingFile | null, path: string) => {
       if (!workspace) throw new Error("No workspace is open.");
+      const lease = capture();
+      assertCurrent(lease);
       if (file) await saveOverlay(file);
       else await removeOverlay(workspace.id, path);
+      assertCurrent(lease);
       await refreshOverlays();
     },
-    [refreshOverlays, workspace],
+    [assertCurrent, capture, refreshOverlays, workspace],
   );
 
   const writeFile = useCallback(
@@ -758,10 +776,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
       await saveLocalCommit(commit);
       await clearStaged(workspace.id);
-      await loadLocalState(workspace.id);
+      await loadLocalState(workspace.id, capture());
       return commit;
     },
-    [loadLocalState, overlays, staged, workspace],
+    [capture, loadLocalState, overlays, staged, workspace],
   );
 
   const createBranch = useCallback(
@@ -782,10 +800,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setError(null);
       try {
         await createGithubBranchRef(workspace.repository.fullName, name, workspace.baseSha, token);
-        const nextId = workspaceId(workspace.repository.fullName, name);
+        const ownership = createOwnedWorkspaceIdentity(principal, { key: `gh:github.com:repo:${workspace.repository.id}`, id: workspace.repository.id, fullName: workspace.repository.fullName }, `refs/heads/${name}`);
+        const nextId = ownedWorkspaceId(ownership);
         const nextWorkspace: WorkspaceSnapshot = {
           ...workspace,
           id: nextId,
+          ownership,
           ref: name,
           updatedAt: Date.now(),
         };
@@ -830,12 +850,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setRemoteHeadSha(workspace.baseSha);
         setRecent(rememberWorkspace(nextWorkspace));
         setRefs(await listGithubRefs(workspace.repository.fullName, token));
-        await loadLocalState(nextId);
+        await loadLocalState(nextId, capture());
       } finally {
         setLoading(false);
       }
     },
-    [committedFiles, commits, loadLocalState, overlays, staged, token, workspace],
+    [capture, committedFiles, commits, loadLocalState, overlays, principal, staged, token, workspace],
   );
 
   const pushLocalCommits = useCallback(async () => {
@@ -947,12 +967,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setWorkspace(snapshot);
       setRemoteHeadSha(parentSha);
       setRecent(rememberWorkspace(snapshot));
-      await loadLocalState(workspace.id);
+      await loadLocalState(workspace.id, capture());
       return parentSha;
     } finally {
       setLoading(false);
     }
-  }, [commits, loadLocalState, overlays, refs, token, workspace]);
+  }, [capture, commits, loadLocalState, overlays, refs, token, workspace]);
 
   const exportPatch = useCallback(
     async (scope: PatchExportScope = "all", commitId?: string) => {
@@ -1103,6 +1123,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     () => ({
       token,
       user,
+      principal,
+      authPhase,
+      ownershipGeneration,
       repositories,
       workspace,
       refs,
@@ -1145,6 +1168,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [
       token,
       user,
+      principal,
+      authPhase,
+      ownershipGeneration,
       repositories,
       workspace,
       refs,
