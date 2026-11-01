@@ -85,7 +85,7 @@ test(
           title: "Browser",
           canGoBack: false,
           canGoForward: false,
-          profilePath: join(tempRoot, "blank-profile"),
+          profilePath: join(tempRoot, "profiles", "workspace-test", "blank-profile"),
         },
         {
           send: (message) => {
@@ -165,7 +165,7 @@ function browserSession(html: string): BrowserSession {
     title: "Browser",
     canGoBack: false,
     canGoForward: false,
-    profilePath: join(tempRoot, "profile"),
+    profilePath: join(tempRoot, "profiles", "workspace-test", "profile"),
   };
 }
 
