@@ -1,7 +1,7 @@
 {
   "managedBy": "DarkFactory",
   "schema": 2,
-  "slug": "marius-patrik/RSCode",
+  "slug": "marius-patrik/DarkFactory-web",
   "sourceBranch": "main",
   "release": {
     "tag": "v0.292.4",
@@ -9,7 +9,7 @@
     "digest": "8ada74d8795d1c9c64245d63c879da5c5959620baa0944e25b77f002ed857722"
   },
   "fileHashes": {
-    "repo.dfconfig": "84922f05e0fb03f2724698a12b62268adba86e4e9cbe9d735dad36cf3ee7204d",
+    "repo.dfconfig": "6f22da946696dfbf471e9a35829895b09edee558fe4871993d3baaecc3a96383",
     ".github/workflows/darkfactory-control.yml": "29733ffd2e696f4df5af5202c341f66016717b9eab6694cc935d7f0f41d9bac5"
   }
 }
