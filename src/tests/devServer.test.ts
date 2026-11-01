@@ -142,6 +142,7 @@ test(
       const errors = await browserCommandErrors(apiPort, privateWorkspacePath);
       expect(errors).toContain("browser stream unavailable");
       expect(errors).toContain("browser navigation failed");
+      expect(errors).toContain("browser interaction failed");
       expect(errors.join(" ")).not.toContain(privateWorkspacePath);
       expect(await readFile(target, "utf8")).toBe("preserve me");
       const legitimate = await fetch(`http://127.0.0.1:${apiPort}/api/workspace.list`, {
@@ -305,11 +306,12 @@ function browserCommandErrors(port: number, workspaceId: string): Promise<string
     }, 5_000);
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: "navigate", url: "about:blank" }));
+      ws.send(JSON.stringify({ type: "viewport", width: 500, height: 320 }));
     };
     ws.onmessage = (event) => {
       const payload = JSON.parse(messageText(event.data)) as { type?: string; message?: string };
       if (payload.type === "error" && typeof payload.message === "string") messages.push(payload.message);
-      if (messages.length === 2 && !settled) {
+      if (messages.length === 3 && !settled) {
         settled = true;
         clearTimeout(timer);
         ws.close();
