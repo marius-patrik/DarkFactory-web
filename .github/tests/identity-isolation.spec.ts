@@ -94,7 +94,7 @@ test("A private repository is not accessible to anonymous or denied account B", 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         resolve(request.result.some((record) =>
-          record.content === "# Private repository\\n" &&
+          record.content === "# Private repository\n" &&
           record.workspaceId.includes(encodeURIComponent("gh:github.com:1001")),
         ));
         database.close();
