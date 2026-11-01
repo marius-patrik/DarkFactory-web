@@ -939,33 +939,25 @@ export async function attributeUnattributedV2(
 ): Promise<WorkspaceSnapshot> {
   if (!confirmed) throw new Error("Explicit legacy ownership confirmation required.");
   validateSession(target);
-  const source = await dbOperation((db) => get<WorkspaceSnapshot>(db, "workspaces", legacyId));
-  if (
-    !source ||
-    source.ownership ||
-    source.version !== 2 ||
-    !Array.isArray(source.tree) ||
-    !source.repository ||
-    source.repository.id !== target.repository.id ||
-    source.ref !== target.ref
-  )
+  const quarantine = await listLegacyQuarantine();
+  const sourceRecord = quarantine.find((record) =>
+    record.source === "idb:workspaces" && record.originalKey === legacyId);
+  const source = sourceRecord?.value as WorkspaceSnapshot | undefined;
+  if (!source || source.ownership || source.version !== 2 ||
+      !Array.isArray(source.tree) || !source.repository ||
+      source.repository.id !== target.repository.id || source.ref !== target.ref)
     throw new StorageConflictError("Legacy state does not match the verified repository and ref.");
-  const rows = await dbOperation(async (db) =>
-    Promise.all(
-      (["blobs", "overlays", "staged", "committed", "commits"] as const).map(async (name) => ({
-        name,
-        values: (
-          await all<{
-            workspaceId?: string;
-            key?: string;
-            path?: string;
-            sha?: string;
-            id?: string;
-          }>(db, name)
-        ).filter((record) => record.workspaceId === legacyId),
-      })),
-    ),
-  );
+  const rows = (["blobs", "overlays", "staged", "committed", "commits"] as const)
+    .map((name) => ({
+      name,
+      values: quarantine.filter((record) =>
+        record.source === "idb:" + name &&
+        typeof record.value === "object" && record.value !== null &&
+        (record.value as {workspaceId?: string}).workspaceId === legacyId)
+        .map((record) => record.value as {
+          workspaceId?: string; key?: string; path?: string; sha?: string; id?: string;
+        }),
+    }));
   const snapshot: WorkspaceSnapshot = {
     ...target,
     baseSha: source.baseSha,
