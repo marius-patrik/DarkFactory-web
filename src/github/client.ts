@@ -1,6 +1,7 @@
 import { GITHUB_API_VERSION } from "./config";
 
 export type GithubUser = {
+  id: number;
   login: string;
   avatar_url: string;
   html_url: string;
@@ -294,8 +295,17 @@ async function githubGraphql<T>(
   return payload.data;
 }
 
-export function getGithubUser(token: string) {
-  return githubFetch<GithubUser>("/user", token);
+/** The single authenticated GitHub /user validation boundary. */
+export async function getGithubUser(token: string): Promise<GithubUser> {
+  const value: unknown = await githubFetch<unknown>("/user", token);
+  if (!value || typeof value !== "object") throw new Error("Invalid authenticated GitHub identity.");
+  const user = value as Record<string, unknown>;
+  if (!Number.isSafeInteger(user.id) || (user.id as number) <= 0 ||
+      typeof user.login !== "string" || !user.login.trim() ||
+      typeof user.avatar_url !== "string" || typeof user.html_url !== "string") {
+    throw new Error("Invalid authenticated GitHub identity: /user must include a numeric ID.");
+  }
+  return { id: user.id as number, login: user.login, avatar_url: user.avatar_url, html_url: user.html_url };
 }
 
 export function listGithubRepositories(token: string) {
