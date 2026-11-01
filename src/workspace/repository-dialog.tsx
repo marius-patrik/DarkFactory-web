@@ -7,6 +7,9 @@ import {
   type GithubAuthResult,
 } from "@/github/auth";
 import { useWorkspace } from "./context";
+import { downloadText } from "./export";
+import type { WorkspaceSnapshot } from "./model";
+import { exportLegacyQuarantine, importLegacyQuarantine, listUnattributedWorkspaces } from "./storage";
 
 export function RepositoryDialog() {
   const workspace = useWorkspace();
@@ -14,11 +17,17 @@ export function RepositoryDialog() {
   const [localError, setLocalError] = useState<string | null>(null);
   const [authResult, setAuthResult] = useState<GithubAuthResult>(() => getGithubAuthResult());
   const authConfig = getGithubAuthConfiguration();
+  const [legacyVisible, setLegacyVisible] = useState(false);
+  const [legacy, setLegacy] = useState<WorkspaceSnapshot[]>([]);
+  const [confirmedLegacyId, setConfirmedLegacyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!workspace.dialogOpen) {
       setInput("");
       setLocalError(null);
+      setLegacyVisible(false);
+      setLegacy([]);
+      setConfirmedLegacyId(null);
       return;
     }
     setAuthResult(getGithubAuthResult());
@@ -46,6 +55,47 @@ export function RepositoryDialog() {
     try {
       await beginGithubSignIn();
       setAuthResult(getGithubAuthResult());
+    } catch (reason) {
+      setLocalError(reason instanceof Error ? reason.message : String(reason));
+    }
+  };
+
+  const reviewLegacy = async () => {
+    setLocalError(null);
+    try {
+      setLegacy(await listUnattributedWorkspaces());
+      setLegacyVisible(true);
+    } catch (reason) {
+      setLocalError(reason instanceof Error ? reason.message : String(reason));
+    }
+  };
+
+  const exportLegacy = async () => {
+    setLocalError(null);
+    try {
+      const archive = await exportLegacyQuarantine();
+      downloadText(archive, "ghcode-legacy-recovery.json", "application/json;charset=utf-8");
+    } catch (reason) {
+      setLocalError(reason instanceof Error ? reason.message : String(reason));
+    }
+  };
+
+  const importLegacy = async (file: File | undefined) => {
+    if (!file) return;
+    setLocalError(null);
+    try {
+      await importLegacyQuarantine(await file.text());
+      await reviewLegacy();
+    } catch (reason) {
+      setLocalError(reason instanceof Error ? reason.message : String(reason));
+    }
+  };
+
+  const recoverLegacy = async (id: string) => {
+    setLocalError(null);
+    try {
+      if (confirmedLegacyId !== id) throw new Error("Confirm the historical data belongs to you.");
+      await workspace.recoverLegacy(id);
     } catch (reason) {
       setLocalError(reason instanceof Error ? reason.message : String(reason));
     }
@@ -94,14 +144,75 @@ export function RepositoryDialog() {
           <div className="workspace-dialog-error">{localError || workspace.error}</div>
         )}
         <div className="workspace-auth-status status-warning" role="status">
-          Historical v2 workspaces, cached files and layouts are preserved but cannot be restored
-          automatically. Only newly account-scoped sessions can be opened until explicit migration.
+          Historical unattributed v2 data is preserved but never restored automatically across
+          accounts. Explicit recovery requires a verified matching repository session.
         </div>
         {(workspace.authPhase === "failed" || workspace.authPhase === "invalidated") && (
           <button type="button" onClick={workspace.signOut}>
             Continue anonymously
           </button>
         )}
+        <section className="workspace-dialog-sections">
+          <div className="workspace-dialog-section-title">Historical data recovery</div>
+          <div className="workspace-github-auth">
+            <button type="button" onClick={() => void exportLegacy()}>
+              Export preserved v2 backup
+            </button>
+            <button type="button" onClick={() => void reviewLegacy()}>
+              Review unattributed workspaces
+            </button>
+            <label>
+              Import preserved backup
+              <input
+                type="file"
+                accept=".json,application/json"
+                onChange={(event) => void importLegacy(event.currentTarget.files?.[0])}
+              />
+            </label>
+          </div>
+          {legacyVisible && (
+            <div className="workspace-list">
+              {legacy.length === 0 && <p>No valid unattributed workspaces in the recovery archive.</p>}
+              {legacy.map((item) => {
+                const matching = Boolean(
+                  workspace.workspace &&
+                  workspace.workspace.repository.id === item.repository.id &&
+                  workspace.workspace.ref === item.ref
+                );
+                return (
+                  <div key={item.id} className="workspace-account-row">
+                    <div>
+                      <strong>{item.repository.fullName}</strong>
+                      <small>{item.ref}</small>
+                    </div>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={confirmedLegacyId === item.id}
+                        onChange={(event) =>
+                          setConfirmedLegacyId(event.currentTarget.checked ? item.id : null)
+                        }
+                      />
+                      I confirm this legacy workspace belongs to me
+                    </label>
+                    <button
+                      type="button"
+                      disabled={!matching || confirmedLegacyId !== item.id}
+                      onClick={() => void recoverLegacy(item.id)}
+                    >
+                      Recover into current repository
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {legacyVisible && !workspace.workspace && (
+            <p className="workspace-help">
+              First open the matching repository and ref through GitHub, then review recovery again.
+            </p>
+          )}
+        </section>
         <div className="workspace-dialog-sections">
           <section>
             <div className="workspace-dialog-section-title">Account</div>
