@@ -186,7 +186,7 @@ test("sign-out fences delayed repository responses", async ({ page }) => {
   await page.getByRole("textbox", { name: "Repository" }).fill(MOCK_REPOSITORY);
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await hit;
-  await page.getByTitle("Sign out").click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   release();
   await expect(page.locator(".workspace-repository-button")).toContainText("Open Repository");
   await expect(page.locator(".monaco-editor")).toHaveCount(0);
@@ -302,6 +302,7 @@ test("late private blob response cannot repopulate UI after sign-out", async ({ 
       await route.fallback();
     },
   );
+  await page.locator('[data-workbench-surface="primary"] .dv-tab').filter({ hasText: "Explorer" }).click();
   await page.locator('[data-workbench-surface="primary"]').getByTitle("README.md").click();
   await requestStarted;
   await page.getByTitle("Sign out").click();
@@ -328,5 +329,5 @@ test("repeated A-to-anonymous-to-B-to-A transitions restore only A's owned recen
   await authenticate(page, "token-a");
   await openDialog(page);
   await expect(page.getByText("Recent Workspaces")).toBeVisible();
-  await expect(page.getByRole("button", { name: new RegExp(MOCK_REPOSITORY) })).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(MOCK_REPOSITORY) }).first()).toBeVisible();
 });
