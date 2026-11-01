@@ -178,26 +178,40 @@ test(
 );
 
 test(
-  "failed browser stream initialization does not retain a subscriber",
+  "failed browser stream initialization detaches its subscriber and releases resources",
   async () => {
+    // The cleanup contract is tested with a controlled failure, rather than
+    // launching Chromium against a malformed URL (which can hang its driver).
     tempRoot = await mkdtemp(join(tmpdir(), "canvas-browser-failed-"));
-    const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined, 50);
-    const session = browserSession("<title>Subscriber failure</title>");
+    const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined, 10);
+    const session = browserSession("<title>Stream failure</title>");
+    let closed = false;
+    const live = {
+      session,
+      subscribers: new Map<number, unknown>(),
+      persistSubscriberId: null as number | null,
+      pendingDialog: null,
+      pendingFileChooser: null,
+      idleTimer: null as ReturnType<typeof setTimeout> | null,
+      context: { close: async () => { closed = true; } },
+    };
+    const internals = service as unknown as {
+      liveBrowsers: Map<string, Promise<unknown>>;
+      startScreencast: (live: unknown) => Promise<void>;
+    };
+    internals.liveBrowsers.set(session.profilePath, Promise.resolve(live));
+    internals.startScreencast = async () => { throw new Error("fixture screencast failure"); };
     try {
-      // A callback throwing during stream initialization must detach and release
-      // Chromium; avoid unreliable external-protocol/browser-network failure fixtures.
-      await expect(service.stream(session, { send: (message) => {
-        if (message.type === "state") throw new Error("fixture subscriber failure");
-      } })).rejects.toThrow("fixture subscriber failure");
-      const internals = service as unknown as { liveBrowsers: Map<string, unknown> };
-      await waitFor(() => internals.liveBrowsers.size === 0, "failed stream cleanup");
+      await expect(service.stream(session, { send: () => undefined }))
+        .rejects.toThrow("fixture screencast failure");
+      expect(live.subscribers.size).toBe(0);
+      await waitFor(() => closed && internals.liveBrowsers.size === 0, "failed stream cleanup");
     } finally {
       await service.close();
     }
   },
-  20_000,
+  10_000,
 );
-
 
 test(
   "browser file chooser rejects malformed bytes and accepts valid host uploads",
