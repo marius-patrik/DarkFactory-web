@@ -298,14 +298,26 @@ async function githubGraphql<T>(
 /** The single authenticated GitHub /user validation boundary. */
 export async function getGithubUser(token: string): Promise<GithubUser> {
   const value: unknown = await githubFetch<unknown>("/user", token);
-  if (!value || typeof value !== "object") throw new Error("Invalid authenticated GitHub identity.");
+  if (!value || typeof value !== "object")
+    throw new Error("Invalid authenticated GitHub identity.");
   const user = value as Record<string, unknown>;
-  if (typeof user.id !== "number" || !Number.isSafeInteger(user.id) || user.id <= 0 ||
-      typeof user.login !== "string" || !user.login.trim() ||
-      typeof user.avatar_url !== "string" || typeof user.html_url !== "string") {
+  if (
+    typeof user.id !== "number" ||
+    !Number.isSafeInteger(user.id) ||
+    user.id <= 0 ||
+    typeof user.login !== "string" ||
+    !user.login.trim() ||
+    typeof user.avatar_url !== "string" ||
+    typeof user.html_url !== "string"
+  ) {
     throw new Error("Invalid authenticated GitHub identity: /user must include a numeric ID.");
   }
-  return { id: user.id as number, login: user.login, avatar_url: user.avatar_url, html_url: user.html_url };
+  return {
+    id: user.id as number,
+    login: user.login,
+    avatar_url: user.avatar_url,
+    html_url: user.html_url,
+  };
 }
 
 export function listGithubRepositories(token: string) {
