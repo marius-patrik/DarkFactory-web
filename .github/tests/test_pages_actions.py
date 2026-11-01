@@ -18,6 +18,13 @@ class PagesActionsTests(unittest.TestCase):
         self.assertNotIn("git push origin HEAD:gh-pages", ci)
         self.assertFalse((ROOT / ".github/workflows/pr-preview.yml").exists())
 
+
+    def test_release_cannot_delete_arbitrary_work_branches(self):
+        ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertNotIn("cleanup-branches:", ci)
+        self.assertNotIn("gh api --method DELETE", ci)
+        self.assertNotIn("git push origin HEAD:gh-pages", ci)
+
     def test_release_is_blocked_until_deployment_passes(self):
         ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         release = ci.split("  release:", 1)[1]
