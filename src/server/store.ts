@@ -624,7 +624,7 @@ async function discoverGitRepositories(root: string, depth: number): Promise<str
 }
 
 function checkedGitPath(path: string): string {
-  if (!path.trim() || path.startsWith("/") || path.includes("\\0") || path.split(/[\\/]/).includes("..")) {
+  if (!path.trim() || path.startsWith("/") || path.includes(String.fromCharCode(0)) || path.split(/[\\/]/).includes("..")) {
     throw new Error("Git file path must be repository-relative and cannot traverse parents");
   }
   return path;

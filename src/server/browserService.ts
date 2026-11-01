@@ -1,9 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, isAbsolute, join, resolve } from "node:path";
 import { browserRuntimeUrl, browserStoredUrl } from "@/shared/browser";
 import type { BrowserSession } from "@/shared/schema";
-import { type BrowserContext, type CDPSession, type Frame, type Page, chromium } from "playwright-chromium";
+import { type BrowserContext, type CDPSession, type Dialog, type FileChooser, type Frame, type Page, chromium } from "playwright-chromium";
 
 type BrowserRenderer = "chromium";
 
@@ -37,7 +38,13 @@ export type BrowserErrorMessage = {
   message: string;
 };
 
-export type BrowserServerMessage = BrowserFrameMessage | BrowserStateMessage | BrowserErrorMessage;
+export type BrowserDialogMessage = { type: "dialog"; kind: string; message: string; defaultValue: string };
+export type BrowserFileChooserMessage = { type: "fileChooser"; multiple: boolean };
+export type BrowserDownloadMessage = { type: "download"; filename: string; path: string };
+
+export type BrowserServerMessage =
+  | BrowserFrameMessage | BrowserStateMessage | BrowserErrorMessage
+  | BrowserDialogMessage | BrowserFileChooserMessage | BrowserDownloadMessage;
 
 export type BrowserViewportMessage = {
   type: "viewport";
@@ -82,7 +89,9 @@ export type BrowserInteractionMessage =
   | { type: "reload"; url?: string }
   | { type: "navigate"; url: string; replace?: boolean }
   | { type: "click"; x: number; y: number; button?: "left" | "middle" | "right" }
-  | { type: "type"; text: string };
+  | { type: "type"; text: string }
+  | { type: "dialogResponse"; accept: boolean; promptText?: string }
+  | { type: "chooseFiles"; paths: string[] };
 
 export type BrowserStreamSubscriber = {
   send: (message: BrowserServerMessage) => void | Promise<void>;
@@ -108,6 +117,8 @@ type LiveBrowser = {
   lastFrame: BrowserFrameMessage | null;
   subscribers: Map<number, BrowserStreamSubscriber>;
   persistSubscriberId: number | null;
+  pendingDialog: Dialog | null;
+  pendingFileChooser: FileChooser | null;
 };
 
 type ScreencastEvent = {
@@ -204,6 +215,27 @@ export class BrowserFrameService {
     live.session = session;
     await this.startScreencast(live);
 
+    // Complete blocking browser UI before any further page navigation.
+    if (message.type === "dialogResponse") {
+      const dialog = live.pendingDialog;
+      live.pendingDialog = null;
+      if (dialog) {
+        if (message.accept) await dialog.accept(message.promptText);
+        else await dialog.dismiss();
+      }
+      return;
+    }
+    if (message.type === "chooseFiles") {
+      const chooser = live.pendingFileChooser;
+      live.pendingFileChooser = null;
+      if (message.paths.length > 20 ||
+        message.paths.some((path) => !isAbsolute(path) || path.includes(String.fromCharCode(0)))) {
+        throw new Error("file chooser accepts up to 20 absolute local file paths");
+      }
+      if (chooser) await chooser.setFiles(message.paths);
+      return;
+    }
+
     if (message.type === "viewport") {
       await this.setViewport(live, message);
       await this.broadcastState(live);
@@ -276,6 +308,7 @@ export class BrowserFrameService {
       viewport: { width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height },
       deviceScaleFactor: DEFAULT_VIEWPORT.deviceScaleFactor,
       ignoreHTTPSErrors: true,
+      acceptDownloads: true,
       args: [
         "--disable-background-networking",
         "--disable-gpu",
@@ -300,12 +333,46 @@ export class BrowserFrameService {
       lastFrame: null,
       subscribers: new Map(),
       persistSubscriberId: null,
+      pendingDialog: null,
+      pendingFileChooser: null,
     };
     this.bindPageEvents(live);
     return live;
   }
 
   private bindPageEvents(live: LiveBrowser): void {
+    live.page.on("dialog", (dialog) => {
+      if (live.subscribers.size === 0) {
+        void dialog.dismiss();
+        return;
+      }
+      live.pendingDialog = dialog;
+      void this.broadcast(live, {
+        type: "dialog", kind: dialog.type(), message: dialog.message(), defaultValue: dialog.defaultValue(),
+      });
+    });
+    live.page.on("filechooser", (chooser) => {
+      if (live.subscribers.size === 0) {
+        void chooser.setFiles([]);
+        return;
+      }
+      live.pendingFileChooser = chooser;
+      void this.broadcast(live, { type: "fileChooser", multiple: chooser.isMultiple() });
+    });
+    live.page.on("download", (download) => {
+      void (async () => {
+        try {
+          const directory = join(this.profilesRoot, "downloads");
+          await mkdir(directory, { recursive: true });
+          const filename = basename(download.suggestedFilename()) || "download";
+          const path = join(directory, `${randomUUID()}-${filename}`);
+          await download.saveAs(path);
+          await this.broadcast(live, { type: "download", filename, path });
+        } catch (error) {
+          await this.broadcast(live, { type: "error", message: `Download failed: ${errorMessage(error)}` });
+        }
+      })();
+    });
     live.page.on("request", (request) => {
       if (!request.isNavigationRequest() || request.frame() !== live.page.mainFrame()) return;
       live.loading = true;

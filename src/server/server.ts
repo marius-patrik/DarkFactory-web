@@ -453,6 +453,14 @@ function isBrowserInteractionMessage(command: Record<string, unknown>): command 
   if (command.type === "text") return typeof command.text === "string";
   if (command.type === "paste") return typeof command.text === "string";
   if (command.type === "type") return typeof command.text === "string";
+  if (command.type === "dialogResponse") {
+    return typeof command.accept === "boolean" &&
+      (command.promptText === undefined || typeof command.promptText === "string");
+  }
+  if (command.type === "chooseFiles") {
+    return Array.isArray(command.paths) && command.paths.length <= 20 &&
+      command.paths.every((path: unknown) => typeof path === "string");
+  }
   return false;
 }
 
