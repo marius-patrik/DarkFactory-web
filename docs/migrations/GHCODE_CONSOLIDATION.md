@@ -1,3 +1,5 @@
+> **Consolidated program update — 2026-11-01:** This document describes the **GHCode history-import subphase** only. The owner has selected a single final product combining **template-repo Canvas + GHCode + RSCode**, hosted in this repository and ultimately renamed to **`marius-patrik/darkfactory-web`**. The **sole canonical finite execution and acceptance plan** is [RSCode issue #31](https://github.com/marius-patrik/RSCode/issues/31). Preserve this document's verified ancestry evidence, but do not separately execute its earlier GHCode-only retirement workflow. No source repository deletion, runtime code import, or rename is authorized until the consolidated gates pass. No agent dispatches.
+
 # GHCode → RSCode consolidation
 
 **State:** Migration in progress; NOT accepted, not merged into `main`, GHCode repository NOT deleted.
