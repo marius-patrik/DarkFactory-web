@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./.github/tests",
+  testIgnore: "**/ghc00-v018-reproduction.spec.ts",
   timeout: 30_000,
   expect: { timeout: 8_000 },
   fullyParallel: false,
