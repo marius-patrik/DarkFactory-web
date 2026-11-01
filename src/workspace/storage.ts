@@ -6,6 +6,7 @@ import {
   clearKinds,
   commitStagedAtomic,
   exportLegacyQuarantine,
+  forkWorkspaceAtomic,
   importLegacyQuarantine,
   listLegacyQuarantine,
   loadOwnedWorkspace,
