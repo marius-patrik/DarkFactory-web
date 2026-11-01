@@ -536,7 +536,7 @@ function putRecord<T>(
     name,
     value,
     revisionId,
-    resourceId,
+    resourceId: resourceId ?? crypto.randomUUID(),
   } satisfies PersistedRecord<T>);
 }
 export function writeRecords<
@@ -544,22 +544,29 @@ export function writeRecords<
 >(sessionId: string, kind: RecordKind, rows: T[]) {
   for (const row of rows)
     if (row.workspaceId !== sessionId) throw new Error("Cross-session record write rejected.");
-  return mutate(sessionId, (tx, session, done) => {
+  return mutate(sessionId, (tx, session, done, fail) => {
+    const records = tx.objectStore("v3_records");
+    let pending = rows.length;
+    if (!pending) { done(); return; }
     for (const row of rows) {
       const name =
         kind === "blob" ? String(row.sha) : kind === "commit" ? String(row.id) : String(row.path);
       const revisionId = kind === "staged" ? crypto.randomUUID() : undefined;
-      putRecord(tx, session, kind, name, structuredClone(row), revisionId);
-      if (revisionId)
-        tx.objectStore("v3_revisions").add({
-          id: revisionId,
-          sessionId,
-          principalKey: session.principalKey,
-          kind,
-          value: structuredClone(row),
-        });
+      const identityKind = kind === "staged" ? "overlay" : kind;
+      const find = records.get(keyFor(sessionId, identityKind, name));
+      find.onsuccess = () => {
+        const existing = find.result as PersistedRecord | undefined;
+        try {
+          putRecord(tx, session, kind, name, structuredClone(row), revisionId, existing?.resourceId);
+          if (revisionId)
+            tx.objectStore("v3_revisions").add({
+              id: revisionId, sessionId, principalKey: session.principalKey,
+              kind, resourceId: existing?.resourceId, value: structuredClone(row),
+            });
+          if (!--pending) done();
+        } catch (reason) { fail(reason); }
+      };
     }
-    done();
   });
 }
 export function removeRecords(sessionId: string, kind: RecordKind, paths: string[]) {
