@@ -9,6 +9,11 @@ type BrowserSocketMessage = {
   image?: string;
   renderer?: string;
   message?: string;
+  kind?: string;
+  defaultValue?: string;
+  multiple?: boolean;
+  filename?: string;
+  path?: string;
   url?: string;
   width?: number;
   height?: number;
@@ -44,6 +49,10 @@ export function BrowserPane({
   const [browserError, setBrowserError] = useState<string | null>(null);
   const [pageTitle, setPageTitle] = useState(pane.title);
   const [loading, setLoading] = useState(false);
+  const [dialog, setDialog] = useState<{ kind: string; message: string; value: string } | null>(null);
+  const [fileChooser, setFileChooser] = useState<{ multiple: boolean } | null>(null);
+  const [filePaths, setFilePaths] = useState("");
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const viewportRef = useRef<HTMLButtonElement | null>(null);
   const paneRef = useRef(pane);
@@ -94,6 +103,16 @@ export function BrowserPane({
       } catch {
         setBrowserError("Browser sent an invalid message.");
         return;
+      }
+      if (parsed.type === "dialog") {
+        setDialog({ kind: parsed.kind ?? "alert", message: parsed.message ?? "", value: parsed.defaultValue ?? "" });
+      }
+      if (parsed.type === "fileChooser") {
+        setFileChooser({ multiple: parsed.multiple === true });
+        setFilePaths("");
+      }
+      if (parsed.type === "download" && parsed.path) {
+        setDownloadNotice(`Saved ${parsed.filename ?? "download"} to ${parsed.path}`);
       }
       if (parsed.type === "state" && parsed.browser) {
         const currentPane = paneRef.current;
@@ -340,6 +359,66 @@ export function BrowserPane({
           </div>
         ) : null}
       </button>
+      {dialog ? (
+        <div role="dialog" aria-label="Browser dialog" className="shrink-0 border-t border-border bg-[var(--panel-bg)] p-3 text-xs">
+          <p className="mb-2 break-words">{dialog.message}</p>
+          {dialog.kind === "prompt" ? (
+            <input
+              value={dialog.value}
+              onChange={(event) => setDialog({ ...dialog, value: event.target.value })}
+              aria-label="Dialog response"
+              className="mb-2 w-full rounded border border-border bg-[var(--input-bg)] px-2 py-1"
+            />
+          ) : null}
+          <div className="flex justify-end gap-2">
+            {dialog.kind !== "alert" ? (
+              <button type="button" className="rounded border border-border px-3 py-1"
+                onClick={() => { sendBrowserMessage({ type: "dialogResponse", accept: false }); setDialog(null); }}>
+                Cancel
+              </button>
+            ) : null}
+            <button type="button" className="rounded border border-border px-3 py-1"
+              onClick={() => { sendBrowserMessage({ type: "dialogResponse", accept: true, promptText: dialog.value }); setDialog(null); }}>
+              OK
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {fileChooser ? (
+        <form
+          className="shrink-0 border-t border-border bg-[var(--panel-bg)] p-3 text-xs"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const paths = filePaths.split("\\n").map((path) => path.trim()).filter(Boolean);
+            sendBrowserMessage({ type: "chooseFiles", paths });
+            setFileChooser(null);
+          }}
+        >
+          <label htmlFor="canvas-browser-files" className="mb-1 block">
+            Absolute local file path{fileChooser.multiple ? "s (one per line)" : ""}
+          </label>
+          <textarea
+            id="canvas-browser-files"
+            value={filePaths}
+            onChange={(event) => setFilePaths(event.target.value)}
+            rows={fileChooser.multiple ? 3 : 1}
+            className="w-full rounded border border-border bg-[var(--input-bg)] px-2 py-1"
+          />
+          <div className="mt-2 flex justify-end gap-2">
+            <button type="button" className="rounded border border-border px-3 py-1"
+              onClick={() => { sendBrowserMessage({ type: "chooseFiles", paths: [] }); setFileChooser(null); }}>
+              Cancel
+            </button>
+            <button type="submit" className="rounded border border-border px-3 py-1">Choose files</button>
+          </div>
+        </form>
+      ) : null}
+      {downloadNotice ? (
+        <div role="status" className="flex shrink-0 items-center gap-2 border-t border-border px-3 py-2 text-xs">
+          <span className="min-w-0 flex-1 break-all">{downloadNotice}</span>
+          <button type="button" onClick={() => setDownloadNotice(null)} className="rounded border border-border px-2 py-1">Dismiss</button>
+        </div>
+      ) : null}
     </div>
   );
 }

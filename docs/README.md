@@ -69,7 +69,7 @@ If tmux is unavailable or disabled, terminal panes fall back to direct PTYs and 
 ## Known Limitations
 
 - Browser panes stream Chromium pixels over CDP; they are not native DOM embedding.
-- Browser file chooser, download, and dialog handling is basic.
+- Browser dialogs are surfaced in the pane; file inputs accept absolute local file paths (not an OS file picker). Completed downloads are saved under the Canvas browser profile root in a downloads directory. These remain preview-grade workflows.
 
 ## Verify
 

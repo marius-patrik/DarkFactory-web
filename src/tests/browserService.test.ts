@@ -177,3 +177,30 @@ async function waitFor(predicate: () => boolean, label: string): Promise<void> {
   }
   throw new Error(`timed out waiting for ${label}`);
 }
+
+test(
+  "browser confirmation dialogs reach subscribers and can be answered",
+  async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "canvas-browser-"));
+    const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined);
+    const session = browserSession(
+      `<button id="confirm" style="position:absolute;left:10px;top:10px;width:140px;height:50px" onclick="document.title=confirm('Proceed?')?'confirmed':'cancelled'">Confirm</button>`,
+    );
+    const messages: Array<{ type: string; message?: string }> = [];
+    try {
+      const handle = await service.stream(session, { send: (message) => { messages.push(message); } });
+      try {
+        await service.interact(session, { type: "mouse", event: "down", x: 40, y: 35, button: "left" });
+        await service.interact(session, { type: "mouse", event: "up", x: 40, y: 35, button: "left" });
+        await waitFor(() => messages.some((message) => message.type === "dialog"), "browser confirmation dialog");
+        expect(messages.some((message) => message.message === "Proceed?")).toBe(true);
+        await service.interact(session, { type: "dialogResponse", accept: true });
+      } finally {
+        handle.close();
+      }
+    } finally {
+      await service.close();
+    }
+  },
+  20_000,
+);
