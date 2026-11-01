@@ -37,6 +37,23 @@ jobs:
           git bundle create darkfactory-web-three-source-history.bundle --all
           git bundle verify darkfactory-web-three-source-history.bundle
           sha256sum darkfactory-web-three-source-history.bundle > darkfactory-web-three-source-history.bundle.sha256
+      - name: Independently restore Git bundle and check all original source tips
+        run: |
+          set -euo pipefail
+          git clone --mirror darkfactory-web-three-source-history.bundle "$RUNNER_TEMP/three-source-restored.git"
+          python3 - "$RUNNER_TEMP/three-source-restored.git" <<'PY'
+          import json, subprocess, sys
+          from pathlib import Path
+          restored=sys.argv[1]
+          count=0
+          for filename in ('GHCODE_GIT_HISTORY.json','TEMPLATE_GIT_HISTORY.json'):
+              data=json.loads(Path('docs/migrations',filename).read_text())
+              for sha in sorted({v['commit'] for v in data['refs']}):
+                  subprocess.run(['git','-C',restored,'cat-file','-e',sha+'^{commit}'],check=True)
+                  count+=1
+          subprocess.run(['git','-C',restored,'fsck','--connectivity-only','--no-reflogs'],check=True)
+          print('RESTORE PASS: original source tip objects available:',count)
+          PY
       - name: Verify GHCode preserved source commit tip reachability
         run: |
           python3 - <<'PY'
@@ -53,6 +70,15 @@ jobs:
           METADATA_OUTPUT: ${{ runner.temp }}/source-metadata
         run: |
           python3 .github/scripts/export-source-metadata.py
+          python3 - "$METADATA_OUTPUT/EXPORT_REPORT.json" <<'PY'
+          import json,sys
+          obj=json.load(open(sys.argv[1]))
+          for name,result in obj['sourceRepos'].items():
+              assert not result.get('errors'), (name, result.get('errors'))
+              failed=[a for a in result.get('assets',[]) if a['status'] != 'saved']
+              assert not failed, (name, failed)
+          print('HOSTED EXPORT PASS: source API records and all discovered release assets saved')
+          PY
           tar -czf source-metadata.tar.gz -C "$METADATA_OUTPUT" .
           sha256sum source-metadata.tar.gz > source-metadata.tar.gz.sha256
       - name: Upload source hosted-metadata archive
