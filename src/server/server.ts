@@ -2,12 +2,12 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { ZodError } from "zod";
 import { type AppContext, lookupHandler } from "@/server/api";
 import { BrowserFrameService, type BrowserInteractionMessage, type BrowserStreamHandle } from "@/server/browserService";
 import { serveWebAsset } from "@/server/static";
 import { CanvasStore } from "@/server/store";
 import { getPaths, getServicePort, getServiceUrl } from "@/shared/paths";
+import { ZodError } from "zod";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
