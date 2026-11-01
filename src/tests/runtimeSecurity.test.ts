@@ -35,6 +35,9 @@ test("browser interaction payloads reject non-finite coordinates and unbounded t
   expect(isBrowserInteractionMessage({ type: "viewport", width: 800, height: 600 })).toBe(true);
   expect(isBrowserInteractionMessage({ type: "viewport", width: Number.POSITIVE_INFINITY, height: 600 })).toBe(false);
   expect(isBrowserInteractionMessage({ type: "viewport", width: -1, height: 600 })).toBe(false);
+  expect(isBrowserInteractionMessage({ type: "viewport", width: 500, height: 400, deviceScaleFactor: "invalid" })).toBe(false);
+  expect(isBrowserInteractionMessage({ type: "viewport", width: 500, height: 400, deviceScaleFactor: 0 })).toBe(false);
+  expect(isBrowserInteractionMessage({ type: "viewport", width: 500, height: 400, deviceScaleFactor: 2 })).toBe(true);
   expect(isBrowserInteractionMessage({ type: "mouse", event: "down", x: Number.NaN, y: 3 })).toBe(false);
   expect(isBrowserInteractionMessage({ type: "wheel", x: 0, y: 0, deltaX: Number.POSITIVE_INFINITY, deltaY: 0 })).toBe(false);
   expect(isBrowserInteractionMessage({ type: "paste", text: "x".repeat(65_537) })).toBe(false);
