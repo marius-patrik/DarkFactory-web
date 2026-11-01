@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { BrowserFrameService } from "@/server/browserService";
 import { lookupHandler } from "@/server/api";
+import { BrowserFrameService } from "@/server/browserService";
 import { isBrowserInteractionMessage, isTrustedLocalRequest } from "@/server/server";
 import type { BrowserSession } from "@/shared/schema";
 
@@ -33,10 +33,10 @@ test("API lookup never crosses into Object or Function prototypes", () => {
 
 test("browser interaction payloads reject non-finite coordinates and unbounded text", () => {
   expect(isBrowserInteractionMessage({ type: "viewport", width: 800, height: 600 })).toBe(true);
-  expect(isBrowserInteractionMessage({ type: "viewport", width: Infinity, height: 600 })).toBe(false);
+  expect(isBrowserInteractionMessage({ type: "viewport", width: Number.POSITIVE_INFINITY, height: 600 })).toBe(false);
   expect(isBrowserInteractionMessage({ type: "viewport", width: -1, height: 600 })).toBe(false);
   expect(isBrowserInteractionMessage({ type: "mouse", event: "down", x: Number.NaN, y: 3 })).toBe(false);
-  expect(isBrowserInteractionMessage({ type: "wheel", x: 0, y: 0, deltaX: Infinity, deltaY: 0 })).toBe(false);
+  expect(isBrowserInteractionMessage({ type: "wheel", x: 0, y: 0, deltaX: Number.POSITIVE_INFINITY, deltaY: 0 })).toBe(false);
   expect(isBrowserInteractionMessage({ type: "paste", text: "x".repeat(65_537) })).toBe(false);
   expect(isBrowserInteractionMessage({ type: "paste", text: "hello" })).toBe(true);
   expect(isBrowserInteractionMessage({ type: "chooseFiles", files: [{ name: "x", mimeType: "text/plain", data: "a".repeat(8_000_001) }] })).toBe(false);
