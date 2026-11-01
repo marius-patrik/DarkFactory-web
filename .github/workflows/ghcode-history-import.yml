@@ -1,0 +1,47 @@
+name: GHCode Git history preservation (one-time)
+on:
+  push:
+    branches:
+      - integration/ghcode-consolidation
+    paths:
+      - .github/workflows/ghcode-history-import.yml
+      - .github/scripts/import-ghcode-history.sh
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rscode-ghcode-history-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    name: Preserve GHCode refs and complete commit ancestry
+    if: github.repository == 'marius-patrik/RSCode'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/ghcode-consolidation
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Import all publicly reachable GHCode Git ancestry
+        env:
+          GHCODE_URL: https://github.com/marius-patrik/GHCode.git
+          IMPORT_BRANCH: integration/ghcode-consolidation
+        run: bash .github/scripts/import-ghcode-history.sh
+      - name: Back up imported Git graph as a portable bundle
+        run: |
+          set -euo pipefail
+          git bundle create ghcode-and-rscode-history.bundle --all
+          git bundle verify ghcode-and-rscode-history.bundle
+          sha256sum ghcode-and-rscode-history.bundle > ghcode-and-rscode-history.bundle.sha256
+      - name: Preserve migration backup as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghcode-rscode-original-git-history
+          path: |
+            ghcode-and-rscode-history.bundle
+            ghcode-and-rscode-history.bundle.sha256
+          if-no-files-found: error
+          retention-days: 90
