@@ -1,9 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, isAbsolute, join, resolve } from "node:path";
 import { browserRuntimeUrl, browserStoredUrl } from "@/shared/browser";
 import type { BrowserSession } from "@/shared/schema";
-import { type BrowserContext, type CDPSession, type Frame, type Page, chromium } from "playwright-chromium";
+import { type BrowserContext, type CDPSession, type Dialog, type FileChooser, type Frame, type Page, chromium } from "playwright-chromium";
 
 type BrowserRenderer = "chromium";
 
@@ -37,7 +38,13 @@ export type BrowserErrorMessage = {
   message: string;
 };
 
-export type BrowserServerMessage = BrowserFrameMessage | BrowserStateMessage | BrowserErrorMessage;
+export type BrowserDialogMessage = { type: "dialog"; kind: string; message: string; defaultValue: string };
+export type BrowserFileChooserMessage = { type: "fileChooser"; multiple: boolean };
+export type BrowserDownloadMessage = { type: "download"; filename: string; path: string };
+
+export type BrowserServerMessage =
+  | BrowserFrameMessage | BrowserStateMessage | BrowserErrorMessage
+  | BrowserDialogMessage | BrowserFileChooserMessage | BrowserDownloadMessage;
 
 export type BrowserViewportMessage = {
   type: "viewport";
@@ -82,7 +89,9 @@ export type BrowserInteractionMessage =
   | { type: "reload"; url?: string }
   | { type: "navigate"; url: string; replace?: boolean }
   | { type: "click"; x: number; y: number; button?: "left" | "middle" | "right" }
-  | { type: "type"; text: string };
+  | { type: "type"; text: string }
+  | { type: "dialogResponse"; accept: boolean; promptText?: string }
+  | { type: "chooseFiles"; paths?: string[]; files?: Array<{ name: string; mimeType: string; data: string }> };
 
 export type BrowserStreamSubscriber = {
   send: (message: BrowserServerMessage) => void | Promise<void>;
@@ -108,6 +117,8 @@ type LiveBrowser = {
   lastFrame: BrowserFrameMessage | null;
   subscribers: Map<number, BrowserStreamSubscriber>;
   persistSubscriberId: number | null;
+  pendingDialog: Dialog | null;
+  pendingFileChooser: FileChooser | null;
 };
 
 type ScreencastEvent = {
@@ -137,12 +148,25 @@ export class BrowserFrameService {
 
     await this.startScreencast(live);
     await this.ensurePageUrl(live, session.url);
+    // about:blank does not always repaint after screencast activation.
+    // Make an explicit initial capture so a new pane never waits forever for CDP frames.
+    if (!live.lastFrame || live.lastFrame.url !== browserStoredUrl(live.page.url())) {
+      await this.captureInitialFrame(live);
+    }
     await this.sendToSubscriber(subscriber, await this.stateForLive(live));
     if (live.lastFrame) await this.sendToSubscriber(subscriber, live.lastFrame);
 
     return {
       close: () => {
         live.subscribers.delete(subscriberId);
+        if (live.subscribers.size === 0) {
+          const dialog = live.pendingDialog;
+          live.pendingDialog = null;
+          if (dialog) void dialog.dismiss().catch(() => undefined);
+          const chooser = live.pendingFileChooser;
+          live.pendingFileChooser = null;
+          if (chooser) void chooser.setFiles([]).catch(() => undefined);
+        }
         if (live.persistSubscriberId === subscriberId) {
           live.persistSubscriberId = null;
           for (const [id, candidate] of live.subscribers) {
@@ -199,6 +223,48 @@ export class BrowserFrameService {
     live.session = session;
     await this.startScreencast(live);
 
+    // Complete blocking browser UI before any further page navigation.
+    if (message.type === "dialogResponse") {
+      const dialog = live.pendingDialog;
+      live.pendingDialog = null;
+      if (dialog) {
+        if (message.accept) await dialog.accept(message.promptText);
+        else await dialog.dismiss();
+        await this.updateTitle(live);
+        await this.broadcastState(live);
+      }
+      return;
+    }
+    if (message.type === "chooseFiles") {
+      const paths = message.paths ?? [];
+      const files = message.files ?? [];
+      if (paths.length + files.length > 20 ||
+        paths.some((path) => !isAbsolute(path) || path.includes(String.fromCharCode(0))) ||
+        files.some((file) =>
+          !file.name || !file.mimeType || file.name.includes(String.fromCharCode(0)) ||
+          file.data.length > 8_000_000
+        ) ||
+        files.reduce((sum, file) => sum + file.data.length, 0) > 12_000_000) {
+        throw new Error("file chooser rejected invalid paths or oversized files");
+      }
+      const chooser = live.pendingFileChooser;
+      live.pendingFileChooser = null;
+      if (chooser) {
+        if (files.length > 0) {
+          await chooser.setFiles(files.map((file) => ({
+            name: basename(file.name.replaceAll("\\\\", "/")),
+            mimeType: file.mimeType,
+            buffer: Buffer.from(file.data, "base64"),
+          })));
+        } else {
+          await chooser.setFiles(paths);
+        }
+        await this.updateTitle(live);
+        await this.broadcastState(live);
+      }
+      return;
+    }
+
     if (message.type === "viewport") {
       await this.setViewport(live, message);
       await this.broadcastState(live);
@@ -231,6 +297,8 @@ export class BrowserFrameService {
       await this.dispatchPaste(live, message.text);
     }
 
+    // Reading the page title while a JavaScript dialog is open can block indefinitely.
+    if (live.pendingDialog) return;
     await live.page.waitForLoadState("domcontentloaded", { timeout: 1_000 }).catch(() => undefined);
     await this.updateTitle(live);
     await this.broadcastState(live);
@@ -271,6 +339,7 @@ export class BrowserFrameService {
       viewport: { width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height },
       deviceScaleFactor: DEFAULT_VIEWPORT.deviceScaleFactor,
       ignoreHTTPSErrors: true,
+      acceptDownloads: true,
       args: [
         "--disable-background-networking",
         "--disable-gpu",
@@ -281,6 +350,13 @@ export class BrowserFrameService {
     });
     const page = context.pages()[0] ?? (await context.newPage());
     await page.setViewportSize({ width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height });
+    // A newly created about:blank tab may not have a painted compositor surface.
+    // Establish a real blank document while preserving its native about:blank URL.
+    if (page.url() === "about:blank") {
+      await page.setContent("<!doctype html><html><head><title>Blank</title></head><body></body></html>", {
+        waitUntil: "domcontentloaded",
+      });
+    }
     const cdp = await context.newCDPSession(page);
     const live: LiveBrowser = {
       context,
@@ -295,12 +371,46 @@ export class BrowserFrameService {
       lastFrame: null,
       subscribers: new Map(),
       persistSubscriberId: null,
+      pendingDialog: null,
+      pendingFileChooser: null,
     };
     this.bindPageEvents(live);
     return live;
   }
 
   private bindPageEvents(live: LiveBrowser): void {
+    live.page.on("dialog", (dialog) => {
+      if (live.subscribers.size === 0) {
+        void dialog.dismiss();
+        return;
+      }
+      live.pendingDialog = dialog;
+      void this.broadcast(live, {
+        type: "dialog", kind: dialog.type(), message: dialog.message(), defaultValue: dialog.defaultValue(),
+      });
+    });
+    live.page.on("filechooser", (chooser) => {
+      if (live.subscribers.size === 0) {
+        void chooser.setFiles([]);
+        return;
+      }
+      live.pendingFileChooser = chooser;
+      void this.broadcast(live, { type: "fileChooser", multiple: chooser.isMultiple() });
+    });
+    live.page.on("download", (download) => {
+      void (async () => {
+        try {
+          const directory = join(this.profilesRoot, "downloads");
+          await mkdir(directory, { recursive: true });
+          const filename = basename(download.suggestedFilename()) || "download";
+          const path = join(directory, `${randomUUID()}-${filename}`);
+          await download.saveAs(path);
+          await this.broadcast(live, { type: "download", filename, path });
+        } catch (error) {
+          await this.broadcast(live, { type: "error", message: `Download failed: ${errorMessage(error)}` });
+        }
+      })();
+    });
     live.page.on("request", (request) => {
       if (!request.isNavigationRequest() || request.frame() !== live.page.mainFrame()) return;
       live.loading = true;
@@ -331,6 +441,30 @@ export class BrowserFrameService {
       void this.handleScreencastFrame(live, event as ScreencastEvent);
     });
     await live.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+  }
+
+  private async captureInitialFrame(live: LiveBrowser): Promise<void> {
+    const result = (await live.cdp.send("Page.captureScreenshot", {
+      format: "png",
+      captureBeyondViewport: true,
+      fromSurface: true,
+      clip: { x: 0, y: 0, width: live.viewport.width, height: live.viewport.height, scale: 1 },
+    })) as { data: string };
+    const dimensions = pngDimensions(result.data);
+    if (!dimensions) throw new Error("Chromium initial screenshot did not produce a valid PNG");
+    const frame: BrowserFrameMessage = {
+      type: "frame",
+      url: browserStoredUrl(live.page.url()),
+      image: `data:image/png;base64,${result.data}`,
+      mimeType: "image/png",
+      renderer: "chromium",
+      width: dimensions.width,
+      height: dimensions.height,
+      ts: Date.now(),
+    };
+    live.currentUrl = live.page.url();
+    live.lastFrame = frame;
+    await this.broadcast(live, frame);
   }
 
   private async handleScreencastFrame(live: LiveBrowser, event: ScreencastEvent): Promise<void> {
@@ -364,7 +498,12 @@ export class BrowserFrameService {
 
   private async ensurePageUrl(live: LiveBrowser, url: string): Promise<void> {
     const targetUrl = browserRuntimeUrl(url);
-    if (live.currentUrl === targetUrl && live.page.url() === targetUrl) return;
+    // CDP screencast timestamps can lag the actual page URL. Do not navigate a second
+    // time merely because the cached screencast URL is stale during user interaction.
+    if (live.page.url() === targetUrl) {
+      live.currentUrl = targetUrl;
+      return;
+    }
     live.loading = true;
     await this.broadcastState(live);
     await live.page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 12_000 });

@@ -33,6 +33,9 @@ export type CanvasClient = {
     repositories(input: { rootPath: string; depth?: number }): Promise<{ repositories: GitRepository[] }>;
     status(input: { repoPath: string }): Promise<{ status: GitStatus }>;
     diff(input: { repoPath: string; path?: string }): Promise<{ diff: GitDiff }>;
+    stage(input: { repoPath: string; path: string }): Promise<{ status: GitStatus }>;
+    unstage(input: { repoPath: string; path: string }): Promise<{ status: GitStatus }>;
+    commit(input: { repoPath: string; message: string }): Promise<{ status: GitStatus }>;
   };
   browser: {
     navigate(input: {
@@ -105,6 +108,9 @@ export function makeClient(url = getBaseUrl()): CanvasClient {
       repositories: (input) => post(url, "git.repositories", input),
       status: (input) => post(url, "git.status", input),
       diff: (input) => post(url, "git.diff", input),
+      stage: (input) => post(url, "git.stage", input),
+      unstage: (input) => post(url, "git.unstage", input),
+      commit: (input) => post(url, "git.commit", input),
     },
     browser: {
       navigate: (input) => post(url, "browser.navigate", input),

@@ -1,4 +1,4 @@
-import type { PaneRect, TiledLayoutNode } from "@/shared/schema";
+import type { PaneRect, TiledLayoutNode, ViewportState } from "@/shared/schema";
 
 const MIN_PANE_WIDTH = 300;
 const MIN_PANE_HEIGHT = 220;
@@ -184,4 +184,29 @@ function leafForPane(paneId: string): TiledLayoutNode {
 function layoutContains(layout: TiledLayoutNode, paneId: string): boolean {
   if (layout.type === "leaf") return leafPaneIds(layout).includes(paneId);
   return layoutContains(layout.first, paneId) || layoutContains(layout.second, paneId);
+}
+
+/** Canvas viewport coordinates are CSS pixels; pane rectangles are world units. */
+export function panCanvasViewport(viewport: ViewportState, dx: number, dy: number): ViewportState {
+  return { ...viewport, x: viewport.x + dx, y: viewport.y + dy };
+}
+
+export function canvasDeltaToWorld(delta: number, zoom: number): number {
+  return delta / zoom;
+}
+
+/** Zoom about the cursor without moving the world point beneath it. */
+export function zoomCanvasViewport(
+  viewport: ViewportState,
+  anchorX: number,
+  anchorY: number,
+  factor: number,
+): ViewportState {
+  const zoom = Math.min(4, Math.max(0.25, viewport.zoom * factor));
+  const ratio = zoom / viewport.zoom;
+  return {
+    x: anchorX - (anchorX - viewport.x) * ratio,
+    y: anchorY - (anchorY - viewport.y) * ratio,
+    zoom,
+  };
 }

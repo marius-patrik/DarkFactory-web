@@ -100,6 +100,18 @@ export const api = {
       z.object({ repoPath: fsPathSchema, path: z.string().default(".") }),
       async (ctx, input) => ({ diff: await ctx.store.getGitDiff(input.repoPath, input.path) }),
     ),
+    stage: schema(
+      z.object({ repoPath: fsPathSchema, path: z.string().min(1) }),
+      async (ctx, input) => ({ status: await ctx.store.stageGitPath(input.repoPath, input.path) }),
+    ),
+    unstage: schema(
+      z.object({ repoPath: fsPathSchema, path: z.string().min(1) }),
+      async (ctx, input) => ({ status: await ctx.store.unstageGitPath(input.repoPath, input.path) }),
+    ),
+    commit: schema(
+      z.object({ repoPath: fsPathSchema, message: z.string().trim().min(1).max(5000) }),
+      async (ctx, input) => ({ status: await ctx.store.commitGit(input.repoPath, input.message) }),
+    ),
   },
 
   browser: {

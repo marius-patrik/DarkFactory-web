@@ -250,6 +250,15 @@ test("discovers git repositories and returns readonly status and diff", async ()
     const diff = await store.getGitDiff(repo, "file.txt");
     expect(diff.diff).toContain("-one");
     expect(diff.diff).toContain("+two");
+
+    const staged = await store.stageGitPath(repo, "file.txt");
+    expect(staged.files.find((file) => file.path === "file.txt")?.staged).toBe(true);
+    const unstaged = await store.unstageGitPath(repo, "file.txt");
+    expect(unstaged.files.find((file) => file.path === "file.txt")?.staged).toBe(false);
+    await expect(store.stageGitPath(repo, "../outside.txt")).rejects.toThrow("repository-relative");
+    await store.stageGitPath(repo, "file.txt");
+    const committed = await store.commitGit(repo, "save changes");
+    expect(committed.clean).toBe(true);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

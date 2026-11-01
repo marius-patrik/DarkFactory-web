@@ -1,36 +1,32 @@
-# Canvas v0.1.0 — local preview
+# Canvas v0.2.0 — local preview
 
-First versioned preview of the standalone RSCode Canvas development workspace.
+This release builds on the v0.1.0 source/web preview without converting the local workspace into an internet-facing application.
 
-## Features
-- Workspaces with tiled, floating, and freeform panes
-- Monaco editor and filesystem explorer
-- tmux-backed terminal sessions (with direct-PTY fallback)
-- Chromium browser panes with CDP frame streaming and navigation history
-- Read-only Git repository/status/diff inspection
-- Workspace persistence and customizable dark/light themes
+## New functionality
 
-## Release hardening
-- Browser resize frames reflect encoded PNG dimensions
-- Protection against cross-origin access to privileged local APIs
-- JSON POST-only API, eliminating destructive actions via GET
-- Existing-file creation no longer overwrites data
-- Crash-resistant workspace JSON saves
-- Confirmation before discarding unsaved editor drafts
-- Context menus fit within small viewports and Monaco follows the active theme
-- Real Chromium UI smoke tests and screenshot artifacts
+- Interactive Canvas viewport with panning, anchored 25%–400% zoom, world-space dragging and resizing, and reset view.
+- Local Git stage, unstage and commit actions directly from Source Control, with path validation and regression tests.
+- Browser JavaScript dialog handling, native host file selection (8 MB total), and downloaded-file persistence.
+- Deterministic initial PNG capture for Chromium pages that do not repaint.
+- Debounced Canvas viewport persistence and isolated Chromium tests for reliability.
+
+## Existing functionality
+
+Monaco editing, workspace persistence, tiled/floating/canvas panes, tmux-backed terminals with direct PTY fallback, Chromium streaming and browser history, local filesystem exploration, and customizable themes.
 
 ## Install
-Prerequisites: Bun 1.3.11+, Chromium (Playwright Chromium recommended), and optionally tmux for persistent terminals.
 
-```bash
-tar -xzf canvas-v0.1.0-source-web.tar.gz
-cd canvas-v0.1.0
+Prerequisites: Bun 1.3.11+, Playwright Chromium, and optional tmux for process persistence.
+
+```sh
+tar -xzf canvas-v0.2.0-source-web.tar.gz
+cd canvas-v0.2.0
 bun install --frozen-lockfile
 bun run start
 ```
 
-Open `http://127.0.0.1:4567`. For development with frontend HMR use `bun run dev`.
+Open `http://127.0.0.1:4567`.
 
-## Important limitations
-Preview software intended for **local use only**. No external server binding or authenticated multi-user access. No native installers are included. Browser file pickers/downloads/dialogs remain basic; Git access is read-only. tmux is needed for terminal process persistence. Validate screenshots and workflows on your own system before using it for important work.
+## Limitations
+
+Local-only preview; no multi-user authentication or remote deployment. The browser pane uses the host file picker with an 8 MB upload limit. No signed native installers are included. Terminal persistence requires tmux. Review the UX audit and test on your target OS before critical work.

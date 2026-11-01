@@ -13,7 +13,7 @@ Canvas is a standalone local UI for workspace, filesystem, terminal, browser, an
 - Browse folders and files.
 - Open and edit files in managed Monaco panes.
 - Open tmux-backed terminal panes rooted at local directories.
-- Inspect readonly git status and diffs for repositories under a workspace.
+- Inspect Git status and diffs, stage and unstage files, and create local commits for repositories under a workspace.
 - Open live CDP streamed Chromium browser panes with persisted workspace profiles, navigation history, and in-page URL changes.
 - Use browser back, forward, and reload controls from the pane toolbar.
 - Preserve multiple workspaces with tiled and canvas pane layouts.
@@ -25,7 +25,7 @@ Canvas is a standalone local UI for workspace, filesystem, terminal, browser, an
 - Tmux-backed terminal panes with direct PTY fallback when tmux is unavailable.
 - Workspace persistence.
 - Tiled, floating, and canvas pane layouts.
-- Readonly git repository, status, and diff panes.
+- Local git repository, status, diff, staging and commit panes.
 - Live CDP streamed Chromium browser panes with history controls.
 - Local development with Rsbuild HMR and a watched Bun API process.
 - `CanvasMount` as an internal embeddable Canvas API.
