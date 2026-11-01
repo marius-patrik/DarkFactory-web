@@ -93,6 +93,15 @@ export function RepositoryDialog() {
         {(localError || workspace.error) && (
           <div className="workspace-dialog-error">{localError || workspace.error}</div>
         )}
+        <div className="workspace-auth-status status-warning" role="status">
+          Historical v2 workspaces, cached files and layouts are preserved but cannot be restored
+          automatically. Only newly account-scoped sessions can be opened until explicit migration.
+        </div>
+        {(workspace.authPhase === "failed" || workspace.authPhase === "invalidated") && (
+          <button type="button" onClick={workspace.signOut}>
+            Continue anonymously
+          </button>
+        )}
         <div className="workspace-dialog-sections">
           <section>
             <div className="workspace-dialog-section-title">Account</div>

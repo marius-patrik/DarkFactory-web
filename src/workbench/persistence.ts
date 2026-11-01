@@ -1,4 +1,5 @@
 import type { AppearanceMode } from "@/settings";
+import type { PrincipalKey } from "@/workspace/identity";
 import type {
   PersistedWorkbench,
   WorkbenchRootSizes,
@@ -6,8 +7,10 @@ import type {
   WorkbenchSurfaceState,
 } from "./model";
 
-const STORAGE_KEY = "workbench-layout-v2";
-const LEGACY_STORAGE_KEY = "workbench-layout-v1";
+// Unattributed v1/v2 layouts can contain private tabs or editor text; preserve but never restore.
+const OWNED_LAYOUT_PREFIX = "ghcode-layout-owned-v1:";
+const keyFor = (principal: PrincipalKey) =>
+  `${OWNED_LAYOUT_PREFIX}${encodeURIComponent(principal)}`;
 
 const DEFAULT_VISIBILITY: Record<WorkbenchSurface, boolean> = {
   primary: true,
@@ -83,17 +86,15 @@ function parsePersisted(raw: string | null, theme: AppearanceMode): PersistedWor
   }
 }
 
-export function loadWorkbench(theme: AppearanceMode): PersistedWorkbench {
-  const current = parsePersisted(localStorage.getItem(STORAGE_KEY), theme);
-  if (current) return current;
-  const legacy = parsePersisted(localStorage.getItem(LEGACY_STORAGE_KEY), theme);
-  if (legacy) return legacy;
-  return emptyPersistedWorkbench(theme);
+export function loadWorkbench(theme: AppearanceMode, principal: PrincipalKey): PersistedWorkbench {
+  return (
+    parsePersisted(localStorage.getItem(keyFor(principal)), theme) ?? emptyPersistedWorkbench(theme)
+  );
 }
 
-export function saveWorkbench(state: PersistedWorkbench) {
+export function saveWorkbench(state: PersistedWorkbench, principal: PrincipalKey) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(keyFor(principal), JSON.stringify(state));
   } catch {
     // Layout persistence must not make the workbench unusable.
   }
