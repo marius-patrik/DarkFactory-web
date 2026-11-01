@@ -317,6 +317,9 @@ function sessionFromSnapshot(snapshot: WorkspaceSnapshot): Session {
 }
 export async function persistWorkspace(snapshot: WorkspaceSnapshot) {
   validateSession(snapshot);
+  // A previously scoped v2 session must be copied before any v3 snapshot update,
+  // otherwise its staged work and local commits would become unreachable.
+  await loadOwnedWorkspace(snapshot.id, snapshot.ownership.principalKey);
   const existing = await readSession(snapshot.id, snapshot.ownership.principalKey);
   if (existing) {
     await mutate(snapshot.id, (_tx, session, done) => {
