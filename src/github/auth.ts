@@ -1,3 +1,14 @@
+/** Public PR builds use a shared, pull-request preview path. Credentials are prohibited there. */
+export function isPublicReviewPreview(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.location.hostname.endsWith(".github.io") &&
+    window.location.pathname
+      .split("/")
+      .some((part) => part.startsWith("pr-") && /^[0-9]+$/.test(part.slice(3)))
+  );
+}
+
 const TOKEN_KEY = "workbench-github-token";
 const AUTH_TRANSACTION_KEY = "workbench-github-auth-transaction";
 const AUTH_RESULT_KEY = "workbench-github-auth-result";
@@ -51,7 +62,10 @@ function readCredential(): GithubCredential | null {
   try {
     const parsed = JSON.parse(raw) as Partial<GithubCredential>;
     if (typeof parsed.token === "string" && parsed.token) {
-      return { token: parsed.token, expiresAt: typeof parsed.expiresAt === "number" ? parsed.expiresAt : undefined };
+      return {
+        token: parsed.token,
+        expiresAt: typeof parsed.expiresAt === "number" ? parsed.expiresAt : undefined,
+      };
     }
   } catch {
     return { token: raw };
@@ -60,24 +74,36 @@ function readCredential(): GithubCredential | null {
 }
 
 export function getGithubToken() {
+  if (isPublicReviewPreview()) return null;
   const credential = readCredential();
   if (!credential) return null;
   if (credential.expiresAt && credential.expiresAt <= Date.now()) {
     storage()?.removeItem(TOKEN_KEY);
-    setAuthResult({ phase: "expired", message: "Your GitHub session expired. Sign in again to continue private or remote-write workflows." });
+    setAuthResult({
+      phase: "expired",
+      message:
+        "Your GitHub session expired. Sign in again to continue private or remote-write workflows.",
+    });
     return null;
   }
   return credential.token;
 }
 
 export function setGithubToken(token: string, expiresAt?: number) {
+  if (isPublicReviewPreview())
+    throw new Error(
+      "GitHub authentication is disabled on public review previews. Open the official site to sign in.",
+    );
   const value = token.trim();
   if (!value) throw new Error("GitHub credential cannot be empty.");
   const existing = readCredential();
-  storage()?.setItem(TOKEN_KEY, JSON.stringify({
-    token: value,
-    expiresAt: expiresAt ?? (existing?.token === value ? existing.expiresAt : undefined),
-  } satisfies GithubCredential));
+  storage()?.setItem(
+    TOKEN_KEY,
+    JSON.stringify({
+      token: value,
+      expiresAt: expiresAt ?? (existing?.token === value ? existing.expiresAt : undefined),
+    } satisfies GithubCredential),
+  );
 }
 
 export function clearGithubToken() {
@@ -91,15 +117,22 @@ export function getGithubAuthResult(): GithubAuthResult {
   if (!raw) return { phase: "signed-out" };
   try {
     const parsed = JSON.parse(raw) as Partial<GithubAuthResult>;
-    if (["signed-out", "pending", "success", "expired", "denied", "error"].includes(parsed.phase ?? "")) {
-      return { phase: parsed.phase as GithubAuthPhase, message: typeof parsed.message === "string" ? parsed.message : undefined };
+    if (
+      ["signed-out", "pending", "success", "expired", "denied", "error"].includes(
+        parsed.phase ?? "",
+      )
+    ) {
+      return {
+        phase: parsed.phase as GithubAuthPhase,
+        message: typeof parsed.message === "string" ? parsed.message : undefined,
+      };
     }
-  } catch {
-  }
+  } catch {}
   return { phase: "signed-out" };
 }
 
 export function getGithubAuthConfiguration(): GithubAuthConfiguration {
+  if (isPublicReviewPreview()) return { clientId: "", brokerUrl: "", configured: false };
   const clientId = import.meta.env.PUBLIC_GITHUB_OAUTH_CLIENT_ID?.trim() ?? "";
   const brokerUrl = import.meta.env.PUBLIC_GITHUB_AUTH_BROKER_URL?.trim() ?? "";
   return { clientId, brokerUrl, configured: Boolean(clientId && brokerUrl) };
@@ -107,12 +140,18 @@ export function getGithubAuthConfiguration(): GithubAuthConfiguration {
 
 function randomUrlSafe(byteLength = 32) {
   const bytes = crypto.getRandomValues(new Uint8Array(byteLength));
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
 }
 
 async function challengeFor(verifier: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
-  return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
 }
 
 function callbackUrl() {
@@ -135,9 +174,9 @@ function readTransaction(): GithubAuthTransaction | null {
       typeof parsed.verifier === "string" &&
       typeof parsed.redirectUri === "string" &&
       typeof parsed.createdAt === "number"
-    ) return parsed as GithubAuthTransaction;
-  } catch {
-  }
+    )
+      return parsed as GithubAuthTransaction;
+  } catch {}
   return null;
 }
 
@@ -153,6 +192,8 @@ export function hasGithubAuthCallback() {
 }
 
 export async function beginGithubSignIn() {
+  if (isPublicReviewPreview())
+    throw new Error("Sign-in is disabled on untrusted PR preview pages.");
   const config = getGithubAuthConfiguration();
   if (!config.configured) throw new Error("GitHub sign-in is not configured for this deployment.");
 
@@ -160,7 +201,12 @@ export async function beginGithubSignIn() {
   const verifier = randomUrlSafe(48);
   const redirectUri = callbackUrl();
   const challenge = await challengeFor(verifier);
-  const transaction: GithubAuthTransaction = { state, verifier, redirectUri, createdAt: Date.now() };
+  const transaction: GithubAuthTransaction = {
+    state,
+    verifier,
+    redirectUri,
+    createdAt: Date.now(),
+  };
   storage()?.setItem(AUTH_TRANSACTION_KEY, JSON.stringify(transaction));
   setAuthResult({ phase: "pending", message: "Waiting for GitHub authorization." });
 
@@ -187,7 +233,9 @@ export async function completeGithubSignIn(): Promise<string | null> {
     const denied = error === "access_denied";
     setAuthResult({
       phase: denied ? "denied" : "error",
-      message: errorDescription || (denied ? "GitHub authorization was denied." : `GitHub authorization failed: ${error}`),
+      message:
+        errorDescription ||
+        (denied ? "GitHub authorization was denied." : `GitHub authorization failed: ${error}`),
     });
     return null;
   }
@@ -195,7 +243,10 @@ export async function completeGithubSignIn(): Promise<string | null> {
   if (!transaction || Date.now() - transaction.createdAt > AUTH_TTL_MS) {
     storage()?.removeItem(AUTH_TRANSACTION_KEY);
     stripCallbackParameters();
-    setAuthResult({ phase: "expired", message: "The GitHub authorization request expired. Start sign-in again." });
+    setAuthResult({
+      phase: "expired",
+      message: "The GitHub authorization request expired. Start sign-in again.",
+    });
     return null;
   }
 
@@ -211,25 +262,42 @@ export async function completeGithubSignIn(): Promise<string | null> {
   const config = getGithubAuthConfiguration();
   if (!config.configured) {
     stripCallbackParameters();
-    setAuthResult({ phase: "error", message: "The GitHub auth broker is not configured for this deployment." });
+    setAuthResult({
+      phase: "error",
+      message: "The GitHub auth broker is not configured for this deployment.",
+    });
     return null;
   }
 
-  setAuthResult({ phase: "pending", message: "Authorization received. Verifying your GitHub account…" });
+  setAuthResult({
+    phase: "pending",
+    message: "Authorization received. Verifying your GitHub account…",
+  });
   try {
     const response = await fetch(config.brokerUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       credentials: "omit",
-      body: JSON.stringify({ provider: "github", code, codeVerifier: transaction.verifier, redirectUri: transaction.redirectUri }),
+      body: JSON.stringify({
+        provider: "github",
+        code,
+        codeVerifier: transaction.verifier,
+        redirectUri: transaction.redirectUri,
+      }),
     });
-    const payload = await response.json().catch(() => ({})) as GithubTokenResponse;
-    if (!response.ok) throw new Error(payload.error_description || payload.error || `GitHub token exchange failed (${response.status}).`);
+    const payload = (await response.json().catch(() => ({}))) as GithubTokenResponse;
+    if (!response.ok)
+      throw new Error(
+        payload.error_description ||
+          payload.error ||
+          `GitHub token exchange failed (${response.status}).`,
+      );
     const token = (payload.access_token || payload.token || "").trim();
     if (!token) throw new Error("The auth broker did not return a GitHub access token.");
-    const expiresAt = typeof payload.expires_in === "number" && payload.expires_in > 0
-      ? Date.now() + payload.expires_in * 1000
-      : undefined;
+    const expiresAt =
+      typeof payload.expires_in === "number" && payload.expires_in > 0
+        ? Date.now() + payload.expires_in * 1000
+        : undefined;
     setGithubToken(token, expiresAt);
     storage()?.removeItem(AUTH_TRANSACTION_KEY);
     stripCallbackParameters();
@@ -237,7 +305,10 @@ export async function completeGithubSignIn(): Promise<string | null> {
   } catch (reason) {
     storage()?.removeItem(AUTH_TRANSACTION_KEY);
     stripCallbackParameters();
-    setAuthResult({ phase: "error", message: reason instanceof Error ? reason.message : String(reason) });
+    setAuthResult({
+      phase: "error",
+      message: reason instanceof Error ? reason.message : String(reason),
+    });
     return null;
   }
 }
@@ -247,5 +318,8 @@ export function markGithubSignInSuccess() {
 }
 
 export function markGithubSignInError(reason: unknown) {
-  setAuthResult({ phase: "error", message: reason instanceof Error ? reason.message : String(reason) });
+  setAuthResult({
+    phase: "error",
+    message: reason instanceof Error ? reason.message : String(reason),
+  });
 }

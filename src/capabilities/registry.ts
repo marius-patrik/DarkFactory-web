@@ -1,10 +1,4 @@
-export type BrowserRendererId =
-  | "markdown"
-  | "html"
-  | "pdf"
-  | "image"
-  | "text"
-  | "binary";
+export type BrowserRendererId = "markdown" | "html" | "pdf" | "image" | "text" | "binary";
 
 export type ResourceCapabilityProvider = {
   id: string;
@@ -182,8 +176,19 @@ const providers: ResourceCapabilityProvider[] = [
     id: "binary",
     label: "Binary",
     extensions: [
-      "ico", "zip", "gz", "tar", "woff", "woff2", "ttf", "otf",
-      "wasm", "mp3", "mp4", "mov", "avi",
+      "ico",
+      "zip",
+      "gz",
+      "tar",
+      "woff",
+      "woff2",
+      "ttf",
+      "otf",
+      "wasm",
+      "mp3",
+      "mp4",
+      "mov",
+      "avi",
     ],
     mime: "application/octet-stream",
     binary: true,
@@ -241,12 +246,17 @@ export function representationForPath(path: string) {
 export function mimeForPath(path: string) {
   const extension = extensionForPath(path);
   switch (extension) {
-    case "png": return "image/png";
+    case "png":
+      return "image/png";
     case "jpg":
-    case "jpeg": return "image/jpeg";
-    case "gif": return "image/gif";
-    case "webp": return "image/webp";
-    default: return resourceCapabilityForPath(path).mime;
+    case "jpeg":
+      return "image/jpeg";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    default:
+      return resourceCapabilityForPath(path).mime;
   }
 }
 

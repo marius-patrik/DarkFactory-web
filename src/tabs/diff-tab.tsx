@@ -20,13 +20,7 @@ function sourceFor(
     : overlays.find((entry) => entry.path === path);
 }
 
-export function DiffTab({
-  tab,
-  theme,
-}: {
-  tab: WorkbenchTab;
-  theme: AppearanceMode;
-}) {
+export function DiffTab({ tab, theme }: { tab: WorkbenchTab; theme: AppearanceMode }) {
   const workspace = useWorkspace();
   const path = typeof tab.state.path === "string" ? tab.state.path : "";
   const compare = tab.state.compare === "staged" ? "staged" : "working";
@@ -60,7 +54,7 @@ export function DiffTab({
             before = "";
           }
         }
-        const after = source.status === "deleted" ? "" : source.content ?? "";
+        const after = source.status === "deleted" ? "" : (source.content ?? "");
         if (disposed) return;
         setOriginal(before);
         setModified(after);
@@ -86,17 +80,39 @@ export function DiffTab({
     editor.getModifiedEditor?.().setPosition({ lineNumber: line, column: 1 });
   }, []);
 
-  if (!path) return <div className="tab-empty"><span>No diff resource selected.</span></div>;
-  if (error) return <div className="tab-empty"><strong>Could not load diff</strong><span>{error}</span></div>;
-  if (loading) return <div className="tab-empty"><span>Loading diff…</span></div>;
+  if (!path)
+    return (
+      <div className="tab-empty">
+        <span>No diff resource selected.</span>
+      </div>
+    );
+  if (error)
+    return (
+      <div className="tab-empty">
+        <strong>Could not load diff</strong>
+        <span>{error}</span>
+      </div>
+    );
+  if (loading)
+    return (
+      <div className="tab-empty">
+        <span>Loading diff…</span>
+      </div>
+    );
 
   return (
     <div className="diff-tab">
       <div className="tab-breadcrumbs">
-        <span>{path} · {compare === "staged" ? "Staged" : "Working Tree"}</span>
+        <span>
+          {path} · {compare === "staged" ? "Staged" : "Working Tree"}
+        </span>
         <span className="diff-hunk-actions">
-          <button type="button" onClick={() => navigateHunk(-1)} title="Previous change"><ChevronUp size={13} /></button>
-          <button type="button" onClick={() => navigateHunk(1)} title="Next change"><ChevronDown size={13} /></button>
+          <button type="button" onClick={() => navigateHunk(-1)} title="Previous change">
+            <ChevronUp size={13} />
+          </button>
+          <button type="button" onClick={() => navigateHunk(1)} title="Next change">
+            <ChevronDown size={13} />
+          </button>
         </span>
       </div>
       <DiffEditor

@@ -83,7 +83,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-
 type PdfDestination = string | any[];
 
 async function destinationPage(pdf: any, dest: PdfDestination | null | undefined) {
@@ -156,10 +155,7 @@ async function resolveSemanticChapters(
 
   return entries.map((entry) => {
     const normalized = normalizeHeadingText(entry.title);
-    const significant =
-      normalized.length > 72
-        ? normalized.slice(0, 72).trim()
-        : normalized;
+    const significant = normalized.length > 72 ? normalized.slice(0, 72).trim() : normalized;
     let page = 0;
 
     if (significant.length >= 2) {
@@ -224,9 +220,8 @@ class AnnotationLinkService {
 
   async goToDestination(dest: PdfDestination) {
     try {
-      const explicitDest = typeof dest === "string"
-        ? await this.pdf.getDestination(dest)
-        : await dest;
+      const explicitDest =
+        typeof dest === "string" ? await this.pdf.getDestination(dest) : await dest;
       if (!Array.isArray(explicitDest) || explicitDest.length === 0) return;
 
       const destRef = explicitDest[0];
@@ -329,14 +324,10 @@ function installAnnotationInteractions(
 
   const onClick = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return;
-    const target = event.target.closest<HTMLElement>(
-      "[data-annotation-id], [data-element-id], a",
-    );
+    const target = event.target.closest<HTMLElement>("[data-annotation-id], [data-element-id], a");
     if (!target || !node.contains(target)) return;
 
-    const annotationNode = target.closest<HTMLElement>(
-      "[data-annotation-id], [data-element-id]",
-    );
+    const annotationNode = target.closest<HTMLElement>("[data-annotation-id], [data-element-id]");
     const id = annotationNode?.dataset.annotationId || annotationNode?.dataset.elementId;
     const annotation = id ? byId.get(id) : undefined;
 
@@ -652,7 +643,9 @@ function DocumentNavigationPanel({
                 {mode === "minimap" ? (
                   <button
                     type="button"
-                    className={"structure-page-marker" + (page.number === activePage ? " active" : "")}
+                    className={
+                      "structure-page-marker" + (page.number === activePage ? " active" : "")
+                    }
                     onClick={() => onSelect(page.number)}
                     aria-label={"Go to page " + page.number}
                   >
@@ -682,15 +675,11 @@ function DocumentNavigationPanel({
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={onMove}>
-          <AnimatedIcon
-            names={side === "left" ? ["PanelRightIcon"] : ["PanelLeftIcon"]}
-          />
+          <AnimatedIcon names={side === "left" ? ["PanelRightIcon"] : ["PanelLeftIcon"]} />
           {moveLabel}
         </ContextMenuItem>
         <ContextMenuItem onSelect={onToggleMode}>
-          <AnimatedIcon
-            names={mode === "minimap" ? ["FilesIcon"] : ["MapIcon", "MapPinnedIcon"]}
-          />
+          <AnimatedIcon names={mode === "minimap" ? ["FilesIcon"] : ["MapIcon", "MapPinnedIcon"]} />
           {modeLabel}
         </ContextMenuItem>
       </ContextMenuContent>
@@ -753,7 +742,12 @@ const PdfPage = memo(function PdfPage({
     void (async () => {
       try {
         const page = await pdf.getPage(info.number);
-        if (disposed || !canvasRef.current || !textLayerRef.current || !annotationLayerRef.current) {
+        if (
+          disposed ||
+          !canvasRef.current ||
+          !textLayerRef.current ||
+          !annotationLayerRef.current
+        ) {
           return;
         }
 
@@ -822,7 +816,12 @@ const PdfPage = memo(function PdfPage({
                 annotations,
                 linkService,
               );
-              removeLinkOverlays = installLinkOverlays(annotationLayerNode, annotations, cssViewport, linkService);
+              removeLinkOverlays = installLinkOverlays(
+                annotationLayerNode,
+                annotations,
+                cssViewport,
+                linkService,
+              );
             }
           }
         } catch (error) {
@@ -862,341 +861,329 @@ const PdfPage = memo(function PdfPage({
   );
 });
 
-export const PdfDocumentView = forwardRef<DocumentControl, ViewerProps>(
-  function PdfDocumentView(
-    {
-      pdfPath,
-      contentIndex = [],
-      embedded,
-      sidebarSide,
-      sidebarMode,
-      sidebarHidden,
-      sidebarWidth,
-      onMoveSidebar,
-      onToggleSidebarMode,
-      onSidebarWidthChange,
-      onStateChange,
+export const PdfDocumentView = forwardRef<DocumentControl, ViewerProps>(function PdfDocumentView(
+  {
+    pdfPath,
+    contentIndex = [],
+    embedded,
+    sidebarSide,
+    sidebarMode,
+    sidebarHidden,
+    sidebarWidth,
+    onMoveSidebar,
+    onToggleSidebarMode,
+    onSidebarWidthChange,
+    onStateChange,
+  },
+  ref,
+) {
+  const [pdf, setPdf] = useState<any>(null);
+  const [pages, setPages] = useState<PageInfo[]>([]);
+  const [error, setError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
+  const [manualScale, setManualScale] = useState(1.15);
+  const [stageWidth, setStageWidth] = useState(900);
+  const [scrollRatio, setScrollRatio] = useState(0);
+  const [chapters, setChapters] = useState<DocumentChapter[]>([]);
+  const [linkService, setLinkService] = useState<any>(null);
+  const stageRef = useRef<HTMLElement>(null);
+  const pageRefs = useRef(new Map<number, HTMLElement>());
+  const scrollFrame = useRef(0);
+  const pinch = useRef({ distance: 0, scale: 1 });
+  const destroyChain = useRef<Promise<void>>(Promise.resolve());
+
+  const registerPage = useCallback((page: number, node: HTMLElement | null) => {
+    if (node) pageRefs.current.set(page, node);
+    else pageRefs.current.delete(page);
+  }, []);
+
+  const maxPageWidth = useMemo(
+    () => Math.max(595, ...pages.map((page) => page.baseWidth)),
+    [pages],
+  );
+  const fitScale = useMemo(
+    () => clamp((stageWidth - (embedded ? 34 : 64)) / maxPageWidth, 0.45, 2.5),
+    [embedded, maxPageWidth, stageWidth],
+  );
+  const effectiveScale = scaleMode === "fit" ? fitScale : manualScale;
+
+  const goToPage = useCallback(
+    (page: number, behavior: ScrollBehavior = "smooth") => {
+      if (!pages.length) return;
+      const target = clamp(Math.round(Number(page) || 1), 1, pages.length);
+      pageRefs.current.get(target)?.scrollIntoView({ block: "start", behavior });
     },
-    ref,
-  ) {
-    const [pdf, setPdf] = useState<any>(null);
-    const [pages, setPages] = useState<PageInfo[]>([]);
-    const [error, setError] = useState("");
-    const [currentPage, setCurrentPage] = useState(1);
-    const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
-    const [manualScale, setManualScale] = useState(1.15);
-    const [stageWidth, setStageWidth] = useState(900);
-    const [scrollRatio, setScrollRatio] = useState(0);
-    const [chapters, setChapters] = useState<DocumentChapter[]>([]);
-    const [linkService, setLinkService] = useState<any>(null);
-    const stageRef = useRef<HTMLElement>(null);
-    const pageRefs = useRef(new Map<number, HTMLElement>());
-    const scrollFrame = useRef(0);
-    const pinch = useRef({ distance: 0, scale: 1 });
-    const destroyChain = useRef<Promise<void>>(Promise.resolve());
+    [pages.length],
+  );
 
-    const registerPage = useCallback((page: number, node: HTMLElement | null) => {
-      if (node) pageRefs.current.set(page, node);
-      else pageRefs.current.delete(page);
-    }, []);
+  const zoomBy = useCallback(
+    (delta: number) => {
+      const base = scaleMode === "fit" ? fitScale : manualScale;
+      setManualScale(clamp(base + delta, 0.45, 2.5));
+      setScaleMode("manual");
+    },
+    [fitScale, manualScale, scaleMode],
+  );
 
-    const maxPageWidth = useMemo(
-      () => Math.max(595, ...pages.map((page) => page.baseWidth)),
-      [pages],
-    );
-    const fitScale = useMemo(
-      () => clamp((stageWidth - (embedded ? 34 : 64)) / maxPageWidth, 0.45, 2.5),
-      [embedded, maxPageWidth, stageWidth],
-    );
-    const effectiveScale = scaleMode === "fit" ? fitScale : manualScale;
-
-    const goToPage = useCallback(
-      (page: number, behavior: ScrollBehavior = "smooth") => {
-        if (!pages.length) return;
-        const target = clamp(Math.round(Number(page) || 1), 1, pages.length);
-        pageRefs.current.get(target)?.scrollIntoView({ block: "start", behavior });
-      },
-      [pages.length],
-    );
-
-    const zoomBy = useCallback(
-      (delta: number) => {
-        const base = scaleMode === "fit" ? fitScale : manualScale;
-        setManualScale(clamp(base + delta, 0.45, 2.5));
-        setScaleMode("manual");
-      },
-      [fitScale, manualScale, scaleMode],
-    );
-
-    const setZoom = useCallback(
-      (mode: ScaleMode, scale?: number) => {
-        if (mode === "fit") {
-          setScaleMode("fit");
-          return;
-        }
-        setManualScale(clamp(Number(scale) || manualScale, 0.45, 2.5));
-        setScaleMode("manual");
-      },
-      [manualScale],
-    );
-
-    const applyScrollRatio = useCallback((ratio: number) => {
-      const stage = stageRef.current;
-      if (!stage) return;
-      const max = stage.scrollHeight - stage.clientHeight;
-      stage.scrollTop = clamp(Number(ratio) || 0, 0, 1) * Math.max(0, max);
-    }, []);
-
-    useImperativeHandle(
-      ref,
-      () => ({ goToPage, zoomBy, setZoom, applyScrollRatio }),
-      [applyScrollRatio, goToPage, setZoom, zoomBy],
-    );
-
-    useEffect(() => {
-      let disposed = false;
-      let task: ReturnType<typeof pdfjsLib.getDocument> | null = null;
-      setError("");
-      setPdf(null);
-      setPages([]);
-      setChapters([]);
-
-      void (async () => {
-        await destroyChain.current.catch(() => undefined);
-        if (disposed) return;
-
-        task = pdfjsLib.getDocument({ url: pdfPath });
-
-        try {
-          const document = await task.promise;
-          if (disposed) return;
-          const nextPages: PageInfo[] = [];
-          for (let number = 1; number <= document.numPages; number += 1) {
-            const page = await document.getPage(number);
-            const viewport = page.getViewport({ scale: 1 });
-            nextPages.push({
-              number,
-              baseWidth: viewport.width,
-              baseHeight: viewport.height,
-            });
-          }
-          const nextChapters = await resolveSemanticChapters(document, contentIndex || []);
-          if (disposed) return;
-          setPdf(document);
-          setPages(nextPages);
-          setChapters(nextChapters);
-        } catch (reason) {
-          if (!disposed) setError(String((reason as Error)?.message || reason));
-        }
-      })();
-
-      return () => {
-        disposed = true;
-        if (!task) return;
-        const pendingTask = task;
-        destroyChain.current = destroyChain.current
-          .catch(() => undefined)
-          .then(async () => {
-            await pendingTask.destroy();
-          });
-      };
-    }, [contentIndex, pdfPath]);
-
-    useEffect(() => {
-      const stage = stageRef.current;
-      if (!stage) return;
-      const observer = new ResizeObserver((entries) => {
-        const width = entries[0]?.contentRect.width;
-        if (width) setStageWidth(width);
-      });
-      observer.observe(stage);
-      setStageWidth(stage.clientWidth || 900);
-      return () => observer.disconnect();
-    }, []);
-
-    useEffect(() => {
-      if (!pdf) {
-        setLinkService(null);
+  const setZoom = useCallback(
+    (mode: ScaleMode, scale?: number) => {
+      if (mode === "fit") {
+        setScaleMode("fit");
         return;
       }
-      const service = new AnnotationLinkService(
-        pdf,
-        goToPage,
-        () => currentPage,
-      );
-      setLinkService(service);
-    }, [currentPage, goToPage, pdf]);
+      setManualScale(clamp(Number(scale) || manualScale, 0.45, 2.5));
+      setScaleMode("manual");
+    },
+    [manualScale],
+  );
 
-    useEffect(() => {
-      onStateChange({
-        page: currentPage,
-        total: pages.length,
-        scaleMode,
-        manualScale: scaleMode === "fit" ? fitScale : manualScale,
-        scrollRatio,
-        chapters,
-      });
-    }, [
-      chapters,
-      currentPage,
-      fitScale,
-      manualScale,
-      onStateChange,
-      pages.length,
-      scaleMode,
-      scrollRatio,
-    ]);
+  const applyScrollRatio = useCallback((ratio: number) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const max = stage.scrollHeight - stage.clientHeight;
+    stage.scrollTop = clamp(Number(ratio) || 0, 0, 1) * Math.max(0, max);
+  }, []);
 
-    useEffect(() => {
-      if (!pages.length) return;
-      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-      const page = Number(hash.get("page"));
-      if (page >= 1 && page <= pages.length) {
-        requestAnimationFrame(() => goToPage(page, "auto"));
-      }
-    }, [goToPage, pages.length]);
+  useImperativeHandle(ref, () => ({ goToPage, zoomBy, setZoom, applyScrollRatio }), [
+    applyScrollRatio,
+    goToPage,
+    setZoom,
+    zoomBy,
+  ]);
 
-    useEffect(() => {
-      const stage = stageRef.current;
-      if (!stage) return;
+  useEffect(() => {
+    let disposed = false;
+    let task: ReturnType<typeof pdfjsLib.getDocument> | null = null;
+    setError("");
+    setPdf(null);
+    setPages([]);
+    setChapters([]);
 
-      const onWheel = (event: WheelEvent) => {
-        if (!event.ctrlKey && !event.metaKey) return;
-        event.preventDefault();
-        zoomBy(event.deltaY < 0 ? 0.1 : -0.1);
-      };
+    void (async () => {
+      await destroyChain.current.catch(() => undefined);
+      if (disposed) return;
 
-      const distance = (touches: TouchList) => {
-        const a = touches[0];
-        const b = touches[1];
-        return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      };
+      task = pdfjsLib.getDocument({ url: pdfPath });
 
-      const onTouchStart = (event: TouchEvent) => {
-        if (event.touches.length !== 2) return;
-        pinch.current.distance = distance(event.touches);
-        pinch.current.scale = effectiveScale;
-      };
-
-      const onTouchMove = (event: TouchEvent) => {
-        if (event.touches.length !== 2 || !pinch.current.distance) return;
-        event.preventDefault();
-        const factor = distance(event.touches) / pinch.current.distance;
-        setManualScale(clamp(pinch.current.scale * factor, 0.45, 2.5));
-        setScaleMode("manual");
-      };
-
-      stage.addEventListener("wheel", onWheel, { passive: false });
-      stage.addEventListener("touchstart", onTouchStart, { passive: true });
-      stage.addEventListener("touchmove", onTouchMove, { passive: false });
-      return () => {
-        stage.removeEventListener("wheel", onWheel);
-        stage.removeEventListener("touchstart", onTouchStart);
-        stage.removeEventListener("touchmove", onTouchMove);
-      };
-    }, [effectiveScale, zoomBy]);
-
-    const updateScrollState = useCallback(() => {
-      scrollFrame.current = 0;
-      const stage = stageRef.current;
-      if (!stage || !pages.length) return;
-
-      const stageTop = stage.getBoundingClientRect().top + 34;
-      let bestPage = currentPage;
-      let bestDistance = Number.POSITIVE_INFINITY;
-
-      for (const page of pages) {
-        const node = pageRefs.current.get(page.number);
-        if (!node) continue;
-        const rect = node.getBoundingClientRect();
-        const distance = Math.abs(rect.top + Math.min(rect.height / 2, 180) - stageTop);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestPage = page.number;
+      try {
+        const document = await task.promise;
+        if (disposed) return;
+        const nextPages: PageInfo[] = [];
+        for (let number = 1; number <= document.numPages; number += 1) {
+          const page = await document.getPage(number);
+          const viewport = page.getViewport({ scale: 1 });
+          nextPages.push({
+            number,
+            baseWidth: viewport.width,
+            baseHeight: viewport.height,
+          });
         }
+        const nextChapters = await resolveSemanticChapters(document, contentIndex || []);
+        if (disposed) return;
+        setPdf(document);
+        setPages(nextPages);
+        setChapters(nextChapters);
+      } catch (reason) {
+        if (!disposed) setError(String((reason as Error)?.message || reason));
       }
+    })();
 
-      if (bestPage !== currentPage) setCurrentPage(bestPage);
-      const max = stage.scrollHeight - stage.clientHeight;
-      setScrollRatio(max <= 0 ? 0 : stage.scrollTop / max);
-    }, [currentPage, pages]);
+    return () => {
+      disposed = true;
+      if (!task) return;
+      const pendingTask = task;
+      destroyChain.current = destroyChain.current
+        .catch(() => undefined)
+        .then(async () => {
+          await pendingTask.destroy();
+        });
+    };
+  }, [contentIndex, pdfPath]);
 
-    const onScroll = useCallback(() => {
-      if (!scrollFrame.current) {
-        scrollFrame.current = requestAnimationFrame(updateScrollState);
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setStageWidth(width);
+    });
+    observer.observe(stage);
+    setStageWidth(stage.clientWidth || 900);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!pdf) {
+      setLinkService(null);
+      return;
+    }
+    const service = new AnnotationLinkService(pdf, goToPage, () => currentPage);
+    setLinkService(service);
+  }, [currentPage, goToPage, pdf]);
+
+  useEffect(() => {
+    onStateChange({
+      page: currentPage,
+      total: pages.length,
+      scaleMode,
+      manualScale: scaleMode === "fit" ? fitScale : manualScale,
+      scrollRatio,
+      chapters,
+    });
+  }, [
+    chapters,
+    currentPage,
+    fitScale,
+    manualScale,
+    onStateChange,
+    pages.length,
+    scaleMode,
+    scrollRatio,
+  ]);
+
+  useEffect(() => {
+    if (!pages.length) return;
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const page = Number(hash.get("page"));
+    if (page >= 1 && page <= pages.length) {
+      requestAnimationFrame(() => goToPage(page, "auto"));
+    }
+  }, [goToPage, pages.length]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      zoomBy(event.deltaY < 0 ? 0.1 : -0.1);
+    };
+
+    const distance = (touches: TouchList) => {
+      const a = touches[0];
+      const b = touches[1];
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      pinch.current.distance = distance(event.touches);
+      pinch.current.scale = effectiveScale;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || !pinch.current.distance) return;
+      event.preventDefault();
+      const factor = distance(event.touches) / pinch.current.distance;
+      setManualScale(clamp(pinch.current.scale * factor, 0.45, 2.5));
+      setScaleMode("manual");
+    };
+
+    stage.addEventListener("wheel", onWheel, { passive: false });
+    stage.addEventListener("touchstart", onTouchStart, { passive: true });
+    stage.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => {
+      stage.removeEventListener("wheel", onWheel);
+      stage.removeEventListener("touchstart", onTouchStart);
+      stage.removeEventListener("touchmove", onTouchMove);
+    };
+  }, [effectiveScale, zoomBy]);
+
+  const updateScrollState = useCallback(() => {
+    scrollFrame.current = 0;
+    const stage = stageRef.current;
+    if (!stage || !pages.length) return;
+
+    const stageTop = stage.getBoundingClientRect().top + 34;
+    let bestPage = currentPage;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const page of pages) {
+      const node = pageRefs.current.get(page.number);
+      if (!node) continue;
+      const rect = node.getBoundingClientRect();
+      const distance = Math.abs(rect.top + Math.min(rect.height / 2, 180) - stageTop);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestPage = page.number;
       }
-    }, [updateScrollState]);
-
-    useEffect(() => {
-      if (embedded || !currentPage) return;
-      const next = new URL(window.location.href);
-      next.hash = "page=" + currentPage;
-      window.history.replaceState(null, "", next);
-    }, [currentPage, embedded]);
-
-    useEffect(() => {
-      if (sidebarMode !== "thumbnails") return;
-      const node = document.querySelector(
-        '.thumbnail-list [data-page="' + currentPage + '"]',
-      );
-      node?.scrollIntoView({ block: "nearest" });
-    }, [currentPage, sidebarMode]);
-
-    if (error) {
-      return (
-        <div className="document-error">
-          <strong>Could not open the document.</strong>
-          <span>{error}</span>
-        </div>
-      );
     }
 
-    if (!pdf || !pages.length) {
-      return <div className="document-loading">Loading document…</div>;
+    if (bestPage !== currentPage) setCurrentPage(bestPage);
+    const max = stage.scrollHeight - stage.clientHeight;
+    setScrollRatio(max <= 0 ? 0 : stage.scrollTop / max);
+  }, [currentPage, pages]);
+
+  const onScroll = useCallback(() => {
+    if (!scrollFrame.current) {
+      scrollFrame.current = requestAnimationFrame(updateScrollState);
     }
+  }, [updateScrollState]);
 
-    const sidebar = !embedded ? (
-      <DocumentNavigationPanel
-        pdf={pdf}
-        pages={pages}
-        chapters={chapters}
-        activePage={currentPage}
-        side={sidebarSide}
-        mode={sidebarMode}
-        hidden={sidebarHidden}
-        width={sidebarWidth}
-        onSelect={goToPage}
-        onMove={onMoveSidebar}
-        onToggleMode={onToggleSidebarMode}
-        onWidthChange={onSidebarWidthChange}
-      />
-    ) : null;
+  useEffect(() => {
+    if (embedded || !currentPage) return;
+    const next = new URL(window.location.href);
+    next.hash = "page=" + currentPage;
+    window.history.replaceState(null, "", next);
+  }, [currentPage, embedded]);
 
+  useEffect(() => {
+    if (sidebarMode !== "thumbnails") return;
+    const node = document.querySelector('.thumbnail-list [data-page="' + currentPage + '"]');
+    node?.scrollIntoView({ block: "nearest" });
+  }, [currentPage, sidebarMode]);
+
+  if (error) {
     return (
-      <div className={"document-content side-" + sidebarSide + (embedded ? " embedded" : "")}>
-        {sidebarSide === "left" && sidebar}
-        <section
-          ref={stageRef}
-          className="stage"
-          aria-label="Document"
-          onScroll={onScroll}
-        >
-          <div className="pages">
-            {pages.map((info) => (
-              <PdfPage
-                key={info.number}
-                pdf={pdf}
-                info={info}
-                scale={effectiveScale}
-                linkService={linkService}
-                stageRef={stageRef}
-                register={registerPage}
-              />
-            ))}
-          </div>
-        </section>
-        {sidebarSide === "right" && sidebar}
+      <div className="document-error">
+        <strong>Could not open the document.</strong>
+        <span>{error}</span>
       </div>
     );
-  },
-);
+  }
+
+  if (!pdf || !pages.length) {
+    return <div className="document-loading">Loading document…</div>;
+  }
+
+  const sidebar = !embedded ? (
+    <DocumentNavigationPanel
+      pdf={pdf}
+      pages={pages}
+      chapters={chapters}
+      activePage={currentPage}
+      side={sidebarSide}
+      mode={sidebarMode}
+      hidden={sidebarHidden}
+      width={sidebarWidth}
+      onSelect={goToPage}
+      onMove={onMoveSidebar}
+      onToggleMode={onToggleSidebarMode}
+      onWidthChange={onSidebarWidthChange}
+    />
+  ) : null;
+
+  return (
+    <div className={"document-content side-" + sidebarSide + (embedded ? " embedded" : "")}>
+      {sidebarSide === "left" && sidebar}
+      <section ref={stageRef} className="stage" aria-label="Document" onScroll={onScroll}>
+        <div className="pages">
+          {pages.map((info) => (
+            <PdfPage
+              key={info.number}
+              pdf={pdf}
+              info={info}
+              scale={effectiveScale}
+              linkService={linkService}
+              stageRef={stageRef}
+              register={registerPage}
+            />
+          ))}
+        </div>
+      </section>
+      {sidebarSide === "right" && sidebar}
+    </div>
+  );
+});

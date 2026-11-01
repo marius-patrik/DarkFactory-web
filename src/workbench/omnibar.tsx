@@ -67,7 +67,9 @@ const COMMANDS: Array<{
 ];
 
 function looksLikeUrl(value: string) {
-  return /^(https?:\/\/|about:|localhost(?::\d+)?(?:\/|$)|[\w.-]+\.[a-z]{2,}(?:\/|$))/i.test(value.trim());
+  return /^(https?:\/\/|about:|localhost(?::\d+)?(?:\/|$)|[\w.-]+\.[a-z]{2,}(?:\/|$))/i.test(
+    value.trim(),
+  );
 }
 
 export function classifyOmnibarQuery(value: string): OmnibarQueryKind {
@@ -122,25 +124,27 @@ export const Omnibar = forwardRef<OmnibarControl>(function Omnibar(_, ref) {
     if (!focused && mode !== "command") setQuery(activeResource);
   }, [activeResource, focused, mode]);
 
-  useImperativeHandle(ref, () => ({
-    focus(nextMode, value) {
-      setMode(nextMode);
-      setQuery(value ?? (nextMode === "command" ? ">" : ""));
-      requestAnimationFrame(() => inputRef.current?.focus());
-    },
-  }), []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus(nextMode, value) {
+        setMode(nextMode);
+        setQuery(value ?? (nextMode === "command" ? ">" : ""));
+        requestAnimationFrame(() => inputRef.current?.focus());
+      },
+    }),
+    [],
+  );
 
   const commandQuery = query.replace(/^>/, "").trim().toLowerCase();
-  const visibleCommands = COMMANDS
-    .filter((command) => !commandQuery || command.label.toLowerCase().includes(commandQuery))
-    .slice(0, 8);
+  const visibleCommands = COMMANDS.filter(
+    (command) => !commandQuery || command.label.toLowerCase().includes(commandQuery),
+  ).slice(0, 8);
 
   const resourcePaths = useMemo(() => {
     if (!workspace.workspace) return [];
     const paths = new Set(
-      workspace.workspace.tree
-        .filter((entry) => entry.type === "blob")
-        .map((entry) => entry.path),
+      workspace.workspace.tree.filter((entry) => entry.type === "blob").map((entry) => entry.path),
     );
     for (const file of workspace.committedFiles) {
       if (file.deleted) paths.delete(file.path);
@@ -212,9 +216,12 @@ export const Omnibar = forwardRef<OmnibarControl>(function Omnibar(_, ref) {
   useEffect(() => {
     if (!focused || queryKind !== "symbol") return;
     const active = runtime.activeTab;
-    const path = active && (active.type === "editor" || active.type === "document")
-      ? (typeof active.state.path === "string" ? active.state.path : "")
-      : "";
+    const path =
+      active && (active.type === "editor" || active.type === "document")
+        ? typeof active.state.path === "string"
+          ? active.state.path
+          : ""
+        : "";
     if (!path || !workspace.workspace) {
       setSymbols([]);
       return;
@@ -222,7 +229,8 @@ export const Omnibar = forwardRef<OmnibarControl>(function Omnibar(_, ref) {
 
     let disposed = false;
     setSymbolLoading(true);
-    void workspace.readFile(path)
+    void workspace
+      .readFile(path)
       .then((source) => {
         if (disposed) return;
         const next: OmnibarSymbol[] = [];
@@ -273,93 +281,120 @@ export const Omnibar = forwardRef<OmnibarControl>(function Omnibar(_, ref) {
   }, [focused, queryKind, runtime.activeTab, workspace.readFile, workspace.workspace]);
 
   const resourceQuery = query.trim().toLowerCase();
-  const resourceResults = queryKind === "resource" && resourceQuery
-    ? resourcePaths
-        .filter((path) => path.toLowerCase().includes(resourceQuery))
-        .sort((left, right) => {
-          const leftName = left.split("/").at(-1)?.toLowerCase() ?? left.toLowerCase();
-          const rightName = right.split("/").at(-1)?.toLowerCase() ?? right.toLowerCase();
-          const leftExact = leftName === resourceQuery ? 0 : 1;
-          const rightExact = rightName === resourceQuery ? 0 : 1;
-          return leftExact - rightExact || left.length - right.length || left.localeCompare(right);
-        })
-        .slice(0, 8)
-    : [];
+  const resourceResults =
+    queryKind === "resource" && resourceQuery
+      ? resourcePaths
+          .filter((path) => path.toLowerCase().includes(resourceQuery))
+          .sort((left, right) => {
+            const leftName = left.split("/").at(-1)?.toLowerCase() ?? left.toLowerCase();
+            const rightName = right.split("/").at(-1)?.toLowerCase() ?? right.toLowerCase();
+            const leftExact = leftName === resourceQuery ? 0 : 1;
+            const rightExact = rightName === resourceQuery ? 0 : 1;
+            return (
+              leftExact - rightExact || left.length - right.length || left.localeCompare(right)
+            );
+          })
+          .slice(0, 8)
+      : [];
 
-  const entityQuery = query.replace(/^[^:]+:/, "").replace(/^#/, "").trim().toLowerCase();
-  const refResults = (queryKind === "branch" || queryKind === "tag")
-    ? workspace.refs
-        .filter((ref) => ref.kind === queryKind)
-        .filter((ref) => !entityQuery || ref.name.toLowerCase().includes(entityQuery))
-        .slice(0, 8)
-    : [];
-  const workspaceResults = queryKind === "workspace"
-    ? workspace.recent
-        .filter((item) => {
-          const value = `${item.repository.fullName} ${item.ref}`.toLowerCase();
-          return !entityQuery || value.includes(entityQuery);
-        })
-        .slice(0, 8)
-    : [];
-  const issueResults = queryKind === "issue"
-    ? [
-        ...issues.map((item) => ({
-          kind: "issue" as const,
-          number: item.number,
-          title: item.title,
-        })),
-        ...pullRequests.map((item) => ({
-          kind: "pull-request" as const,
-          number: item.number,
-          title: item.title || `Pull Request #${item.number}`,
-        })),
-      ]
-        .filter((item) => {
-          if (!entityQuery) return true;
-          return String(item.number) === entityQuery || item.title.toLowerCase().includes(entityQuery);
-        })
-        .slice(0, 8)
-    : [];
-  const commitResults = queryKind === "commit"
-    ? commits
-        .filter((item) => {
-          const message = item.commit.message || "";
-          return !entityQuery || item.sha.toLowerCase().startsWith(entityQuery) || message.toLowerCase().includes(entityQuery);
-        })
-        .slice(0, 8)
-    : [];
-  const runResults = queryKind === "run"
-    ? runs
-        .filter((item) => {
-          const value = `${item.run_number} ${item.name || ""} ${item.display_title || ""} ${item.head_branch || ""}`.toLowerCase();
-          return !entityQuery || value.includes(entityQuery);
-        })
-        .slice(0, 8)
-    : [];
-  const projectResults = queryKind === "project"
-    ? projects
-        .filter((item) => !entityQuery || String(item.number) === entityQuery || item.title.toLowerCase().includes(entityQuery))
-        .slice(0, 8)
-    : [];
-  const releaseResults = queryKind === "release"
-    ? releases
-        .filter((item) => {
-          const value = `${item.tag_name} ${item.name || ""}`.toLowerCase();
-          return !entityQuery || value.includes(entityQuery);
-        })
-        .slice(0, 8)
-    : [];
+  const entityQuery = query
+    .replace(/^[^:]+:/, "")
+    .replace(/^#/, "")
+    .trim()
+    .toLowerCase();
+  const refResults =
+    queryKind === "branch" || queryKind === "tag"
+      ? workspace.refs
+          .filter((ref) => ref.kind === queryKind)
+          .filter((ref) => !entityQuery || ref.name.toLowerCase().includes(entityQuery))
+          .slice(0, 8)
+      : [];
+  const workspaceResults =
+    queryKind === "workspace"
+      ? workspace.recent
+          .filter((item) => {
+            const value = `${item.repository.fullName} ${item.ref}`.toLowerCase();
+            return !entityQuery || value.includes(entityQuery);
+          })
+          .slice(0, 8)
+      : [];
+  const issueResults =
+    queryKind === "issue"
+      ? [
+          ...issues.map((item) => ({
+            kind: "issue" as const,
+            number: item.number,
+            title: item.title,
+          })),
+          ...pullRequests.map((item) => ({
+            kind: "pull-request" as const,
+            number: item.number,
+            title: item.title || `Pull Request #${item.number}`,
+          })),
+        ]
+          .filter((item) => {
+            if (!entityQuery) return true;
+            return (
+              String(item.number) === entityQuery || item.title.toLowerCase().includes(entityQuery)
+            );
+          })
+          .slice(0, 8)
+      : [];
+  const commitResults =
+    queryKind === "commit"
+      ? commits
+          .filter((item) => {
+            const message = item.commit.message || "";
+            return (
+              !entityQuery ||
+              item.sha.toLowerCase().startsWith(entityQuery) ||
+              message.toLowerCase().includes(entityQuery)
+            );
+          })
+          .slice(0, 8)
+      : [];
+  const runResults =
+    queryKind === "run"
+      ? runs
+          .filter((item) => {
+            const value =
+              `${item.run_number} ${item.name || ""} ${item.display_title || ""} ${item.head_branch || ""}`.toLowerCase();
+            return !entityQuery || value.includes(entityQuery);
+          })
+          .slice(0, 8)
+      : [];
+  const projectResults =
+    queryKind === "project"
+      ? projects
+          .filter(
+            (item) =>
+              !entityQuery ||
+              String(item.number) === entityQuery ||
+              item.title.toLowerCase().includes(entityQuery),
+          )
+          .slice(0, 8)
+      : [];
+  const releaseResults =
+    queryKind === "release"
+      ? releases
+          .filter((item) => {
+            const value = `${item.tag_name} ${item.name || ""}`.toLowerCase();
+            return !entityQuery || value.includes(entityQuery);
+          })
+          .slice(0, 8)
+      : [];
   const symbolQuery = query.replace(/^@/, "").trim().toLowerCase();
-  const symbolResults = queryKind === "symbol"
-    ? symbols
-        .filter((item) => !symbolQuery || item.name.toLowerCase().includes(symbolQuery))
-        .sort((left, right) => {
-          const leftExact = left.name.toLowerCase() === symbolQuery ? 0 : 1;
-          const rightExact = right.name.toLowerCase() === symbolQuery ? 0 : 1;
-          return leftExact - rightExact || left.line - right.line;
-        })
-        .slice(0, 8)
-    : [];
+  const symbolResults =
+    queryKind === "symbol"
+      ? symbols
+          .filter((item) => !symbolQuery || item.name.toLowerCase().includes(symbolQuery))
+          .sort((left, right) => {
+            const leftExact = left.name.toLowerCase() === symbolQuery ? 0 : 1;
+            const rightExact = right.name.toLowerCase() === symbolQuery ? 0 : 1;
+            return leftExact - rightExact || left.line - right.line;
+          })
+          .slice(0, 8)
+      : [];
 
   const closeResults = () => {
     setFocused(false);
@@ -371,8 +406,10 @@ export const Omnibar = forwardRef<OmnibarControl>(function Omnibar(_, ref) {
     if (command.action === "primary") runtime.toggleSurface("primary");
     if (command.action === "secondary") runtime.toggleSurface("secondary");
     if (command.action === "panel") runtime.toggleSurface("panel");
-    if (command.action === "split-right" && runtime.activeTab) runtime.splitTab(runtime.activeTab.id, "right");
-    if (command.action === "split-down" && runtime.activeTab) runtime.splitTab(runtime.activeTab.id, "below");
+    if (command.action === "split-right" && runtime.activeTab)
+      runtime.splitTab(runtime.activeTab.id, "right");
+    if (command.action === "split-down" && runtime.activeTab)
+      runtime.splitTab(runtime.activeTab.id, "below");
     closeResults();
   };
 
@@ -417,9 +454,10 @@ export const Omnibar = forwardRef<OmnibarControl>(function Omnibar(_, ref) {
       const history = Array.isArray(active.state.history)
         ? active.state.history.filter((item): item is string => typeof item === "string")
         : [];
-      const currentIndex = typeof active.state.historyIndex === "number"
-        ? Math.max(0, Math.min(history.length - 1, active.state.historyIndex))
-        : Math.max(0, history.length - 1);
+      const currentIndex =
+        typeof active.state.historyIndex === "number"
+          ? Math.max(0, Math.min(history.length - 1, active.state.historyIndex))
+          : Math.max(0, history.length - 1);
       const nextHistory = [...history.slice(0, currentIndex + 1), url];
       runtime.updateTabState(active.id, {
         url,
@@ -440,9 +478,11 @@ export const Omnibar = forwardRef<OmnibarControl>(function Omnibar(_, ref) {
           ref={inputRef}
           value={query}
           onFocus={() => setFocused(true)}
-          onBlur={() => window.setTimeout(() => {
-            if (document.activeElement !== inputRef.current) setFocused(false);
-          }, 100)}
+          onBlur={() =>
+            window.setTimeout(() => {
+              if (document.activeElement !== inputRef.current) setFocused(false);
+            }, 100)
+          }
           onChange={(event) => {
             const next = event.target.value;
             setQuery(next);
@@ -540,28 +580,41 @@ export const Omnibar = forwardRef<OmnibarControl>(function Omnibar(_, ref) {
               openResource(resourceResults[0]);
             }
           }}
-          placeholder={runtime.activeTab?.type === "browser" ? "Enter URL" : mode === "command" ? "Type a command" : "Search files, #issues, branch:, commit:, run:, or URL"}
+          placeholder={
+            runtime.activeTab?.type === "browser"
+              ? "Enter URL"
+              : mode === "command"
+                ? "Type a command"
+                : "Search files, #issues, branch:, commit:, run:, or URL"
+          }
           aria-label="Workbench omnibar"
         />
         <kbd>{mode === "command" ? "⌘⇧P" : "⌘P"}</kbd>
       </div>
       {focused && queryKind === "command" && (
         <div className="omnibar-results">
-          {visibleCommands.length ? visibleCommands.map((command) => (
-            <button
-              key={command.label}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => runCommand(command)}
-            >
-              {command.label}
-            </button>
-          )) : <div className="omnibar-empty">No matching commands</div>}
+          {visibleCommands.length ? (
+            visibleCommands.map((command) => (
+              <button
+                key={command.label}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => runCommand(command)}
+              >
+                {command.label}
+              </button>
+            ))
+          ) : (
+            <div className="omnibar-empty">No matching commands</div>
+          )}
         </div>
       )}
       {focused && queryKind === "line" && (
         <div className="omnibar-results">
-          {runtime.activeTab && (runtime.activeTab.type === "editor" || runtime.activeTab.type === "document") && Number.isInteger(Number(query.replace(/^:/, ""))) && Number(query.replace(/^:/, "")) > 0 ? (
+          {runtime.activeTab &&
+          (runtime.activeTab.type === "editor" || runtime.activeTab.type === "document") &&
+          Number.isInteger(Number(query.replace(/^:/, ""))) &&
+          Number(query.replace(/^:/, "")) > 0 ? (
             <button
               type="button"
               onMouseDown={(event) => event.preventDefault()}
@@ -569,163 +622,224 @@ export const Omnibar = forwardRef<OmnibarControl>(function Omnibar(_, ref) {
             >
               Go to line {Number(query.replace(/^:/, ""))}
             </button>
-          ) : <div className="omnibar-empty">Enter a line number for the active file</div>}
+          ) : (
+            <div className="omnibar-empty">Enter a line number for the active file</div>
+          )}
         </div>
       )}
       {focused && queryKind === "symbol" && (
         <div className="omnibar-results">
-          {symbolLoading ? <div className="omnibar-empty">Indexing symbols…</div> : symbolResults.length ? symbolResults.map((item) => (
-            <button
-              key={`${item.line}:${item.name}`}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                const active = runtime.activeTab;
-                if (!active || (active.type !== "editor" && active.type !== "document")) return;
-                runtime.updateTabState(active.id, {
-                  renderer: "editor",
-                  goToLine: item.line,
-                  goToLineRequest: Date.now(),
-                });
-                closeResults();
-              }}
-            >
-              {item.name} · {item.detail} · line {item.line}
-            </button>
-          )) : <div className="omnibar-empty">No symbols in the active file</div>}
+          {symbolLoading ? (
+            <div className="omnibar-empty">Indexing symbols…</div>
+          ) : symbolResults.length ? (
+            symbolResults.map((item) => (
+              <button
+                key={`${item.line}:${item.name}`}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  const active = runtime.activeTab;
+                  if (!active || (active.type !== "editor" && active.type !== "document")) return;
+                  runtime.updateTabState(active.id, {
+                    renderer: "editor",
+                    goToLine: item.line,
+                    goToLineRequest: Date.now(),
+                  });
+                  closeResults();
+                }}
+              >
+                {item.name} · {item.detail} · line {item.line}
+              </button>
+            ))
+          ) : (
+            <div className="omnibar-empty">No symbols in the active file</div>
+          )}
         </div>
       )}
       {focused && queryKind === "issue" && (
         <div className="omnibar-results">
-          {entityLoading ? <div className="omnibar-empty">Loading issues and pull requests…</div> : entityError ? <div className="omnibar-empty">{entityError}</div> : issueResults.length ? issueResults.map((item) => (
-            <button
-              key={`${item.kind}:${item.number}`}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                runtime.openTab(item.kind, "main", { number: item.number });
-                closeResults();
-              }}
-            >
-              {item.kind === "issue" ? "Issue" : "PR"} #{item.number} · {item.title}
-            </button>
-          )) : <div className="omnibar-empty">No matching issues or pull requests</div>}
+          {entityLoading ? (
+            <div className="omnibar-empty">Loading issues and pull requests…</div>
+          ) : entityError ? (
+            <div className="omnibar-empty">{entityError}</div>
+          ) : issueResults.length ? (
+            issueResults.map((item) => (
+              <button
+                key={`${item.kind}:${item.number}`}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  runtime.openTab(item.kind, "main", { number: item.number });
+                  closeResults();
+                }}
+              >
+                {item.kind === "issue" ? "Issue" : "PR"} #{item.number} · {item.title}
+              </button>
+            ))
+          ) : (
+            <div className="omnibar-empty">No matching issues or pull requests</div>
+          )}
         </div>
       )}
       {focused && (queryKind === "branch" || queryKind === "tag") && (
         <div className="omnibar-results">
-          {refResults.length ? refResults.map((ref) => (
-            <button
-              key={`${ref.kind}:${ref.name}`}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                void workspace.switchRef(ref.name);
-                closeResults();
-              }}
-            >
-              {ref.kind} · {ref.name} · {ref.sha.slice(0, 7)}
-            </button>
-          )) : <div className="omnibar-empty">No matching {queryKind}s</div>}
+          {refResults.length ? (
+            refResults.map((ref) => (
+              <button
+                key={`${ref.kind}:${ref.name}`}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  void workspace.switchRef(ref.name);
+                  closeResults();
+                }}
+              >
+                {ref.kind} · {ref.name} · {ref.sha.slice(0, 7)}
+              </button>
+            ))
+          ) : (
+            <div className="omnibar-empty">No matching {queryKind}s</div>
+          )}
         </div>
       )}
       {focused && queryKind === "commit" && (
         <div className="omnibar-results">
-          {entityLoading ? <div className="omnibar-empty">Loading commits…</div> : entityError ? <div className="omnibar-empty">{entityError}</div> : commitResults.length ? commitResults.map((item) => (
-            <button
-              key={item.sha}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                runtime.openTab("commit", "main", { sha: item.sha });
-                closeResults();
-              }}
-            >
-              {item.sha.slice(0, 7)} · {item.commit.message?.split("\n")[0] || "Commit"}
-            </button>
-          )) : <div className="omnibar-empty">No matching commits</div>}
+          {entityLoading ? (
+            <div className="omnibar-empty">Loading commits…</div>
+          ) : entityError ? (
+            <div className="omnibar-empty">{entityError}</div>
+          ) : commitResults.length ? (
+            commitResults.map((item) => (
+              <button
+                key={item.sha}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  runtime.openTab("commit", "main", { sha: item.sha });
+                  closeResults();
+                }}
+              >
+                {item.sha.slice(0, 7)} · {item.commit.message?.split("\n")[0] || "Commit"}
+              </button>
+            ))
+          ) : (
+            <div className="omnibar-empty">No matching commits</div>
+          )}
         </div>
       )}
       {focused && queryKind === "run" && (
         <div className="omnibar-results">
-          {entityLoading ? <div className="omnibar-empty">Loading workflow runs…</div> : entityError ? <div className="omnibar-empty">{entityError}</div> : runResults.length ? runResults.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                runtime.openTab("workflow-run", "main", { id: item.id });
-                closeResults();
-              }}
-            >
-              Run #{item.run_number} · {item.display_title || item.name || "Workflow"} · {item.status || "unknown"}
-            </button>
-          )) : <div className="omnibar-empty">No matching workflow runs</div>}
+          {entityLoading ? (
+            <div className="omnibar-empty">Loading workflow runs…</div>
+          ) : entityError ? (
+            <div className="omnibar-empty">{entityError}</div>
+          ) : runResults.length ? (
+            runResults.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  runtime.openTab("workflow-run", "main", { id: item.id });
+                  closeResults();
+                }}
+              >
+                Run #{item.run_number} · {item.display_title || item.name || "Workflow"} ·{" "}
+                {item.status || "unknown"}
+              </button>
+            ))
+          ) : (
+            <div className="omnibar-empty">No matching workflow runs</div>
+          )}
         </div>
       )}
       {focused && queryKind === "project" && (
         <div className="omnibar-results">
-          {entityLoading ? <div className="omnibar-empty">Loading projects…</div> : entityError ? <div className="omnibar-empty">{entityError}</div> : projectResults.length ? projectResults.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                runtime.openTab("project", "main", { number: item.number });
-                closeResults();
-              }}
-            >
-              Project #{item.number} · {item.title}
-            </button>
-          )) : <div className="omnibar-empty">No matching projects</div>}
+          {entityLoading ? (
+            <div className="omnibar-empty">Loading projects…</div>
+          ) : entityError ? (
+            <div className="omnibar-empty">{entityError}</div>
+          ) : projectResults.length ? (
+            projectResults.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  runtime.openTab("project", "main", { number: item.number });
+                  closeResults();
+                }}
+              >
+                Project #{item.number} · {item.title}
+              </button>
+            ))
+          ) : (
+            <div className="omnibar-empty">No matching projects</div>
+          )}
         </div>
       )}
       {focused && queryKind === "release" && (
         <div className="omnibar-results">
-          {entityLoading ? <div className="omnibar-empty">Loading releases…</div> : entityError ? <div className="omnibar-empty">{entityError}</div> : releaseResults.length ? releaseResults.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                runtime.openTab("release", "main", { id: item.id });
-                closeResults();
-              }}
-            >
-              {item.tag_name} · {item.name || "Release"}
-            </button>
-          )) : <div className="omnibar-empty">No matching releases</div>}
+          {entityLoading ? (
+            <div className="omnibar-empty">Loading releases…</div>
+          ) : entityError ? (
+            <div className="omnibar-empty">{entityError}</div>
+          ) : releaseResults.length ? (
+            releaseResults.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  runtime.openTab("release", "main", { id: item.id });
+                  closeResults();
+                }}
+              >
+                {item.tag_name} · {item.name || "Release"}
+              </button>
+            ))
+          ) : (
+            <div className="omnibar-empty">No matching releases</div>
+          )}
         </div>
       )}
       {focused && queryKind === "workspace" && (
         <div className="omnibar-results">
-          {workspaceResults.length ? workspaceResults.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                void workspace.openRepository(item.repository.fullName, item.ref);
-                closeResults();
-              }}
-            >
-              {item.repository.fullName} · {item.ref}
-            </button>
-          )) : <div className="omnibar-empty">No matching recent workspaces</div>}
+          {workspaceResults.length ? (
+            workspaceResults.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  void workspace.openRepository(item.repository.fullName, item.ref);
+                  closeResults();
+                }}
+              >
+                {item.repository.fullName} · {item.ref}
+              </button>
+            ))
+          ) : (
+            <div className="omnibar-empty">No matching recent workspaces</div>
+          )}
         </div>
       )}
       {focused && queryKind === "resource" && query.trim() && (
         <div className="omnibar-results">
-          {resourceResults.length ? resourceResults.map((path) => (
-            <button
-              key={path}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => openResource(path)}
-            >
-              {path}
-            </button>
-          )) : <div className="omnibar-empty">No matching files</div>}
+          {resourceResults.length ? (
+            resourceResults.map((path) => (
+              <button
+                key={path}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => openResource(path)}
+              >
+                {path}
+              </button>
+            ))
+          ) : (
+            <div className="omnibar-empty">No matching files</div>
+          )}
         </div>
       )}
     </div>

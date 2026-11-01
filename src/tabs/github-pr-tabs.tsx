@@ -43,10 +43,18 @@ export function PullRequestsTab() {
     setLoading(true);
     setError("");
     void listGithubPullRequests(fullName, token, state)
-      .then((items) => { if (!disposed) setPulls(items); })
-      .catch((reason) => { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); })
-      .finally(() => { if (!disposed) setLoading(false); });
-    return () => { disposed = true; };
+      .then((items) => {
+        if (!disposed) setPulls(items);
+      })
+      .catch((reason) => {
+        if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
+      })
+      .finally(() => {
+        if (!disposed) setLoading(false);
+      });
+    return () => {
+      disposed = true;
+    };
   }, [fullName, revision, state, token]);
 
   if (!workspace.workspace) return <RepositoryRequired />;
@@ -56,10 +64,16 @@ export function PullRequestsTab() {
     if (!title?.trim()) return;
     const head = window.prompt("Head branch", workspace.workspace?.ref || "")?.trim();
     if (!head) return;
-    const base = window.prompt("Base branch", workspace.workspace?.repository.defaultBranch || "main")?.trim();
+    const base = window
+      .prompt("Base branch", workspace.workspace?.repository.defaultBranch || "main")
+      ?.trim();
     if (!base) return;
     const body = window.prompt("Pull request body") ?? "";
-    const pull = await createGithubPullRequest(fullName, { title: title.trim(), body, head, base }, token);
+    const pull = await createGithubPullRequest(
+      fullName,
+      { title: title.trim(), body, head, base },
+      token,
+    );
     setRevision((value) => value + 1);
     runtime.openTab("pull-request", "main", { number: pull.number });
   };
@@ -69,21 +83,45 @@ export function PullRequestsTab() {
       <header className="github-surface-header">
         <strong>Pull Requests</strong>
         <div>
-          <select value={state} onChange={(event) => setState(event.target.value as "open" | "closed" | "all")}>
-            <option value="open">Open</option><option value="closed">Closed</option><option value="all">All</option>
+          <select
+            value={state}
+            onChange={(event) => setState(event.target.value as "open" | "closed" | "all")}
+          >
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+            <option value="all">All</option>
           </select>
-          <button type="button" disabled={!token} onClick={() => void create()}>New PR</button>
+          <button type="button" disabled={!token} onClick={() => void create()}>
+            New PR
+          </button>
         </div>
       </header>
-      {loading ? <LoadingState label="pull requests" /> : error ? <ErrorState error={error} /> : (
+      {loading ? (
+        <LoadingState label="pull requests" />
+      ) : error ? (
+        <ErrorState error={error} />
+      ) : (
         <div className="github-list">
           {pulls.map((pull) => (
-            <button key={pull.id ?? pull.number} type="button" className="github-list-row" onClick={() => runtime.openTab("pull-request", "main", { number: pull.number })}>
-              <span className="github-list-primary">#{pull.number} {pull.title || "Untitled pull request"}</span>
-              <span>{pull.state} · {pull.head.ref} → {pull.base.ref} · {pull.user?.login || "unknown"}</span>
+            <button
+              key={pull.id ?? pull.number}
+              type="button"
+              className="github-list-row"
+              onClick={() => runtime.openTab("pull-request", "main", { number: pull.number })}
+            >
+              <span className="github-list-primary">
+                #{pull.number} {pull.title || "Untitled pull request"}
+              </span>
+              <span>
+                {pull.state} · {pull.head.ref} → {pull.base.ref} · {pull.user?.login || "unknown"}
+              </span>
             </button>
           ))}
-          {!pulls.length && <div className="tab-empty"><span>No pull requests in this filter.</span></div>}
+          {!pulls.length && (
+            <div className="tab-empty">
+              <span>No pull requests in this filter.</span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -131,17 +169,34 @@ export function PullRequestTab({ tab }: { tab: WorkbenchTab }) {
       .finally(() => {
         if (!disposed) setLoading(false);
       });
-    return () => { disposed = true; };
+    return () => {
+      disposed = true;
+    };
   }, [fullName, number, revision, token]);
 
   if (!workspace.workspace) return <RepositoryRequired />;
-  if (!number) return <div className="tab-empty"><span>No pull request selected.</span></div>;
+  if (!number)
+    return (
+      <div className="tab-empty">
+        <span>No pull request selected.</span>
+      </div>
+    );
   if (loading) return <LoadingState label={`pull request #${number}`} />;
   if (error) return <ErrorState error={error} />;
-  if (!pull) return <div className="tab-empty"><span>Pull request not found.</span></div>;
+  if (!pull)
+    return (
+      <div className="tab-empty">
+        <span>Pull request not found.</span>
+      </div>
+    );
 
   const toggleState = async () => {
-    await updateGithubPullRequest(fullName, number, { state: pull.state === "open" ? "closed" : "open" }, token);
+    await updateGithubPullRequest(
+      fullName,
+      number,
+      { state: pull.state === "open" ? "closed" : "open" },
+      token,
+    );
     setRevision((value) => value + 1);
   };
 
@@ -155,7 +210,14 @@ export function PullRequestTab({ tab }: { tab: WorkbenchTab }) {
   };
 
   const review = async (event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT") => {
-    const body = window.prompt(event === "APPROVE" ? "Approval note" : event === "REQUEST_CHANGES" ? "Requested changes" : "Review comment") ?? "";
+    const body =
+      window.prompt(
+        event === "APPROVE"
+          ? "Approval note"
+          : event === "REQUEST_CHANGES"
+            ? "Requested changes"
+            : "Review comment",
+      ) ?? "";
     await createGithubPullRequestReview(fullName, number, event, body, token);
     setRevision((value) => value + 1);
   };
@@ -181,17 +243,49 @@ export function PullRequestTab({ tab }: { tab: WorkbenchTab }) {
     <div className="github-detail">
       <header className="github-detail-header">
         <div>
-          <strong>#{pull.number} {pull.title || "Untitled pull request"}</strong>
-          <span>{pull.state} · {pull.head.ref} → {pull.base.ref} · {pull.user?.login || "unknown"}</span>
+          <strong>
+            #{pull.number} {pull.title || "Untitled pull request"}
+          </strong>
+          <span>
+            {pull.state} · {pull.head.ref} → {pull.base.ref} · {pull.user?.login || "unknown"}
+          </span>
         </div>
         <div>
-          <button type="button" disabled={!token} onClick={() => void edit()}>Edit</button>
-          <button type="button" disabled={!token} onClick={() => void review("COMMENT")}>Review comment</button>
-          <button type="button" disabled={!token || pull.state !== "open"} onClick={() => void review("APPROVE")}>Approve</button>
-          <button type="button" disabled={!token || pull.state !== "open"} onClick={() => void review("REQUEST_CHANGES")}>Request changes</button>
-          <button type="button" disabled={!token} onClick={() => void toggleState()}>{pull.state === "open" ? "Close" : "Reopen"}</button>
-          <button type="button" disabled={!token || pull.state !== "open"} onClick={() => void merge()}>Merge</button>
-          {pull.html_url && <a href={pull.html_url} target="_blank" rel="noreferrer">GitHub</a>}
+          <button type="button" disabled={!token} onClick={() => void edit()}>
+            Edit
+          </button>
+          <button type="button" disabled={!token} onClick={() => void review("COMMENT")}>
+            Review comment
+          </button>
+          <button
+            type="button"
+            disabled={!token || pull.state !== "open"}
+            onClick={() => void review("APPROVE")}
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            disabled={!token || pull.state !== "open"}
+            onClick={() => void review("REQUEST_CHANGES")}
+          >
+            Request changes
+          </button>
+          <button type="button" disabled={!token} onClick={() => void toggleState()}>
+            {pull.state === "open" ? "Close" : "Reopen"}
+          </button>
+          <button
+            type="button"
+            disabled={!token || pull.state !== "open"}
+            onClick={() => void merge()}
+          >
+            Merge
+          </button>
+          {pull.html_url && (
+            <a href={pull.html_url} target="_blank" rel="noreferrer">
+              GitHub
+            </a>
+          )}
         </div>
       </header>
       <div className="github-detail-body">
@@ -201,7 +295,10 @@ export function PullRequestTab({ tab }: { tab: WorkbenchTab }) {
           {checks.map((check) => (
             <div key={check.id} className="github-data-row">
               <strong>{check.name}</strong>
-              <span>{check.status}{check.conclusion ? ` · ${check.conclusion}` : ""}</span>
+              <span>
+                {check.status}
+                {check.conclusion ? ` · ${check.conclusion}` : ""}
+              </span>
             </div>
           ))}
           {!checks.length && <p className="github-empty-body">No check runs.</p>}
@@ -224,10 +321,16 @@ export function PullRequestTab({ tab }: { tab: WorkbenchTab }) {
           <h3>Files Changed</h3>
           {files.map((file) => (
             <div key={file.filename} className="github-data-row">
-              <button type="button" className="github-file-link" onClick={() => compareFile(file.filename)}>
+              <button
+                type="button"
+                className="github-file-link"
+                onClick={() => compareFile(file.filename)}
+              >
                 {file.filename}
               </button>
-              <span>{file.status} · +{file.additions} −{file.deletions}</span>
+              <span>
+                {file.status} · +{file.additions} −{file.deletions}
+              </span>
             </div>
           ))}
         </section>

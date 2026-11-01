@@ -53,13 +53,25 @@ export function RepositoryDialog() {
 
   return (
     <div className="workspace-dialog-backdrop" role="presentation">
-      <section className="workspace-dialog" role="dialog" aria-modal="true" aria-label="Open GitHub repository">
+      <section
+        className="workspace-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Open GitHub repository"
+      >
         <header>
           <div>
             <strong>Open GitHub Repository</strong>
             <span>Open a repository into a browser-local workspace.</span>
           </div>
-          <button type="button" className="workbench-icon-button" onClick={() => workspace.setDialogOpen(false)} aria-label="Close"><X size={15} /></button>
+          <button
+            type="button"
+            className="workbench-icon-button"
+            onClick={() => workspace.setDialogOpen(false)}
+            aria-label="Close"
+          >
+            <X size={15} />
+          </button>
         </header>
         <form
           className="workspace-dialog-form"
@@ -74,9 +86,13 @@ export function RepositoryDialog() {
             placeholder="owner/repository or https://github.com/owner/repository"
             aria-label="Repository"
           />
-          <button type="submit" disabled={!input.trim() || workspace.loading}>Open</button>
+          <button type="submit" disabled={!input.trim() || workspace.loading}>
+            Open
+          </button>
         </form>
-        {(localError || workspace.error) && <div className="workspace-dialog-error">{localError || workspace.error}</div>}
+        {(localError || workspace.error) && (
+          <div className="workspace-dialog-error">{localError || workspace.error}</div>
+        )}
         <div className="workspace-dialog-sections">
           <section>
             <div className="workspace-dialog-section-title">Account</div>
@@ -84,7 +100,9 @@ export function RepositoryDialog() {
               <div className="workspace-account-row">
                 <img src={workspace.user.avatar_url} alt="" />
                 <span>{workspace.user.login}</span>
-                <button type="button" onClick={workspace.signOut}>Sign out</button>
+                <button type="button" onClick={workspace.signOut}>
+                  Sign out
+                </button>
               </div>
             ) : (
               <div className="workspace-github-auth">
@@ -98,11 +116,13 @@ export function RepositoryDialog() {
                   <span>Sign in with GitHub</span>
                 </button>
                 <p className="workspace-help">
-                  Continue on GitHub to authorize this workbench. The returned credential is kept only in this browser session and is cleared on sign-out.
+                  Continue on GitHub to authorize this workbench. The returned credential is kept
+                  only in this browser session and is cleared on sign-out.
                 </p>
                 {!authConfig.configured && (
                   <div className="workspace-auth-status status-warning">
-                    GitHub sign-in is not configured for this deployment. Public repositories remain available anonymously.
+                    GitHub sign-in is not configured for this deployment. Public repositories remain
+                    available anonymously.
                   </div>
                 )}
                 {authResult.phase !== "signed-out" && authResult.message && (
@@ -118,8 +138,15 @@ export function RepositoryDialog() {
               <div className="workspace-dialog-section-title">Recent Workspaces</div>
               <div className="workspace-list">
                 {workspace.recent.map((item) => (
-                  <button key={item.id} type="button" onClick={() => void workspace.openRepository(item.repository.fullName, item.ref)}>
-                    <span>{item.repository.fullName}</span><small>{item.ref}</small>
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() =>
+                      void workspace.openRepository(item.repository.fullName, item.ref)
+                    }
+                  >
+                    <span>{item.repository.fullName}</span>
+                    <small>{item.ref}</small>
                   </button>
                 ))}
               </div>
@@ -130,8 +157,13 @@ export function RepositoryDialog() {
               <div className="workspace-dialog-section-title">Accessible Repositories</div>
               <div className="workspace-list">
                 {workspace.repositories.slice(0, 100).map((repository) => (
-                  <button key={repository.id} type="button" onClick={() => void open(repository.full_name)}>
-                    <span>{repository.full_name}</span><small>{repository.private ? "Private" : "Public"}</small>
+                  <button
+                    key={repository.id}
+                    type="button"
+                    onClick={() => void open(repository.full_name)}
+                  >
+                    <span>{repository.full_name}</span>
+                    <small>{repository.private ? "Private" : "Public"}</small>
                   </button>
                 ))}
               </div>

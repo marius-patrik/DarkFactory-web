@@ -277,7 +277,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           setRemoteHeadSha(remoteCommit.sha);
           setRecent(rememberWorkspace(cached));
           setRefs(await listGithubRefs(repository.full_name, token).catch(() => []));
-          setError("Remote ref changed. Local work remains pinned to its original base until you sync explicitly.");
+          setError(
+            "Remote ref changed. Local work remains pinned to its original base until you sync explicitly.",
+          );
           setDialogOpen(false);
           return;
         }
@@ -302,7 +304,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setDialogOpen(false);
       } catch (reason) {
         const matching = recent.find(
-          (item) => item.repository.fullName === fullName && (!requestedRef || item.ref === requestedRef),
+          (item) =>
+            item.repository.fullName === fullName && (!requestedRef || item.ref === requestedRef),
         );
         const cached = matching ? await loadWorkspace(matching.id) : undefined;
         if (cached) {
@@ -353,10 +356,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         token,
       );
       const hasLocalState =
-        overlays.length > 0 ||
-        staged.length > 0 ||
-        committedFiles.length > 0 ||
-        commits.length > 0;
+        overlays.length > 0 || staged.length > 0 || committedFiles.length > 0 || commits.length > 0;
 
       if (hasLocalState) {
         const touched = new Set<string>();
@@ -477,7 +477,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           return;
         }
       }
-      const remoteEntry = workspace.tree.find((entry) => entry.path === path && entry.type === "blob");
+      const remoteEntry = workspace.tree.find(
+        (entry) => entry.path === path && entry.type === "blob",
+      );
       await commitOverlay(
         {
           key: overlayKey(workspace.id, path),
@@ -500,9 +502,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (!workspace) throw new Error("No workspace is open.");
       const normalized = path.trim().replace(/^\/+/, "");
       if (!normalized) throw new Error("File path cannot be empty.");
-      const existsInWorkingTree = overlays.some(
-        (entry) => entry.path === normalized && entry.status !== "deleted",
-      ) || (!overlays.some((entry) => entry.path === normalized && entry.status === "deleted") && baselineExists(normalized));
+      const existsInWorkingTree =
+        overlays.some((entry) => entry.path === normalized && entry.status !== "deleted") ||
+        (!overlays.some((entry) => entry.path === normalized && entry.status === "deleted") &&
+          baselineExists(normalized));
       if (existsInWorkingTree) throw new Error(`Path already exists: ${normalized}`);
       await writeFile(normalized, content);
     },
@@ -517,7 +520,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         await commitOverlay(null, path);
         return;
       }
-      const remoteEntry = workspace.tree.find((entry) => entry.path === path && entry.type === "blob");
+      const remoteEntry = workspace.tree.find(
+        (entry) => entry.path === path && entry.type === "blob",
+      );
       await commitOverlay(
         {
           key: overlayKey(workspace.id, path),
@@ -538,14 +543,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (!workspace) throw new Error("No workspace is open.");
       const target = nextPath.trim().replace(/^\/+/, "");
       if (!target || target === path) return;
-      const targetExists = overlays.some(
-        (entry) => entry.path === target && entry.status !== "deleted",
-      ) || (!overlays.some((entry) => entry.path === target && entry.status === "deleted") && baselineExists(target));
+      const targetExists =
+        overlays.some((entry) => entry.path === target && entry.status !== "deleted") ||
+        (!overlays.some((entry) => entry.path === target && entry.status === "deleted") &&
+          baselineExists(target));
       if (targetExists) throw new Error(`Path already exists: ${target}`);
 
       const content = await readFile(path);
       const sourceWasAdded = !baselineExists(path);
-      const remoteEntry = workspace.tree.find((entry) => entry.path === path && entry.type === "blob");
+      const remoteEntry = workspace.tree.find(
+        (entry) => entry.path === path && entry.type === "blob",
+      );
 
       if (sourceWasAdded) {
         await removeOverlay(workspace.id, path);
@@ -723,13 +731,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [loadLocalState, overlays, staged, workspace],
   );
 
-
   const createBranch = useCallback(
     async (branch: string) => {
       if (!workspace) throw new Error("No workspace is open.");
       if (!token) throw new Error("Sign in with GitHub before creating a branch.");
       const name = branch.trim();
-      if (!name || /[\s~^:?*\\[\\]\\\\]/.test(name) || name.includes("..") || name.startsWith("/") || name.endsWith("/")) {
+      if (
+        !name ||
+        /[\s~^:?*\\[\\]\\\\]/.test(name) ||
+        name.includes("..") ||
+        name.startsWith("/") ||
+        name.endsWith("/")
+      ) {
         throw new Error("Enter a valid Git branch name.");
       }
       setLoading(true);
@@ -796,8 +809,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!workspace) throw new Error("No workspace is open.");
     if (!token) throw new Error("Sign in with GitHub before pushing.");
     if (!commits.length) throw new Error("There are no local commits to push.");
-    const branch = refs.find((candidate) => candidate.kind === "branch" && candidate.name === workspace.ref);
-    if (!branch) throw new Error("Push requires a branch workspace. Tags and detached refs are read-only.");
+    const branch = refs.find(
+      (candidate) => candidate.kind === "branch" && candidate.name === workspace.ref,
+    );
+    if (!branch)
+      throw new Error("Push requires a branch workspace. Tags and detached refs are read-only.");
 
     setLoading(true);
     setError(null);
@@ -818,11 +834,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         for (const file of localCommit.files) {
           const sourcePath = file.renamedFrom || file.path;
           const existing = workspace.tree.find(
-            (entry) => entry.type === "blob" && (entry.path === file.path || entry.path === sourcePath),
+            (entry) =>
+              entry.type === "blob" && (entry.path === file.path || entry.path === sourcePath),
           );
-          const mode = existing?.mode && ["100644", "100755", "120000"].includes(existing.mode)
-            ? existing.mode
-            : "100644";
+          const mode =
+            existing?.mode && ["100644", "100755", "120000"].includes(existing.mode)
+              ? existing.mode
+              : "100644";
 
           if (file.status === "deleted") {
             mutations.push({ path: file.path, mode, type: "blob" as const, sha: null });
@@ -854,12 +872,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         treeSha = tree.sha;
       }
 
-      await updateGithubBranchRef(
-        workspace.repository.fullName,
-        workspace.ref,
-        parentSha,
-        token,
-      );
+      await updateGithubBranchRef(workspace.repository.fullName, workspace.ref, parentSha, token);
 
       const remoteCommit = await getGithubCommit(workspace.repository.fullName, parentSha, token);
       const remoteTree = await getGithubTree(
@@ -908,119 +921,109 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [commits, loadLocalState, overlays, refs, token, workspace]);
 
-  const exportPatch = useCallback(async (
-    scope: PatchExportScope = "all",
-    commitId?: string,
-  ) => {
-    if (!workspace) throw new Error("No workspace is open.");
+  const exportPatch = useCallback(
+    async (scope: PatchExportScope = "all", commitId?: string) => {
+      if (!workspace) throw new Error("No workspace is open.");
 
-    const readRemote = async (path: string): Promise<string | null> => {
-      const entry = workspace.tree.find(
-        (candidate) => candidate.type === "blob" && candidate.path === path,
+      const readRemote = async (path: string): Promise<string | null> => {
+        const entry = workspace.tree.find(
+          (candidate) => candidate.type === "blob" && candidate.path === path,
+        );
+        return entry ? readBaseFile(path, entry.sha) : null;
+      };
+
+      const readCommitted = async (path: string): Promise<string | null> => {
+        const committed = committedFiles.find((candidate) => candidate.path === path);
+        if (committed) {
+          if (committed.deleted) return null;
+          if (committed.content !== undefined) return committed.content;
+        }
+        return readRemote(path);
+      };
+
+      const contentAfter = (file: WorkingFile | StagedFile, before: string | null) =>
+        file.status === "deleted" ? null : (file.content ?? before);
+
+      const parts: string[] = [];
+      const appendPatch = (path: string, before: string | null, after: string | null) => {
+        if (before === after) return;
+        parts.push(wholeFilePatch(path, before, after));
+      };
+
+      if (scope === "working") {
+        for (const file of [...overlays].sort((left, right) =>
+          left.path.localeCompare(right.path),
+        )) {
+          const before = await readCommitted(file.path);
+          appendPatch(file.path, before, contentAfter(file, before));
+        }
+      } else if (scope === "staged") {
+        for (const file of [...staged].sort((left, right) => left.path.localeCompare(right.path))) {
+          const before = await readCommitted(file.path);
+          appendPatch(file.path, before, contentAfter(file, before));
+        }
+      } else if (scope === "commits") {
+        for (const file of [...committedFiles].sort((left, right) =>
+          left.path.localeCompare(right.path),
+        )) {
+          const before = await readRemote(file.path);
+          const after = file.deleted ? null : (file.content ?? before);
+          appendPatch(file.path, before, after);
+        }
+      } else if (scope === "commit") {
+        const targetIndex = commits.findIndex((candidate) => candidate.id === commitId);
+        if (targetIndex < 0) throw new Error("Local commit was not found.");
+        const target = commits[targetIndex];
+        const targetFiles = new Map(target.files.map((file) => [file.path, file]));
+
+        for (const path of [...targetFiles.keys()].sort()) {
+          let before = await readRemote(path);
+          for (let index = 0; index < targetIndex; index += 1) {
+            const prior = commits[index].files.find((file) => file.path === path);
+            if (prior) before = contentAfter(prior, before);
+          }
+          const file = targetFiles.get(path);
+          if (!file) continue;
+          appendPatch(path, before, contentAfter(file, before));
+        }
+      } else {
+        const paths = new Set<string>();
+        for (const file of committedFiles) paths.add(file.path);
+        for (const file of overlays) paths.add(file.path);
+
+        for (const path of [...paths].sort()) {
+          const before = await readRemote(path);
+          let after: string | null = null;
+          try {
+            after = await readFile(path);
+          } catch {
+            after = null;
+          }
+          appendPatch(path, before, after);
+        }
+      }
+
+      if (!parts.length) throw new Error("There are no changes in this patch scope.");
+
+      const ref = workspace.ref.replace(/[^A-Za-z0-9._-]+/g, "-");
+      let suffix: string = scope;
+      if (scope === "commit") {
+        const target = commits.find((candidate) => candidate.id === commitId);
+        const label = target?.message
+          .trim()
+          .slice(0, 48)
+          .replace(/[^A-Za-z0-9._-]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+        suffix = label ? `commit-${label}` : "commit";
+      }
+      downloadText(
+        parts.join("\n"),
+        `${workspace.repository.name}-${ref}-${suffix}.patch`,
+        "text/x-patch;charset=utf-8",
       );
-      return entry ? readBaseFile(path, entry.sha) : null;
-    };
-
-    const readCommitted = async (path: string): Promise<string | null> => {
-      const committed = committedFiles.find((candidate) => candidate.path === path);
-      if (committed) {
-        if (committed.deleted) return null;
-        if (committed.content !== undefined) return committed.content;
-      }
-      return readRemote(path);
-    };
-
-    const contentAfter = (
-      file: WorkingFile | StagedFile,
-      before: string | null,
-    ) => file.status === "deleted" ? null : file.content ?? before;
-
-    const parts: string[] = [];
-    const appendPatch = (
-      path: string,
-      before: string | null,
-      after: string | null,
-    ) => {
-      if (before === after) return;
-      parts.push(wholeFilePatch(path, before, after));
-    };
-
-    if (scope === "working") {
-      for (const file of [...overlays].sort((left, right) => left.path.localeCompare(right.path))) {
-        const before = await readCommitted(file.path);
-        appendPatch(file.path, before, contentAfter(file, before));
-      }
-    } else if (scope === "staged") {
-      for (const file of [...staged].sort((left, right) => left.path.localeCompare(right.path))) {
-        const before = await readCommitted(file.path);
-        appendPatch(file.path, before, contentAfter(file, before));
-      }
-    } else if (scope === "commits") {
-      for (const file of [...committedFiles].sort((left, right) => left.path.localeCompare(right.path))) {
-        const before = await readRemote(file.path);
-        const after = file.deleted ? null : file.content ?? before;
-        appendPatch(file.path, before, after);
-      }
-    } else if (scope === "commit") {
-      const targetIndex = commits.findIndex((candidate) => candidate.id === commitId);
-      if (targetIndex < 0) throw new Error("Local commit was not found.");
-      const target = commits[targetIndex];
-      const targetFiles = new Map(target.files.map((file) => [file.path, file]));
-
-      for (const path of [...targetFiles.keys()].sort()) {
-        let before = await readRemote(path);
-        for (let index = 0; index < targetIndex; index += 1) {
-          const prior = commits[index].files.find((file) => file.path === path);
-          if (prior) before = contentAfter(prior, before);
-        }
-        const file = targetFiles.get(path);
-        if (!file) continue;
-        appendPatch(path, before, contentAfter(file, before));
-      }
-    } else {
-      const paths = new Set<string>();
-      for (const file of committedFiles) paths.add(file.path);
-      for (const file of overlays) paths.add(file.path);
-
-      for (const path of [...paths].sort()) {
-        const before = await readRemote(path);
-        let after: string | null = null;
-        try {
-          after = await readFile(path);
-        } catch {
-          after = null;
-        }
-        appendPatch(path, before, after);
-      }
-    }
-
-    if (!parts.length) throw new Error("There are no changes in this patch scope.");
-
-    const ref = workspace.ref.replace(/[^A-Za-z0-9._-]+/g, "-");
-    let suffix: string = scope;
-    if (scope === "commit") {
-      const target = commits.find((candidate) => candidate.id === commitId);
-      const label = target?.message
-        .trim()
-        .slice(0, 48)
-        .replace(/[^A-Za-z0-9._-]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-      suffix = label ? `commit-${label}` : "commit";
-    }
-    downloadText(
-      parts.join("\n"),
-      `${workspace.repository.name}-${ref}-${suffix}.patch`,
-      "text/x-patch;charset=utf-8",
-    );
-  }, [
-    committedFiles,
-    commits,
-    overlays,
-    readBaseFile,
-    readFile,
-    staged,
-    workspace,
-  ]);
+    },
+    [committedFiles, commits, overlays, readBaseFile, readFile, staged, workspace],
+  );
 
   const exportWorkspaceZip = useCallback(async () => {
     if (!workspace) throw new Error("No workspace is open.");
@@ -1030,11 +1033,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const files = virtualFiles(workspace.tree, committedFiles, overlays);
       const zipFiles = [];
       for (const file of files) {
-        const bytes = file.content !== undefined
-          ? new TextEncoder().encode(file.content)
-          : file.sha
-            ? await getGithubBlobBytes(workspace.repository.fullName, file.sha, token)
-            : new Uint8Array();
+        const bytes =
+          file.content !== undefined
+            ? new TextEncoder().encode(file.content)
+            : file.sha
+              ? await getGithubBlobBytes(workspace.repository.fullName, file.sha, token)
+              : new Uint8Array();
         zipFiles.push({ path: file.path, bytes });
       }
       const archive = createStoredZip(zipFiles);

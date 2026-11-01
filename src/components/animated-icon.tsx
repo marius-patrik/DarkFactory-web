@@ -133,11 +133,7 @@ const STATIC_FALLBACKS: Record<string, LucideStaticComponent> = {
   RefreshCwIcon: RefreshCw,
 };
 
-export function AnimatedIcon({
-  names,
-  className,
-  ...props
-}: AnimatedIconProps) {
+export function AnimatedIcon({ names, className, ...props }: AnimatedIconProps) {
   const candidates = Array.isArray(names) ? names : [names];
   const glyphSize = 13;
   const animatedRegistry = AnimatedIcons as unknown as Record<string, LucideAnimatedComponent>;
@@ -162,12 +158,5 @@ export function AnimatedIcon({
 
   if (!Static) return null;
 
-  return (
-    <Static
-      size={glyphSize}
-      className={className}
-      aria-hidden="true"
-      focusable="false"
-    />
-  );
+  return <Static size={glyphSize} className={className} aria-hidden="true" focusable="false" />;
 }

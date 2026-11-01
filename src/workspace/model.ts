@@ -81,7 +81,11 @@ export function repositoryFromGithub(repository: GithubRepository): WorkspaceRep
     private: repository.private,
     defaultBranch: repository.default_branch,
     htmlUrl: repository.html_url,
-    canPush: Boolean(repository.permissions?.push || repository.permissions?.maintain || repository.permissions?.admin),
+    canPush: Boolean(
+      repository.permissions?.push ||
+        repository.permissions?.maintain ||
+        repository.permissions?.admin,
+    ),
   };
 }
 
@@ -94,7 +98,8 @@ export function parseRepositoryInput(input: string) {
   if (!value) throw new Error("Enter a GitHub repository.");
   try {
     const url = new URL(value);
-    if (url.hostname !== "github.com") throw new Error("Only github.com repository URLs are supported.");
+    if (url.hostname !== "github.com")
+      throw new Error("Only github.com repository URLs are supported.");
     const parts = url.pathname.split("/").filter(Boolean);
     if (parts.length < 2) throw new Error("Repository URL must include owner and repository.");
     return `${parts[0]}/${parts[1]}`;

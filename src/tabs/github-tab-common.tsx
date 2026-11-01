@@ -10,7 +10,11 @@ export function dateLabel(value?: string | null) {
 
 export function MarkdownBody({ children }: { children: string | null | undefined }) {
   if (!children) return <p className="github-empty-body">No description.</p>;
-  return <div className="github-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown></div>;
+  return (
+    <div className="github-markdown">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
+    </div>
+  );
 }
 
 export function useRepositoryIdentity() {
@@ -23,13 +27,27 @@ export function useRepositoryIdentity() {
 }
 
 export function LoadingState({ label }: { label: string }) {
-  return <div className="tab-empty"><span>Loading {label}…</span></div>;
+  return (
+    <div className="tab-empty">
+      <span>Loading {label}…</span>
+    </div>
+  );
 }
 
 export function ErrorState({ error }: { error: string }) {
-  return <div className="tab-empty"><strong>GitHub request failed</strong><span>{error}</span></div>;
+  return (
+    <div className="tab-empty">
+      <strong>GitHub request failed</strong>
+      <span>{error}</span>
+    </div>
+  );
 }
 
 export function RepositoryRequired() {
-  return <div className="tab-empty"><strong>No workspace active</strong><span>Open a GitHub repository first.</span></div>;
+  return (
+    <div className="tab-empty">
+      <strong>No workspace active</strong>
+      <span>Open a GitHub repository first.</span>
+    </div>
+  );
 }

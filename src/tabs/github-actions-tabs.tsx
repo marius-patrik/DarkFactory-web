@@ -76,9 +76,15 @@ export function ActionsTab() {
     <div className="github-surface">
       <header className="github-surface-header">
         <strong>Actions</strong>
-        <button type="button" onClick={() => setRevision((value) => value + 1)}>Refresh</button>
+        <button type="button" onClick={() => setRevision((value) => value + 1)}>
+          Refresh
+        </button>
       </header>
-      {loading ? <LoadingState label="Actions" /> : error ? <ErrorState error={error} /> : (
+      {loading ? (
+        <LoadingState label="Actions" />
+      ) : error ? (
+        <ErrorState error={error} />
+      ) : (
         <div className="github-split-list">
           <section>
             <h3>Workflows</h3>
@@ -86,7 +92,9 @@ export function ActionsTab() {
               <div key={workflow.id} className="github-action-row">
                 <span>
                   <strong>{workflow.name}</strong>
-                  <small>{workflow.path} · {workflow.state}</small>
+                  <small>
+                    {workflow.path} · {workflow.state}
+                  </small>
                 </span>
                 <button
                   type="button"
@@ -97,7 +105,11 @@ export function ActionsTab() {
                 </button>
               </div>
             ))}
-            {!workflows.length && <div className="tab-empty"><span>No workflows.</span></div>}
+            {!workflows.length && (
+              <div className="tab-empty">
+                <span>No workflows.</span>
+              </div>
+            )}
           </section>
           <section>
             <h3>Runs</h3>
@@ -112,12 +124,17 @@ export function ActionsTab() {
                   {run.display_title || run.name || `Run #${run.run_number}`}
                 </span>
                 <span>
-                  {run.status}{run.conclusion ? ` · ${run.conclusion}` : ""} ·{" "}
+                  {run.status}
+                  {run.conclusion ? ` · ${run.conclusion}` : ""} ·{" "}
                   {run.head_branch || run.head_sha.slice(0, 7)}
                 </span>
               </button>
             ))}
-            {!runs.length && <div className="tab-empty"><span>No workflow runs.</span></div>}
+            {!runs.length && (
+              <div className="tab-empty">
+                <span>No workflow runs.</span>
+              </div>
+            )}
           </section>
         </div>
       )}
@@ -164,10 +181,20 @@ export function WorkflowRunTab({ tab }: { tab: WorkbenchTab }) {
   }, [fullName, id, revision, token]);
 
   if (!workspace.workspace) return <RepositoryRequired />;
-  if (!id) return <div className="tab-empty"><span>No workflow run selected.</span></div>;
+  if (!id)
+    return (
+      <div className="tab-empty">
+        <span>No workflow run selected.</span>
+      </div>
+    );
   if (loading) return <LoadingState label="workflow run" />;
   if (error) return <ErrorState error={error} />;
-  if (!run) return <div className="tab-empty"><span>Workflow run not found.</span></div>;
+  if (!run)
+    return (
+      <div className="tab-empty">
+        <span>Workflow run not found.</span>
+      </div>
+    );
 
   const rerun = async () => {
     await rerunGithubWorkflowRun(fullName, id, token);
@@ -204,12 +231,15 @@ export function WorkflowRunTab({ tab }: { tab: WorkbenchTab }) {
         <div>
           <strong>{run.display_title || run.name || `Run #${run.run_number}`}</strong>
           <span>
-            {run.status}{run.conclusion ? ` · ${run.conclusion}` : ""} ·{" "}
+            {run.status}
+            {run.conclusion ? ` · ${run.conclusion}` : ""} ·{" "}
             {run.head_branch || run.head_sha.slice(0, 7)}
           </span>
         </div>
         <div>
-          <button type="button" disabled={!token} onClick={() => void rerun()}>Rerun</button>
+          <button type="button" disabled={!token} onClick={() => void rerun()}>
+            Rerun
+          </button>
           <button
             type="button"
             disabled={!token || run.status === "completed"}
@@ -217,7 +247,9 @@ export function WorkflowRunTab({ tab }: { tab: WorkbenchTab }) {
           >
             Cancel
           </button>
-          <a href={run.html_url} target="_blank" rel="noreferrer">GitHub</a>
+          <a href={run.html_url} target="_blank" rel="noreferrer">
+            GitHub
+          </a>
         </div>
       </header>
       <div className="github-detail-body github-run-body">
@@ -227,8 +259,13 @@ export function WorkflowRunTab({ tab }: { tab: WorkbenchTab }) {
             <div key={job.id} className="github-data-row">
               <strong>{job.name}</strong>
               <span className="github-row-actions">
-                <span>{job.status}{job.conclusion ? ` · ${job.conclusion}` : ""}</span>
-                <button type="button" onClick={() => void downloadLogs(job)}>Logs</button>
+                <span>
+                  {job.status}
+                  {job.conclusion ? ` · ${job.conclusion}` : ""}
+                </span>
+                <button type="button" onClick={() => void downloadLogs(job)}>
+                  Logs
+                </button>
               </span>
             </div>
           ))}

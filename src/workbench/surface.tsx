@@ -8,7 +8,6 @@ import {
   type GetTabContextMenuItemsParams,
   type ReactContextMenuItemConfig,
 } from "dockview-react";
-import { EmptyWorkbench } from "./empty-workbench";
 import { LauncherButton } from "./launcher";
 import type { WorkbenchDropTarget, WorkbenchSurface, WorkbenchTab } from "./model";
 import { WorkbenchPanel } from "./registry";
@@ -21,7 +20,7 @@ function paramsOf(panel: any): WorkbenchTab | null {
       ? apiParams
       : panel?.params;
   return params && typeof params.id === "string" && typeof params.type === "string"
-    ? params as WorkbenchTab
+    ? (params as WorkbenchTab)
     : null;
 }
 
@@ -41,10 +40,13 @@ function dragPayload(event: DragEvent): CrossSurfaceDrag | null {
     const parsed = JSON.parse(raw) as Partial<CrossSurfaceDrag>;
     if (
       typeof parsed.id === "string" &&
-      (parsed.source === "primary" || parsed.source === "main" || parsed.source === "secondary" || parsed.source === "panel")
-    ) return parsed as CrossSurfaceDrag;
-  } catch {
-  }
+      (parsed.source === "primary" ||
+        parsed.source === "main" ||
+        parsed.source === "secondary" ||
+        parsed.source === "panel")
+    )
+      return parsed as CrossSurfaceDrag;
+  } catch {}
   return null;
 }
 
@@ -100,9 +102,10 @@ export function WorkbenchSurfaceView({
 
       const dock = root.querySelector<HTMLElement>(".workbench-dockview");
       const dockRect = dock?.getBoundingClientRect();
-      const rect = dockRect && dockRect.width > 0 && dockRect.height > 0
-        ? dockRect
-        : root.getBoundingClientRect();
+      const rect =
+        dockRect && dockRect.width > 0 && dockRect.height > 0
+          ? dockRect
+          : root.getBoundingClientRect();
       const edgeX = Math.min(36, rect.width * 0.12);
       const edgeY = Math.min(36, rect.height * 0.12);
       let direction: WorkbenchDropTarget["direction"] = "within";
@@ -112,7 +115,11 @@ export function WorkbenchSurfaceView({
       else if (event.clientY >= rect.bottom - edgeY) direction = "below";
 
       const activeId = Array.from(root.querySelectorAll<HTMLElement>(".dv-tab.dv-active-tab"))
-        .map((element) => element.dataset.tabPanelId || element.querySelector<HTMLElement>("[data-workbench-tab-id]")?.dataset.workbenchTabId)
+        .map(
+          (element) =>
+            element.dataset.tabPanelId ||
+            element.querySelector<HTMLElement>("[data-workbench-tab-id]")?.dataset.workbenchTabId,
+        )
         .find((id): id is string => Boolean(id));
       return { referencePanelId: activeId, direction };
     };
@@ -164,13 +171,25 @@ export function WorkbenchSurfaceView({
     return () => window.removeEventListener("dragend", clearDrag);
   }, []);
 
-  const components = useMemo(() => ({ workbench: (props: any) => <WorkbenchPanel props={props} /> }), []);
-  const tabComponents = useMemo(() => ({
-    workbenchTab: (props: any) => {
-      const tab = props.params as WorkbenchTab;
-      return <DockviewDefaultTab {...props} data-workbench-tab-id={tab?.id} hideClose={Boolean(tab?.pinned)} />;
-    },
-  }), []);
+  const components = useMemo(
+    () => ({ workbench: (props: any) => <WorkbenchPanel props={props} /> }),
+    [],
+  );
+  const tabComponents = useMemo(
+    () => ({
+      workbenchTab: (props: any) => {
+        const tab = props.params as WorkbenchTab;
+        return (
+          <DockviewDefaultTab
+            {...props}
+            data-workbench-tab-id={tab?.id}
+            hideClose={Boolean(tab?.pinned)}
+          />
+        );
+      },
+    }),
+    [],
+  );
   const HeaderActions = useMemo(() => () => <LauncherButton surface={surface} />, [surface]);
   const dockTheme = runtime.settings.theme === "light" ? themeLight : themeAbyss;
 
@@ -228,9 +247,10 @@ export function WorkbenchSurfaceView({
       const renderer = tab.state.renderer === "browser" ? "browser" : "editor";
       items.push({
         label: renderer === "browser" ? "Open in Editor Renderer" : "Open in Browser Renderer",
-        action: () => runtimeRef.current.updateTabState(tab.id, {
-          renderer: renderer === "browser" ? "editor" : "browser",
-        }),
+        action: () =>
+          runtimeRef.current.updateTabState(tab.id, {
+            renderer: renderer === "browser" ? "editor" : "browser",
+          }),
       });
     }
 
@@ -271,51 +291,76 @@ export function WorkbenchSurfaceView({
       className={`workbench-surface workbench-surface-${surface}${mainEmpty ? " workbench-surface-empty" : ""}`}
       data-workbench-surface={surface}
     >
-      <div className={`workbench-dockview-host${mainEmpty ? " workbench-dockview-host-empty" : ""}`}>
+      <div
+        className={`workbench-dockview-host${mainEmpty ? " workbench-dockview-host-empty" : ""}`}
+      >
         <DockviewReact
           className="workbench-dockview"
-        theme={{ ...dockTheme, tabAnimation: "smooth" as const }}
-        components={components}
-        tabComponents={tabComponents}
-        defaultRenderer="always"
-        rightHeaderActionsComponent={HeaderActions}
-        getTabContextMenuItems={tabContextMenuItems}
-        onReady={(event: any) => {
-          const api = event.api;
-          onReady(surface, api);
+          theme={{ ...dockTheme, tabAnimation: "smooth" as const }}
+          components={components}
+          tabComponents={tabComponents}
+          defaultRenderer="always"
+          rightHeaderActionsComponent={HeaderActions}
+          getTabContextMenuItems={tabContextMenuItems}
+          onReady={(event: any) => {
+            const api = event.api;
+            onReady(surface, api);
 
-          let restored = false;
-          if (restoredLayout) {
-            try {
-              api.fromJSON(restoredLayout);
-              restored = true;
-            } catch {
-              restored = false;
+            let restored = false;
+            if (restoredLayout) {
+              try {
+                api.fromJSON(restoredLayout);
+                restored = true;
+              } catch {
+                restored = false;
+              }
             }
-          }
-          if (!restored) {
-            for (const tab of defaultTabs) {
-              api.addPanel({ id: tab.id, component: "workbench", tabComponent: "workbenchTab", title: tab.title, params: tab, renderer: "always" });
+            const hasPerspective = (api.panels ?? []).some((panel: any) => {
+              const type = paramsOf(panel)?.type;
+              return (
+                type === "overview" ||
+                type === "specification" ||
+                type === "delta" ||
+                type === "repository"
+              );
+            });
+            // Migrate earlier layouts that kept the main canvas outside Dockview.
+            // Existing editors remain intact; perspectives become first-class tabs.
+            if (!restored || (surface === "main" && !hasPerspective)) {
+              for (const tab of defaultTabs) {
+                api.addPanel({
+                  id: tab.id,
+                  component: "workbench",
+                  tabComponent: "workbenchTab",
+                  title: tab.title,
+                  params: tab,
+                  renderer: "always",
+                  ...(api.activePanel
+                    ? {
+                        position: { referencePanel: api.activePanel.id, direction: "within" },
+                      }
+                    : {}),
+                });
+              }
             }
-          }
-          initialized.current = true;
-          setPanelCount(api.panels?.length ?? 0);
-          if (surface === "main") {
-            onActiveTabChange(surface, paramsOf(api.activePanel));
-          }
-          api.onDidActivePanelChange?.((event: any) => {
-            onActiveTabChange(surface, paramsOf(event?.panel));
-          });
-          api.onDidLayoutChange?.(() => {
-            const count = api.panels?.length ?? 0;
-            setPanelCount(count);
-            if (initialized.current && count === 0 && surface !== "main") runtimeRef.current.setSurfaceVisible(surface, false);
-            runtimeRef.current.layoutChanged();
-          });
-        }}
+            initialized.current = true;
+            setPanelCount(api.panels?.length ?? 0);
+            if (surface === "main") {
+              onActiveTabChange(surface, paramsOf(api.activePanel));
+            }
+            api.onDidActivePanelChange?.((event: any) => {
+              onActiveTabChange(surface, paramsOf(event?.panel));
+            });
+            api.onDidLayoutChange?.(() => {
+              const count = api.panels?.length ?? 0;
+              setPanelCount(count);
+              if (initialized.current && count === 0 && surface !== "main")
+                runtimeRef.current.setSurfaceVisible(surface, false);
+              runtimeRef.current.layoutChanged();
+            });
+          }}
         />
       </div>
-      {mainEmpty && <EmptyWorkbench />}
     </div>
   );
 }

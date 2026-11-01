@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "rsbuild dev",
     "build": "rsbuild build",
+    "build:standalone": "GHCODE_STANDALONE=1 rsbuild build",
     "preview": "rsbuild preview",
     "lint": "biome lint --max-diagnostics=none src rsbuild.config.ts",
     "format": "biome format --write src rsbuild.config.ts package.json tsconfig.json biome.json components.json",

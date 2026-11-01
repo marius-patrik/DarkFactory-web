@@ -10,7 +10,13 @@ const DATABASE = "darkfactory-workbench";
 const VERSION = 2;
 const RECENT_KEY = "workbench-recent-workspaces-v1";
 
-type BlobRecord = { key: string; workspaceId: string; sha: string; content: string; updatedAt: number };
+type BlobRecord = {
+  key: string;
+  workspaceId: string;
+  sha: string;
+  content: string;
+  updatedAt: number;
+};
 type StoreName = "workspaces" | "blobs" | "overlays" | "staged" | "committed" | "commits";
 
 function openDatabase() {
@@ -63,7 +69,10 @@ async function withStore<T>(
   }
 }
 
-async function allForWorkspace<T extends { workspaceId: string }>(name: StoreName, workspaceId: string) {
+async function allForWorkspace<T extends { workspaceId: string }>(
+  name: StoreName,
+  workspaceId: string,
+) {
   const all = await withStore<T[]>(name, "readonly", (store) => store.getAll());
   return all.filter((item) => item.workspaceId === workspaceId);
 }
@@ -73,7 +82,11 @@ export function saveWorkspace(snapshot: WorkspaceSnapshot) {
 }
 
 export async function loadWorkspace(id: string) {
-  const snapshot = await withStore<WorkspaceSnapshot | undefined>("workspaces", "readonly", (store) => store.get(id));
+  const snapshot = await withStore<WorkspaceSnapshot | undefined>(
+    "workspaces",
+    "readonly",
+    (store) => store.get(id),
+  );
   return snapshot?.version === 2 ? snapshot : undefined;
 }
 
@@ -89,10 +102,8 @@ export async function saveBlob(workspaceId: string, sha: string, content: string
 }
 
 export async function loadBlob(workspaceId: string, sha: string) {
-  const record = await withStore<BlobRecord | undefined>(
-    "blobs",
-    "readonly",
-    (store) => store.get(`${workspaceId}:${sha}`),
+  const record = await withStore<BlobRecord | undefined>("blobs", "readonly", (store) =>
+    store.get(`${workspaceId}:${sha}`),
   );
   return record?.content ?? null;
 }
@@ -161,8 +172,10 @@ async function clearStoreForWorkspace<T extends { key?: string; id?: string; wor
     }
     await new Promise<void>((resolve, reject) => {
       transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed"));
-      transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
+      transaction.onerror = () =>
+        reject(transaction.error ?? new Error("IndexedDB transaction failed"));
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
     });
   } finally {
     database.close();

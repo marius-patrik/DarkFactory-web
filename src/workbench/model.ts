@@ -1,6 +1,10 @@
 export type WorkbenchSurface = "primary" | "main" | "secondary" | "panel";
 
 export type WorkbenchTabType =
+  | "overview"
+  | "specification"
+  | "delta"
+  | "repository"
   | "editor"
   | "browser"
   | "explorer"
