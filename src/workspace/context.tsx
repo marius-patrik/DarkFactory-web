@@ -650,6 +650,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const stageGroupFor = useCallback(
     (path: string) => {
+      const lease = capture();
       const selected = overlays.find((entry) => entry.path === path);
       if (!selected) return [];
       const group = [selected];
@@ -672,24 +673,31 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const stageFile = useCallback(
     async (path: string) => {
       if (!workspace) throw new Error("No workspace is open.");
+      const lease = capture();
       for (const file of stageGroupFor(path)) {
         await saveStaged({ ...file, stagedAt: Date.now() });
       }
-      setStaged(await loadStaged(workspace.id));
+      const next = await loadStaged(workspace.id);
+      assertCurrent(lease);
+      setStaged(next);
     },
-    [stageGroupFor, workspace],
+    [assertCurrent, capture, stageGroupFor, workspace],
   );
 
   const stageAll = useCallback(async () => {
     if (!workspace) throw new Error("No workspace is open.");
+    const lease = capture();
     const now = Date.now();
     for (const file of overlays) await saveStaged({ ...file, stagedAt: now });
-    setStaged(await loadStaged(workspace.id));
-  }, [overlays, workspace]);
+    const next = await loadStaged(workspace.id);
+    assertCurrent(lease);
+    setStaged(next);
+  }, [assertCurrent, capture, overlays, workspace]);
 
   const unstageFile = useCallback(
     async (path: string) => {
       if (!workspace) throw new Error("No workspace is open.");
+      const lease = capture();
       const selected = staged.find((entry) => entry.path === path);
       const paths = new Set([path]);
       if (selected?.status === "renamed" && selected.renamedFrom) paths.add(selected.renamedFrom);
@@ -700,16 +708,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (target) paths.add(target.path);
       }
       for (const candidate of paths) await removeStaged(workspace.id, candidate);
-      setStaged(await loadStaged(workspace.id));
+      const next = await loadStaged(workspace.id);
+      assertCurrent(lease);
+      setStaged(next);
     },
-    [staged, workspace],
+    [assertCurrent, capture, staged, workspace],
   );
 
   const unstageAll = useCallback(async () => {
     if (!workspace) throw new Error("No workspace is open.");
+    const lease = capture();
     await clearStaged(workspace.id);
+    assertCurrent(lease);
     setStaged([]);
-  }, [workspace]);
+  }, [assertCurrent, capture, workspace]);
 
   const discardFile = useCallback(
     async (path: string) => {
@@ -727,9 +739,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         await removeOverlay(workspace.id, candidate);
         await removeStaged(workspace.id, candidate);
       }
-      await Promise.all([refreshOverlays(), loadStaged(workspace.id).then(setStaged)]);
+      const nextStaged = await loadStaged(workspace.id);
+      assertCurrent(lease);
+      await refreshOverlays();
+      assertCurrent(lease);
+      setStaged(nextStaged);
     },
-    [overlays, refreshOverlays, workspace],
+    [assertCurrent, capture, overlays, refreshOverlays, workspace],
   );
 
   const commitStaged = useCallback(
@@ -738,6 +754,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const normalizedMessage = message.trim();
       if (!normalizedMessage) throw new Error("Commit message cannot be empty.");
       if (!staged.length) throw new Error("There are no staged changes.");
+      const lease = capture();
+      assertCurrent(lease);
 
       const now = Date.now();
       const commit: LocalCommit = {
@@ -774,12 +792,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           });
         }
       }
+      assertCurrent(lease);
       await saveLocalCommit(commit);
       await clearStaged(workspace.id);
-      await loadLocalState(workspace.id, capture());
+      await loadLocalState(workspace.id, lease);
       return commit;
     },
-    [capture, loadLocalState, overlays, staged, workspace],
+    [assertCurrent, capture, loadLocalState, overlays, staged, workspace],
   );
 
   const createBranch = useCallback(
@@ -990,6 +1009,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const exportPatch = useCallback(
     async (scope: PatchExportScope = "all", commitId?: string) => {
       if (!workspace) throw new Error("No workspace is open.");
+      const lease = capture();
 
       const readRemote = async (path: string): Promise<string | null> => {
         const entry = workspace.tree.find(
@@ -1082,17 +1102,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           .replace(/^-+|-+$/g, "");
         suffix = label ? `commit-${label}` : "commit";
       }
+      assertCurrent(lease);
       downloadText(
         parts.join("\n"),
         `${workspace.repository.name}-${ref}-${suffix}.patch`,
         "text/x-patch;charset=utf-8",
       );
     },
-    [committedFiles, commits, overlays, readBaseFile, readFile, staged, workspace],
+    [assertCurrent, capture, committedFiles, commits, overlays, readBaseFile, readFile, staged, workspace],
   );
 
   const exportWorkspaceZip = useCallback(async () => {
     if (!workspace) throw new Error("No workspace is open.");
+    const lease = capture();
     setLoading(true);
     setError(null);
     try {
@@ -1107,16 +1129,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
               : new Uint8Array();
         zipFiles.push({ path: file.path, bytes });
       }
+      assertCurrent(lease);
       const archive = createStoredZip(zipFiles);
       const filename = `${workspace.repository.name}-${workspace.ref.replace(/[^A-Za-z0-9._-]+/g, "-")}-workspace.zip`;
       downloadBytes(archive, filename, "application/zip");
     } finally {
-      setLoading(false);
+      if (isCurrent(lease)) setLoading(false);
     }
-  }, [committedFiles, overlays, token, workspace]);
+  }, [assertCurrent, capture, committedFiles, isCurrent, overlays, token, workspace]);
 
   const exportRemoteArchive = useCallback(async () => {
     if (!workspace) throw new Error("No workspace is open.");
+    const lease = capture();
     setLoading(true);
     setError(null);
     try {
@@ -1125,12 +1149,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         workspace.ref,
         token,
       );
+      assertCurrent(lease);
       const filename = `${workspace.repository.name}-${workspace.ref.replace(/[^A-Za-z0-9._-]+/g, "-")}-remote.zip`;
       downloadBytes(archive, filename, "application/zip");
     } finally {
-      setLoading(false);
+      if (isCurrent(lease)) setLoading(false);
     }
-  }, [token, workspace]);
+  }, [assertCurrent, capture, isCurrent, token, workspace]);
 
   const value = useMemo<WorkspaceContextValue>(
     () => ({
