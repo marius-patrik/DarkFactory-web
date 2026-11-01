@@ -7,11 +7,11 @@ const pkg = await Bun.file(join(repositoryRoot, "package.json")).json();
 const platform = process.platform;
 const arch = process.arch;
 if (!["darwin", "win32", "linux"].includes(platform) || !["x64", "arm64"].includes(arch)) {
-  throw new Error("Unsupported native distribution target: " + platform + "-" + arch);
+  throw new Error(`Unsupported native distribution target: ${platform}-${arch}`);
 }
 const sourceSha = process.env.GITHUB_SHA || await gitHead();
 if (!/^[0-9a-f]{40}$/.test(sourceSha)) throw new Error("Cannot establish 40-character source SHA");
-const name = "RSCode-v" + pkg.version + "-" + platform + "-" + arch;
+const name = `RSCode-v${pkg.version}-${platform}-${arch}`;
 const stage = join(outputRoot, name);
 const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
 if (!browsersPath) throw new Error("Set PLAYWRIGHT_BROWSERS_PATH and install Chromium before packaging");
@@ -57,7 +57,7 @@ const provenance = {
   browserProvisioning: "bundled-playwright-chromium",
   signing: "unsigned",
 };
-await writeFile(join(stage, "distribution.json"), JSON.stringify(provenance, null, 2) + "\n");
+await writeFile(join(stage, "distribution.json"), `${JSON.stringify(provenance, null, 2)}\n`);
 const inspected = await readFile(join(stage, "src", "server", "server.ts"), "utf8");
 if (!inspected.includes('dist", "web')) throw new Error("Runtime asset layout assumption changed");
 console.log(JSON.stringify({ stage, provenance, browserFileCount: browserFiles.length }, null, 2));
