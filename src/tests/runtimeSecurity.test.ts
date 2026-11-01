@@ -6,22 +6,39 @@ import type { BrowserSession } from "@/shared/schema";
 
 function localRequest(host: string, origin?: string): Request {
   return new Request("http://127.0.0.1:4567/api/fs.delete", {
-    headers: { host, ...(origin ? { origin } : {}) },
+    headers: { host, ...(origin !== undefined ? { origin } : {}) },
   });
 }
 
-test("strict loopback host and origin gate rejects sibling-site and rebinding requests", () => {
-  expect(isTrustedLocalRequest(localRequest("127.0.0.1:4567"), 4567)).toBe(true);
-  expect(isTrustedLocalRequest(localRequest("localhost:4567", "http://localhost:4567"), 4567)).toBe(true);
-  expect(isTrustedLocalRequest(localRequest("127.0.0.1:4567", "http://localhost:3000"), 4567)).toBe(false);
-  expect(isTrustedLocalRequest(localRequest("127.0.0.1:4567", "https://localhost:4567"), 4567)).toBe(false);
-  expect(isTrustedLocalRequest(localRequest("127.0.0.1:4567", "http://localhost:4567/path"), 4567)).toBe(false);
-  expect(isTrustedLocalRequest(localRequest("127.0.0.1:4567", "null"), 4567)).toBe(false);
-  expect(isTrustedLocalRequest(localRequest("attacker.invalid:4567"), 4567)).toBe(false);
-  expect(isTrustedLocalRequest(localRequest("127.0.0.1.attacker.invalid:4567"), 4567)).toBe(false);
-  expect(isTrustedLocalRequest(localRequest("127.0.0.1:7000"), 4567)).toBe(false);
-  expect(isTrustedLocalRequest(localRequest("127.0.0.1:4567", "http://localhost:7000"), 4567, 7000)).toBe(true);
-  expect(isTrustedLocalRequest(localRequest("127.0.0.1:7000", "http://localhost:7000"), 4567, 7000)).toBe(true);
+test("only canonical IPv4 first-party origins can access the privileged runtime", () => {
+  const api = "127.0.0.1:4567";
+  const web = "127.0.0.1:7000";
+  expect(isTrustedLocalRequest(localRequest(api), 4567)).toBe(true); // local CLI
+  expect(isTrustedLocalRequest(localRequest(api, "http://127.0.0.1:4567"), 4567)).toBe(true);
+  expect(isTrustedLocalRequest(localRequest(api, "http://127.0.0.1:7000"), 4567, 7000)).toBe(true);
+  expect(isTrustedLocalRequest(localRequest(web, "http://127.0.0.1:7000"), 4567, 7000)).toBe(true);
+  expect(isTrustedLocalRequest(localRequest(web), 4567, 7000)).toBe(true); // proxy health
+  expect(isTrustedLocalRequest(localRequest(api, "http://127.0.0.1:7000"), 4567)).toBe(false);
+
+  // Same numeric port does not make another browser host a first-party origin.
+  for (const origin of [
+    "http://localhost:4567", "http://[::1]:4567",
+    "http://localhost:7000", "http://[::1]:7000",
+    "http://127.0.0.1:9999", "https://127.0.0.1:4567",
+    "http://127.0.0.1:4567/path", "http://127.0.0.1:4567/",
+    "http://127.0.0.1:4567?query", "http://127.0.0.1:4567#fragment",
+    "http://user@127.0.0.1:4567", "http://127.0.0.1.attacker.invalid:4567",
+    "null", "", "not an origin", "http://127.0.0.1:4567 http://evil.invalid",
+  ]) {
+    expect(isTrustedLocalRequest(localRequest(api, origin), 4567, 7000)).toBe(false);
+  }
+  for (const host of [
+    "localhost:4567", "[::1]:4567", "attacker.invalid:4567",
+    "127.0.0.1.attacker.invalid:4567", "127.0.0.1:9999",
+    "127.0.0.1:4567@evil.invalid", "127.0.0.1:04567",
+  ]) {
+    expect(isTrustedLocalRequest(localRequest(host, "http://127.0.0.1:4567"), 4567, 7000)).toBe(false);
+  }
 });
 
 test("API lookup never crosses into Object or Function prototypes", () => {
