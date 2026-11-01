@@ -1,132 +1,211 @@
-name: CI
+name: CI and production Pages
+
 on:
   pull_request:
+    branches: [development, main]
   push:
-    branches: [main]
+    branches: [development, main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Main pushes serialize release tags; PR checks remain independently queued.
 concurrency:
-  group: ghcode-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main-publish' || format('check-{0}-{1}', github.event_name, github.ref) }}
-  cancel-in-progress: false
+  group: ghcode-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  check:
+  checks:
+    name: Verified source and browser acceptance
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
-      - name: Install
-        run: bun install
-      - name: Lint, typecheck, and build
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Enforce committed formatting
+        run: bun run format:check
+      - name: Lint, typecheck and production build
         run: bun run check
-      - name: Install Playwright Chromium
+      - name: Validate canonical documents
+        run: python3 .github/scripts/generate_documents.py --check
+      - name: Run repository behavior tests
+        run: python3 -m unittest discover -s .github/tests -p 'test_*.py'
+      - name: Install browser
         run: bunx playwright install --with-deps chromium
       - name: Browser acceptance
         run: bun run acceptance
 
-  package:
-    name: Package GHCode from validated main
-    needs: check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  build-site:
+    name: Package validated production build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: checks
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     env:
       PUBLIC_GITHUB_OAUTH_CLIENT_ID: ${{ vars.WORKBENCH_OAUTH_CLIENT_ID }}
       PUBLIC_GITHUB_AUTH_BROKER_URL: ${{ vars.WORKBENCH_AUTH_BROKER_URL }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
-      - name: Build standalone GHCode
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Validate static output
         run: |
-          bun install
-          bun run build
           test -s dist/index.html
-      - name: Save immutable build for matching GitHub release
+          test -d dist/assets
+          if find dist -type l | grep -q .; then
+            echo '::error::Published directory contains symbolic links'
+            exit 1
+          fi
+      - name: Store release contents
         uses: actions/upload-artifact@v4
         with:
-          name: ghcode-dist
-          path: dist
+          name: ghcode-production
+          path: dist/
           if-no-files-found: error
-      - uses: actions/configure-pages@v5
-      - name: Upload GitHub Pages deployment artifact
-        uses: actions/upload-pages-artifact@v4
+
+  deploy-pages:
+    name: Deploy production with GitHub Pages Actions
+    needs: build-site
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: ghcode-pages-production
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Download exact verified release asset
+        uses: actions/download-artifact@v4
         with:
-          path: dist
+          name: ghcode-production
+          path: site
+      - name: Check release artifact
+        run: test -s site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+      - name: Deploy directly from Actions (no gh-pages branch)
+        id: deploy
+        uses: actions/deploy-pages@v4
+      - name: Confirm production document and entry assets
+        env:
+          PAGE_URL: ${{ steps.deploy.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            code="$(curl -sSL -o "$RUNNER_TEMP/index.html" -w '%{http_code}' --max-time 25 "$PAGE_URL" || true)"
+            if [ "$code" = 200 ] && grep -qi '<html' "$RUNNER_TEMP/index.html"; then break; fi
+            sleep 10
+          done
+          test "$code" = 200
+          grep -qi '<html' "$RUNNER_TEMP/index.html"
+          python3 - "$RUNNER_TEMP/index.html" "$PAGE_URL" > "$RUNNER_TEMP/entry-assets" <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import urljoin
+          import sys
+
+          class Assets(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.assets = []
+              def handle_starttag(self, tag, attrs):
+                  values = dict(attrs)
+                  if tag == "script" and values.get("src"):
+                      self.assets.append(values["src"])
+                  if tag == "link" and values.get("rel") == "stylesheet" and values.get("href"):
+                      self.assets.append(values["href"])
+          parser = Assets()
+          parser.feed(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if not parser.assets:
+              raise SystemExit("No JavaScript/CSS entry assets")
+          for asset in parser.assets:
+              print(urljoin(sys.argv[2], asset))
+          PY
+          while IFS= read -r asset; do
+            curl --fail --location --silent --show-error --retry 4 --max-time 25 -o /dev/null "$asset"
+          done < "$RUNNER_TEMP/entry-assets"
 
   release:
-    name: Create GitHub release for main commit
-    needs: package
+    name: Publish immutable release after verified Pages deployment
+    needs: deploy-pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: ghcode-production
+          path: dist
+      - name: Tag and publish exactly the deployed commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -s dist/index.html
+          git fetch origin --tags
+          tag="$(python3 .github/scripts/versioning.py)"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            test "$(git rev-list -n 1 "$tag")" = "$GITHUB_SHA"
+          else
+            git tag "$tag" "$GITHUB_SHA"
+            git push origin "refs/tags/$tag"
+          fi
+          (cd dist && zip -q -r ../ghcode-site.zip .)
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" ghcode-site.zip --target "$GITHUB_SHA" --title "$tag" --generate-notes
+          else
+            gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'ghcode-site.zip'
+          fi
+          gh release view "$tag" --json tagName,url
+
+  cleanup-branches:
+    name: Remove superseded branches after successful release
+    needs: release
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: ghcode-dist
-          path: dist
-      - name: Publish next patch release
+      - name: Require completed PR queue before removing source refs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          test -s dist/index.html
-          cd dist
-          zip -q -r ../ghcode-site.zip .
-          cd ..
-          # Serial workflow concurrency makes patch-tag allocation deterministic.
-          PREVIOUS="$(gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -E '^v[0-9]+[.][0-9]+[.][0-9]+$' | sort -V | tail -1 || true)"
-          if [[ -z "$PREVIOUS" ]]; then
-            TAG="v0.1.0"
-          else
-            IFS='.' read -r MAJOR MINOR PATCH <<< "${PREVIOUS#v}"
-            TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          set -euo pipefail
+          open_count="$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq 'length')"
+          if [ "$open_count" != 0 ]; then
+            echo "::error::Cannot remove branches while $open_count PRs remain open"
+            exit 1
           fi
-          gh release create "$TAG" ghcode-site.zip --target "$GITHUB_SHA" --title "$TAG" --generate-notes
-
-  deploy:
-    name: Deploy Pages from Actions artifact
-    needs: package
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy GHCode
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-      - name: Verify GitHub Pages source and public response
+      - name: Delete obsolete branches, retaining main and development
         env:
           GH_TOKEN: ${{ github.token }}
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         run: |
-          echo "GitHub Pages configuration:"
-          if gh api "repos/$GITHUB_REPOSITORY/pages" --jq '{build_type, status, html_url, source}'; then
-            build_type="$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.build_type')"
-            if [[ "$build_type" != "workflow" ]]; then
-              echo "::error::Pages is still configured for branch publishing ($build_type). Change Settings > Pages > Build and deployment > Source to GitHub Actions."
-              exit 1
-            fi
-          else
-            echo "::warning::Unable to read Pages settings with GITHUB_TOKEN."
-          fi
-          for attempt in {1..9}; do
-            code="$(curl -sSL -o /tmp/ghcode-public-index -w '%{http_code}' --max-time 25 "$PAGE_URL" || true)"
-            echo "Public Pages HTTP status (attempt $attempt): $code"
-            if [[ "$code" == "200" ]] && grep -qi '<html' /tmp/ghcode-public-index; then
-              echo "GHCode is publicly readable at $PAGE_URL"
-              exit 0
-            fi
-            sleep 10
+          set -euo pipefail
+          mapfile -t branches < <(gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" --jq '.[].name')
+          for branch in "${branches[@]}"; do
+            case "$branch" in
+              main|development) continue ;;
+              '') continue ;;
+            esac
+            echo "Removing superseded branch: $branch"
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch" >/dev/null
           done
-          echo "::error::Deployment API succeeded, but the public GHCode homepage is not returning HTML over HTTP 200 at $PAGE_URL"
-          exit 1
+          mapfile -t remaining < <(gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" --jq '.[].name')
+          for branch in "${remaining[@]}"; do
+            case "$branch" in main|development) ;; *) echo "::error::Unexpected branch: $branch"; exit 1;; esac
+          done
+          printf 'Remaining branches: %s\\n' "${remaining[*]}"

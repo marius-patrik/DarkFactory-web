@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PdfDocumentView } from "@/pdf-document";
-import {
-  resourceCapabilityForPath,
-  type RendererCapabilityId,
-} from "./capabilities";
+import { resourceCapabilityForPath, type RendererCapabilityId } from "./capabilities";
 
 export type RenderableResourceSnapshot = {
   label: string;
@@ -105,7 +102,12 @@ export function RenderedResource({
   snapshot: RenderableResourceSnapshot | null;
 }) {
   const objectUrl = useObjectUrl(snapshot);
-  if (!snapshot) return <div className="tab-empty"><span>No resource loaded.</span></div>;
+  if (!snapshot)
+    return (
+      <div className="tab-empty">
+        <span>No resource loaded.</span>
+      </div>
+    );
   if (!snapshot.exists) {
     return (
       <div className="tab-empty">

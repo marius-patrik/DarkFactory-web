@@ -10,13 +10,7 @@ import { RenderedResource } from "@/renderers/registry";
 import { useWorkspace } from "@/workspace/context";
 
 export type ResourceRenderer = "editor" | "browser";
-export type CompareMode =
-  | "none"
-  | "working"
-  | "staged"
-  | "commit"
-  | "branch"
-  | "pull-request";
+export type CompareMode = "none" | "working" | "staged" | "commit" | "branch" | "pull-request";
 
 export type ResourceSnapshot = {
   label: string;
@@ -33,7 +27,11 @@ export type ResourceComparison = {
 
 export { RenderedResource };
 
-function snapshotFromBytes(path: string, label: string, bytes: Uint8Array | null): ResourceSnapshot {
+function snapshotFromBytes(
+  path: string,
+  label: string,
+  bytes: Uint8Array | null,
+): ResourceSnapshot {
   if (!bytes) {
     return { label, exists: false, content: null, bytes: null, mime: mimeForPath(path) };
   }
@@ -46,7 +44,11 @@ function snapshotFromBytes(path: string, label: string, bytes: Uint8Array | null
   };
 }
 
-function snapshotFromContent(path: string, label: string, content: string | undefined): ResourceSnapshot {
+function snapshotFromContent(
+  path: string,
+  label: string,
+  content: string | undefined,
+): ResourceSnapshot {
   if (content === undefined) {
     return { label, exists: false, content: null, bytes: null, mime: mimeForPath(path) };
   }
@@ -70,11 +72,7 @@ async function remoteSnapshot(
   const tree = await getGithubTree(fullName, commit.commit.tree.sha, token);
   const entry = tree.tree.find((candidate) => candidate.type === "blob" && candidate.path === path);
   if (!entry) return snapshotFromBytes(path, label, null);
-  return snapshotFromBytes(
-    path,
-    label,
-    await getGithubBlobBytes(fullName, entry.sha, token),
-  );
+  return snapshotFromBytes(path, label, await getGithubBlobBytes(fullName, entry.sha, token));
 }
 
 export function useResourceComparison(path: string, compare: CompareMode, target: string) {
@@ -154,7 +152,13 @@ export function useResourceComparison(path: string, compare: CompareMode, target
           const parent = commit.parents[0]?.sha;
           nextComparison = {
             before: parent
-              ? await remoteSnapshot(snapshot.repository.fullName, token, parent, path, `Parent ${parent.slice(0, 7)}`)
+              ? await remoteSnapshot(
+                  snapshot.repository.fullName,
+                  token,
+                  parent,
+                  path,
+                  `Parent ${parent.slice(0, 7)}`,
+                )
               : snapshotFromBytes(path, "Empty tree", null),
             after: await remoteSnapshot(
               snapshot.repository.fullName,
@@ -184,7 +188,8 @@ export function useResourceComparison(path: string, compare: CompareMode, target
           };
         } else if (compare === "pull-request") {
           const number = Number(target);
-          if (!Number.isInteger(number) || number < 1) throw new Error("Enter a pull request number.");
+          if (!Number.isInteger(number) || number < 1)
+            throw new Error("Enter a pull request number.");
           const pull = await getGithubPullRequest(snapshot.repository.fullName, number, token);
           const baseRepository = pull.base.repo?.full_name || snapshot.repository.fullName;
           const headRepository = pull.head.repo?.full_name || snapshot.repository.fullName;
@@ -258,19 +263,25 @@ export function ResourceControls({
     [workspace.refs],
   );
 
-  const updateCompare = useCallback((value: CompareMode) => {
-    const patch: Record<string, unknown> = { compare: value };
-    if (value === "branch") {
-      patch.compareTarget = branches.find((branch) => branch.name !== workspace.workspace?.ref)?.name ?? "";
-    } else if (value === "none" || value === "working" || value === "staged") {
-      patch.compareTarget = "";
-    }
-    onChange(patch);
-  }, [branches, onChange, workspace.workspace?.ref]);
+  const updateCompare = useCallback(
+    (value: CompareMode) => {
+      const patch: Record<string, unknown> = { compare: value };
+      if (value === "branch") {
+        patch.compareTarget =
+          branches.find((branch) => branch.name !== workspace.workspace?.ref)?.name ?? "";
+      } else if (value === "none" || value === "working" || value === "staged") {
+        patch.compareTarget = "";
+      }
+      onChange(patch);
+    },
+    [branches, onChange, workspace.workspace?.ref],
+  );
 
   return (
     <div className="resource-controls">
-      <span className="resource-path" title={path}>{path}</span>
+      <span className="resource-path" title={path}>
+        {path}
+      </span>
       <select
         value={renderer}
         onChange={(event) => onChange({ renderer: event.target.value as ResourceRenderer })}
@@ -308,7 +319,11 @@ export function ResourceControls({
           aria-label="Compare branch"
         >
           <option value="">Select branch</option>
-          {branches.map((branch) => <option key={branch.name} value={branch.name}>{branch.name}</option>)}
+          {branches.map((branch) => (
+            <option key={branch.name} value={branch.name}>
+              {branch.name}
+            </option>
+          ))}
         </select>
       )}
       {(compare === "commit" || compare === "pull-request") && (

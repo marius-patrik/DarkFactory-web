@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color-scheme: dark;
   --bg: #202124;
   --toolbar: #2b2d31;
@@ -12,7 +13,7 @@
   --muted: #a8adb7;
   --accent: #4b8bf5;
   --document-paper: #ffffff;
-  --shadow-medium: rgba(0, 0, 0, .28);
+  --shadow-medium: rgba(0, 0, 0, 0.28);
 }
 
 html[data-theme="light"] {
@@ -26,7 +27,7 @@ html[data-theme="light"] {
   --muted: #686d76;
   --accent: #326edb;
   --document-paper: #ffffff;
-  --shadow-medium: rgba(20, 25, 34, .22);
+  --shadow-medium: rgba(20, 25, 34, 0.22);
 }
 
 html[data-theme="oled"] {
@@ -206,7 +207,11 @@ a {
 
 .omnibar-input-wrap kbd {
   color: var(--muted);
-  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    10px / 1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 
 .omnibar-results {
@@ -357,7 +362,7 @@ a {
 
 .workbench-icon-button:disabled,
 .workbench-icon-button[aria-disabled="true"] {
-  opacity: .42;
+  opacity: 0.42;
   pointer-events: none;
 }
 
@@ -377,7 +382,7 @@ a {
   color: var(--muted);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -427,7 +432,7 @@ a {
 
 .empty-workbench button:disabled {
   cursor: default;
-  opacity: .48;
+  opacity: 0.48;
 }
 
 .empty-tab-grid {
@@ -748,7 +753,6 @@ a {
   }
 }
 
-
 .workspace-repository-button,
 .workspace-ref-select,
 .workspace-dialog button,
@@ -807,7 +811,7 @@ a {
   display: grid;
   place-items: start center;
   padding: max(8vh, 48px) 16px 16px;
-  background: rgba(0, 0, 0, .42);
+  background: rgba(0, 0, 0, 0.42);
 }
 
 .workspace-dialog {
@@ -882,7 +886,7 @@ a {
 }
 
 .workspace-dialog-form button:disabled {
-  opacity: .45;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -909,7 +913,7 @@ a {
   color: var(--muted);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -1082,7 +1086,7 @@ a {
 
 .explorer-node.deleted .explorer-name {
   text-decoration: line-through;
-  opacity: .6;
+  opacity: 0.6;
 }
 
 .explorer-row-actions {
@@ -1165,7 +1169,6 @@ a {
   }
 }
 
-
 .workspace-token-connect {
   display: grid;
   gap: 6px;
@@ -1201,7 +1204,7 @@ a {
 }
 
 .workspace-token-form button:disabled {
-  opacity: .45;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -1209,7 +1212,6 @@ a {
   margin: 0;
   line-height: 1.45;
 }
-
 
 .diff-tab {
   display: grid;
@@ -1331,7 +1333,7 @@ a {
 .scm-commit-box > button:disabled,
 .scm-section header button:disabled,
 .tool-tab-actions button:disabled {
-  opacity: .4;
+  opacity: 0.4;
   cursor: default;
 }
 
@@ -1446,7 +1448,6 @@ a {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 
 .resource-tab {
   display: grid;
@@ -1618,7 +1619,10 @@ a {
   color: var(--text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: 12px/1.55 "SFMono-Regular", Consolas, monospace;
+  font:
+    12px / 1.55 "SFMono-Regular",
+    Consolas,
+    monospace;
 }
 
 .resource-image {
@@ -1763,7 +1767,6 @@ a {
   }
 }
 
-
 .github-surface,
 .github-detail {
   width: 100%;
@@ -1816,7 +1819,7 @@ a {
 
 .github-surface-header button:disabled,
 .github-detail-header button:disabled {
-  opacity: .45;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -1903,7 +1906,10 @@ a {
   background: var(--surface);
   color: var(--text);
   white-space: pre-wrap;
-  font: 11px/1.5 "SFMono-Regular", Consolas, monospace;
+  font:
+    11px / 1.5 "SFMono-Regular",
+    Consolas,
+    monospace;
 }
 
 .github-empty-body {
@@ -2051,7 +2057,6 @@ a {
   }
 }
 
-
 .tool-tab-header select {
   min-height: 23px;
   padding: 2px 5px;
@@ -2082,7 +2087,7 @@ a {
 }
 
 .github-row-actions button:disabled {
-  opacity: .45;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -2113,7 +2118,6 @@ a {
   text-decoration: underline;
 }
 
-
 .github-inline-action {
   padding: 1px 4px;
   border: 0;
@@ -2130,7 +2134,6 @@ a {
 .github-inline-action:hover {
   background: var(--surface-2);
 }
-
 
 .local-commit-export {
   display: inline-flex;
@@ -2153,10 +2156,32 @@ a {
   color: var(--text);
 }
 
-
 .explorer-staged {
   flex: 0 0 auto;
   color: var(--accent);
   font-size: 10px;
   font-weight: 700;
+}
+
+.resource-generated-notice {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--toolbar-border);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.resource-generated-notice button {
+  border: 1px solid var(--toolbar-border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 4px 9px;
+  cursor: pointer;
 }

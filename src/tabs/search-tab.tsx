@@ -31,9 +31,8 @@ export function SearchTab({
     const timer = window.setTimeout(() => {
       setLoading(true);
       setError("");
-      const fullName = scope === "repository"
-        ? workspace.workspace?.repository.fullName ?? null
-        : null;
+      const fullName =
+        scope === "repository" ? (workspace.workspace?.repository.fullName ?? null) : null;
       void searchGithubCode(fullName, query.trim(), workspace.token)
         .then((items) => {
           if (!disposed) setResults(items);
@@ -89,7 +88,9 @@ export function SearchTab({
         />
       </div>
       {loading ? (
-        <div className="tab-empty"><span>Searching…</span></div>
+        <div className="tab-empty">
+          <span>Searching…</span>
+        </div>
       ) : error ? (
         <div className="explorer-error">{error}</div>
       ) : (
@@ -106,10 +107,14 @@ export function SearchTab({
             </button>
           ))}
           {query.trim() && !results.length && (
-            <div className="tab-empty"><span>No code matches.</span></div>
+            <div className="tab-empty">
+              <span>No code matches.</span>
+            </div>
           )}
           {!query.trim() && (
-            <div className="tab-empty"><span>Enter a query to search code.</span></div>
+            <div className="tab-empty">
+              <span>Enter a query to search code.</span>
+            </div>
           )}
         </div>
       )}

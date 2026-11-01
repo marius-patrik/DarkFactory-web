@@ -1,10 +1,6 @@
 type MonacoLanguages = {
   getLanguages: () => Array<{ id: string }>;
-  register: (definition: {
-    id: string;
-    extensions?: string[];
-    aliases?: string[];
-  }) => void;
+  register: (definition: { id: string; extensions?: string[]; aliases?: string[] }) => void;
   setMonarchTokensProvider: (languageId: string, provider: unknown) => void;
   setLanguageConfiguration: (languageId: string, configuration: unknown) => void;
 };
@@ -24,19 +20,23 @@ export function registerCapabilityLanguages(monaco: MonacoCapabilityApi) {
 
   monaco.languages.setLanguageConfiguration("typst", {
     comments: { lineComment: "//", blockComment: ["/*", "*/"] },
-    brackets: [["{", "}"], ["[", "]"], ["(", ")"]],
+    brackets: [
+      ["{", "}"],
+      ["[", "]"],
+      ["(", ")"],
+    ],
     autoClosingPairs: [
       { open: "{", close: "}" },
       { open: "[", close: "]" },
       { open: "(", close: ")" },
-      { open: "\"", close: "\"" },
+      { open: '"', close: '"' },
       { open: "$", close: "$" },
     ],
     surroundingPairs: [
       { open: "{", close: "}" },
       { open: "[", close: "]" },
       { open: "(", close: ")" },
-      { open: "\"", close: "\"" },
+      { open: '"', close: '"' },
       { open: "$", close: "$" },
       { open: "*", close: "*" },
       { open: "_", close: "_" },
@@ -49,7 +49,10 @@ export function registerCapabilityLanguages(monaco: MonacoCapabilityApi) {
         [/\/\*/, "comment", "@comment"],
         [/\/\/.*$/, "comment"],
         [/^\s*=+\s.*$/, "keyword"],
-        [/#(?:let|set|show|if|else|for|while|import|include|context|return|break|continue)\b/, "keyword"],
+        [
+          /#(?:let|set|show|if|else|for|while|import|include|context|return|break|continue)\b/,
+          "keyword",
+        ],
         [/#(?:[A-Za-z_][\w-]*)(?=\s*\()/, "type.identifier"],
         [/\b(?:true|false|none|auto)\b/, "constant"],
         [/\b\d+(?:\.\d+)?(?:pt|mm|cm|in|em|fr|%)?\b/, "number"],

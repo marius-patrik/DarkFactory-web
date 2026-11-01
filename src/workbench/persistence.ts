@@ -1,5 +1,10 @@
 import type { AppearanceMode } from "@/settings";
-import type { PersistedWorkbench, WorkbenchRootSizes, WorkbenchSurface, WorkbenchSurfaceState } from "./model";
+import type {
+  PersistedWorkbench,
+  WorkbenchRootSizes,
+  WorkbenchSurface,
+  WorkbenchSurfaceState,
+} from "./model";
 
 const STORAGE_KEY = "workbench-layout-v2";
 const LEGACY_STORAGE_KEY = "workbench-layout-v1";
@@ -45,19 +50,27 @@ function parsePersisted(raw: string | null, theme: AppearanceMode): PersistedWor
       sizes?: Partial<WorkbenchRootSizes>;
       surfaces?: Partial<Record<WorkbenchSurface, WorkbenchSurfaceState>>;
     };
-    if ((parsed.version !== 1 && parsed.version !== 2) || !parsed.surfaces || typeof parsed.surfaces !== "object") return null;
+    if (
+      (parsed.version !== 1 && parsed.version !== 2) ||
+      !parsed.surfaces ||
+      typeof parsed.surfaces !== "object"
+    )
+      return null;
     const surfaces = { ...fallback.surfaces };
     for (const surface of Object.keys(surfaces) as WorkbenchSurface[]) {
       const candidate = parsed.surfaces[surface];
       if (!candidate || typeof candidate !== "object") continue;
       surfaces[surface] = {
-        visible: surface === "main" ? true : candidate.visible ?? DEFAULT_VISIBILITY[surface],
+        visible: surface === "main" ? true : (candidate.visible ?? DEFAULT_VISIBILITY[surface]),
         layout: candidate.layout ?? null,
       };
     }
     return {
       version: 2,
-      theme: parsed.theme === "light" || parsed.theme === "dark" || parsed.theme === "oled" ? parsed.theme : theme,
+      theme:
+        parsed.theme === "light" || parsed.theme === "dark" || parsed.theme === "oled"
+          ? parsed.theme
+          : theme,
       sizes: {
         primary: positiveSize(parsed.sizes?.primary, DEFAULT_ROOT_SIZES.primary),
         secondary: positiveSize(parsed.sizes?.secondary, DEFAULT_ROOT_SIZES.secondary),

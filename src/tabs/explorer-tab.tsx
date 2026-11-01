@@ -15,14 +15,10 @@ import {
 import type { GithubTreeEntry } from "@/github/client";
 import { preferredWorkbenchTabForPath } from "@/renderers/capabilities";
 import { useWorkbenchRuntime } from "@/workbench/runtime";
+import { useFactory } from "@/factory/context";
 import { useWorkspace } from "@/workspace/context";
 import { languageForPath } from "@/workspace/languages";
-import type {
-  CommittedFile,
-  StagedFile,
-  WorkingFile,
-  WorkingFileStatus,
-} from "@/workspace/model";
+import type { CommittedFile, StagedFile, WorkingFile, WorkingFileStatus } from "@/workspace/model";
 
 type ExplorerNode = {
   name: string;
@@ -210,6 +206,7 @@ function ExplorerRow({
   copyPath,
   renameNode,
   deleteNode,
+  canEdit = true,
 }: {
   node: ExplorerNode;
   depth: number;
@@ -219,11 +216,12 @@ function ExplorerRow({
   copyPath: (node: ExplorerNode) => void;
   renameNode: (node: ExplorerNode) => void;
   deleteNode: (node: ExplorerNode) => void;
+  canEdit?: boolean;
 }) {
   const isDirectory = node.kind === "directory";
   const isExpanded = expanded.has(node.path);
   const deleted = node.status === "deleted";
-  const editable = node.kind !== "submodule";
+  const editable = canEdit && node.kind !== "submodule";
 
   return (
     <li className={deleted ? "explorer-node deleted" : "explorer-node"}>
@@ -256,7 +254,11 @@ function ExplorerRow({
             </>
           )}
           <span className="explorer-name">{node.name}</span>
-          {node.staged && <small className="explorer-staged" title="Staged">S</small>}
+          {node.staged && (
+            <small className="explorer-staged" title="Staged">
+              S
+            </small>
+          )}
           {node.status && (
             <small className={`explorer-status status-${node.status}`}>
               {STATUS_LABEL[node.status]}
@@ -264,15 +266,27 @@ function ExplorerRow({
           )}
         </button>
         <div className="explorer-row-actions">
-          <button type="button" onClick={() => copyPath(node)} aria-label={`Copy path ${node.path}`}>
+          <button
+            type="button"
+            onClick={() => copyPath(node)}
+            aria-label={`Copy path ${node.path}`}
+          >
             <Copy size={11} />
           </button>
           {editable && !deleted && (
             <>
-              <button type="button" onClick={() => renameNode(node)} aria-label={`Rename ${node.path}`}>
+              <button
+                type="button"
+                onClick={() => renameNode(node)}
+                aria-label={`Rename ${node.path}`}
+              >
                 <Pencil size={11} />
               </button>
-              <button type="button" onClick={() => deleteNode(node)} aria-label={`Delete ${node.path}`}>
+              <button
+                type="button"
+                onClick={() => deleteNode(node)}
+                aria-label={`Delete ${node.path}`}
+              >
                 <Trash2 size={11} />
               </button>
             </>
@@ -292,6 +306,7 @@ function ExplorerRow({
               copyPath={copyPath}
               renameNode={renameNode}
               deleteNode={deleteNode}
+              canEdit={canEdit}
             />
           ))}
         </ul>
@@ -303,39 +318,67 @@ function ExplorerRow({
 export function ExplorerTab() {
   const runtime = useWorkbenchRuntime();
   const workspace = useWorkspace();
+  const factory = useFactory();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-  const entries = useMemo(
-    () => workspace.workspace
-      ? buildExplorerTree(
-          workspace.workspace.tree,
-          workspace.committedFiles,
-          workspace.overlays,
-          workspace.staged,
-        )
-      : [],
-    [
-      workspace.committedFiles,
-      workspace.overlays,
-      workspace.staged,
-      workspace.workspace,
-    ],
-  );
+  const perspective = factory.concern;
+  const entries = useMemo(() => {
+    if (!workspace.workspace) return [];
+    if (perspective === "repository" || perspective === "overview") {
+      return buildExplorerTree(
+        workspace.workspace.tree,
+        workspace.committedFiles,
+        workspace.overlays,
+        workspace.staged,
+      );
+    }
+    const paths =
+      perspective === "specification"
+        ? factory.desiredFiles
+        : factory.changes
+            .filter((item) => item.kind === "file" && item.path)
+            .map((item) => ({ path: item.path as string, type: "file" as const }));
+    const data: GithubTreeEntry[] = paths.map((item) => ({
+      path: item.path,
+      type: item.type === "dir" ? "tree" : "blob",
+      mode: item.type === "dir" ? "040000" : "100644",
+      sha: "",
+    }));
+    return buildExplorerTree(data, [], [], []);
+  }, [
+    workspace.workspace,
+    workspace.committedFiles,
+    workspace.overlays,
+    workspace.staged,
+    perspective,
+    factory.desiredFiles,
+    factory.changes,
+  ]);
   const paths = useMemo(() => allPaths(entries), [entries]);
 
   if (!workspace.workspace) {
     return (
       <div className="generic-tool-tab">
-        <div className="tool-tab-header"><strong>Explorer</strong></div>
+        <div className="tool-tab-header">
+          <strong>Explorer</strong>
+        </div>
         <div className="tab-empty">
           <strong>No workspace active</strong>
           <span>Open a GitHub repository to browse its tree.</span>
-          <button type="button" onClick={() => workspace.setDialogOpen(true)}>Open Repository</button>
+          <button type="button" onClick={() => workspace.setDialogOpen(true)}>
+            Open Repository
+          </button>
         </div>
       </div>
     );
   }
 
   const openFile = (node: ExplorerNode) => {
+    factory.selectPath(node.path);
+    if (
+      perspective !== "repository" &&
+      !factory.actualFiles.some((file) => file.path === node.path && file.type === "file")
+    )
+      return;
     const target = preferredWorkbenchTabForPath(node.path);
     if (target === "document") {
       runtime.openTab("document", "main", { path: node.path });
@@ -429,10 +472,26 @@ export function ExplorerTab() {
   return (
     <div className="generic-tool-tab">
       <div className="tool-tab-header">
-        <strong>{workspace.workspace.repository.name}</strong>
+        <strong>
+          {perspective === "specification"
+            ? "Desired files"
+            : perspective === "delta"
+              ? "Changed files"
+              : workspace.workspace.repository.name}
+        </strong>
         <div className="tool-tab-actions">
-          <button type="button" onClick={() => void createFile()} title="New file"><Plus size={12} /></button>
-          <button type="button" onClick={() => void workspace.refreshWorkspace()} title="Refresh repository"><RefreshCw size={12} /></button>
+          {perspective === "repository" && (
+            <button type="button" onClick={() => void createFile()} title="New file">
+              <Plus size={12} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void workspace.refreshWorkspace()}
+            title="Refresh repository"
+          >
+            <RefreshCw size={12} />
+          </button>
         </div>
       </div>
       {workspace.error && <div className="explorer-error">{workspace.error}</div>}
@@ -448,6 +507,7 @@ export function ExplorerTab() {
             copyPath={(node) => void copyPath(node)}
             renameNode={(node) => void renameNode(node)}
             deleteNode={(node) => void deleteNode(node)}
+            canEdit={perspective === "repository" || perspective === "overview"}
           />
         ))}
       </ul>

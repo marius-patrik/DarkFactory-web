@@ -22,7 +22,8 @@ export function useWorkbenchShortcuts(handlers: CommandHandlers) {
       let handled = true;
 
       if (event.code === "Backslash" && event.altKey && !event.shiftKey) handlers.splitDown();
-      else if (event.code === "Backslash" && !event.altKey && !event.shiftKey) handlers.splitRight();
+      else if (event.code === "Backslash" && !event.altKey && !event.shiftKey)
+        handlers.splitRight();
       else if (key === "b" && event.altKey && !event.shiftKey) handlers.toggleSecondary();
       else if (key === "b" && !event.altKey && !event.shiftKey) handlers.togglePrimary();
       else if (key === "j" && !event.altKey && !event.shiftKey) handlers.togglePanel();

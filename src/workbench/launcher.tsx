@@ -36,6 +36,10 @@ export const LAUNCHER_ENTRIES: LauncherEntry[] = [
   { group: "Tools", label: "Problems", type: "problems" },
   { group: "Tools", label: "Output", type: "output" },
   { group: "Tools", label: "Settings", type: "settings" },
+  { group: "Workspace", label: "Overview", type: "overview" },
+  { group: "Workspace", label: "Specification", type: "specification" },
+  { group: "Workspace", label: "Delta", type: "delta" },
+  { group: "Workspace", label: "Repository", type: "repository" },
   { group: "Workspace", label: "Open Repository", action: "workspace" },
   { group: "Workspace", label: "Switch Workspace", action: "workspace" },
   { group: "Workspace", label: "Recent Workspaces", action: "recent" },
@@ -43,16 +47,9 @@ export const LAUNCHER_ENTRIES: LauncherEntry[] = [
 
 type WorkspaceRuntime = ReturnType<typeof useWorkspace>;
 
-export function launcherEntryDisabled(
-  entry: LauncherEntry,
-  workspace: WorkspaceRuntime,
-) {
+export function launcherEntryDisabled(entry: LauncherEntry, workspace: WorkspaceRuntime) {
   if (entry.action === "recent") return workspace.recent.length === 0;
-  if (
-    entry.action === "new-file" ||
-    entry.action === "open-file" ||
-    entry.action === "diff"
-  ) {
+  if (entry.action === "new-file" || entry.action === "open-file" || entry.action === "diff") {
     if (!workspace.workspace) return true;
   }
   if (entry.action === "diff") {
@@ -68,7 +65,15 @@ export async function runLauncherEntry(
   workspace: WorkspaceRuntime,
 ) {
   if (entry.type) {
-    runtime.openTab(entry.type, surface);
+    runtime.openTab(
+      entry.type,
+      entry.type === "overview" ||
+        entry.type === "specification" ||
+        entry.type === "delta" ||
+        entry.type === "repository"
+        ? "main"
+        : surface,
+    );
     return;
   }
 

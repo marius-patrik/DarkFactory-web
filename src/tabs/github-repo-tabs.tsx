@@ -83,9 +83,15 @@ export function ReleasesTab() {
     <div className="github-surface">
       <header className="github-surface-header">
         <strong>Releases</strong>
-        <button type="button" disabled={!token} onClick={() => void create()}>New release</button>
+        <button type="button" disabled={!token} onClick={() => void create()}>
+          New release
+        </button>
       </header>
-      {loading ? <LoadingState label="releases" /> : error ? <ErrorState error={error} /> : (
+      {loading ? (
+        <LoadingState label="releases" />
+      ) : error ? (
+        <ErrorState error={error} />
+      ) : (
         <div className="github-list">
           {releases.map((release) => (
             <button
@@ -99,11 +105,16 @@ export function ReleasesTab() {
                 {release.tag_name}
                 {release.draft ? " · draft" : ""}
                 {release.prerelease ? " · prerelease" : ""}
-                {" · "}{dateLabel(release.published_at || release.created_at)}
+                {" · "}
+                {dateLabel(release.published_at || release.created_at)}
               </span>
             </button>
           ))}
-          {!releases.length && <div className="tab-empty"><span>No releases.</span></div>}
+          {!releases.length && (
+            <div className="tab-empty">
+              <span>No releases.</span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -140,10 +151,20 @@ export function ReleaseTab({ tab }: { tab: WorkbenchTab }) {
   }, [fullName, id, revision, token]);
 
   if (!workspace.workspace) return <RepositoryRequired />;
-  if (!id) return <div className="tab-empty"><span>No release selected.</span></div>;
+  if (!id)
+    return (
+      <div className="tab-empty">
+        <span>No release selected.</span>
+      </div>
+    );
   if (loading) return <LoadingState label="release" />;
   if (error) return <ErrorState error={error} />;
-  if (!release) return <div className="tab-empty"><span>Release not found.</span></div>;
+  if (!release)
+    return (
+      <div className="tab-empty">
+        <span>Release not found.</span>
+      </div>
+    );
 
   const downloadAsset = async (asset: GithubReleaseAsset) => {
     const bytes = await downloadGithubReleaseAsset(fullName, asset.id, token);
@@ -164,11 +185,17 @@ export function ReleaseTab({ tab }: { tab: WorkbenchTab }) {
       <header className="github-detail-header">
         <div>
           <strong>{release.name || release.tag_name}</strong>
-          <span>{release.tag_name} · {dateLabel(release.published_at || release.created_at)}</span>
+          <span>
+            {release.tag_name} · {dateLabel(release.published_at || release.created_at)}
+          </span>
         </div>
         <div>
-          <button type="button" disabled={!token} onClick={() => void edit()}>Edit</button>
-          <a href={release.html_url} target="_blank" rel="noreferrer">GitHub</a>
+          <button type="button" disabled={!token} onClick={() => void edit()}>
+            Edit
+          </button>
+          <a href={release.html_url} target="_blank" rel="noreferrer">
+            GitHub
+          </a>
         </div>
       </header>
       <div className="github-detail-body">
@@ -177,10 +204,16 @@ export function ReleaseTab({ tab }: { tab: WorkbenchTab }) {
           <h3>Assets</h3>
           {release.assets.map((asset) => (
             <div key={asset.id} className="github-data-row">
-              <a href={asset.browser_download_url} target="_blank" rel="noreferrer">{asset.name}</a>
+              <a href={asset.browser_download_url} target="_blank" rel="noreferrer">
+                {asset.name}
+              </a>
               <span>
                 {Math.round(asset.size / 1024)} KB · {asset.download_count} downloads ·{" "}
-                <button type="button" className="github-inline-action" onClick={() => void downloadAsset(asset)}>
+                <button
+                  type="button"
+                  className="github-inline-action"
+                  onClick={() => void downloadAsset(asset)}
+                >
                   Download
                 </button>
               </span>
@@ -199,10 +232,7 @@ export function BranchesTab() {
     () => workspace.refs.filter((ref) => ref.kind === "branch"),
     [workspace.refs],
   );
-  const tags = useMemo(
-    () => workspace.refs.filter((ref) => ref.kind === "tag"),
-    [workspace.refs],
-  );
+  const tags = useMemo(() => workspace.refs.filter((ref) => ref.kind === "tag"), [workspace.refs]);
 
   if (!workspace.workspace) return <RepositoryRequired />;
 
@@ -292,7 +322,11 @@ export function CommitsTab() {
         <strong>Commits</strong>
         <span>{workspace.workspace.ref}</span>
       </header>
-      {loading ? <LoadingState label="commits" /> : error ? <ErrorState error={error} /> : (
+      {loading ? (
+        <LoadingState label="commits" />
+      ) : error ? (
+        <ErrorState error={error} />
+      ) : (
         <div className="github-list">
           {commits.map((commit) => (
             <button
@@ -344,10 +378,20 @@ export function CommitTab({ tab }: { tab: WorkbenchTab }) {
   }, [fullName, sha, token]);
 
   if (!workspace.workspace) return <RepositoryRequired />;
-  if (!sha) return <div className="tab-empty"><span>No commit selected.</span></div>;
+  if (!sha)
+    return (
+      <div className="tab-empty">
+        <span>No commit selected.</span>
+      </div>
+    );
   if (loading) return <LoadingState label="commit" />;
   if (error) return <ErrorState error={error} />;
-  if (!commit) return <div className="tab-empty"><span>Commit not found.</span></div>;
+  if (!commit)
+    return (
+      <div className="tab-empty">
+        <span>Commit not found.</span>
+      </div>
+    );
 
   return (
     <div className="github-detail">
@@ -359,7 +403,11 @@ export function CommitTab({ tab }: { tab: WorkbenchTab }) {
             {dateLabel(commit.commit.author?.date)}
           </span>
         </div>
-        {commit.html_url && <a href={commit.html_url} target="_blank" rel="noreferrer">GitHub</a>}
+        {commit.html_url && (
+          <a href={commit.html_url} target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+        )}
       </header>
       <div className="github-detail-body">
         <pre className="github-commit-message">{commit.commit.message}</pre>
@@ -368,7 +416,9 @@ export function CommitTab({ tab }: { tab: WorkbenchTab }) {
           {commit.files?.map((file) => (
             <div key={file.filename} className="github-data-row">
               <strong>{file.filename}</strong>
-              <span>{file.status} · +{file.additions} −{file.deletions}</span>
+              <span>
+                {file.status} · +{file.additions} −{file.deletions}
+              </span>
             </div>
           ))}
         </section>
@@ -419,8 +469,14 @@ export function ProjectsTab() {
 
   return (
     <div className="github-surface">
-      <header className="github-surface-header"><strong>Projects</strong></header>
-      {loading ? <LoadingState label="projects" /> : error ? <ErrorState error={error} /> : (
+      <header className="github-surface-header">
+        <strong>Projects</strong>
+      </header>
+      {loading ? (
+        <LoadingState label="projects" />
+      ) : error ? (
+        <ErrorState error={error} />
+      ) : (
         <div className="github-list">
           {projects.map((project) => (
             <button
@@ -429,14 +485,20 @@ export function ProjectsTab() {
               className="github-list-row"
               onClick={() => runtime.openTab("project", "main", { number: project.number })}
             >
-              <span className="github-list-primary">#{project.number} {project.title}</span>
+              <span className="github-list-primary">
+                #{project.number} {project.title}
+              </span>
               <span>
                 {project.closed ? "closed" : "open"}
                 {project.shortDescription ? ` · ${project.shortDescription}` : ""}
               </span>
             </button>
           ))}
-          {!projects.length && <div className="tab-empty"><span>No repository projects.</span></div>}
+          {!projects.length && (
+            <div className="tab-empty">
+              <span>No repository projects.</span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -446,7 +508,9 @@ export function ProjectsTab() {
 export function ProjectTab({ tab }: { tab: WorkbenchTab }) {
   const { workspace, fullName, token } = useRepositoryIdentity();
   const number = Number(tab.state.number) || 0;
-  const [project, setProject] = useState<(GithubProject & { items: GithubProjectItem[] }) | null>(null);
+  const [project, setProject] = useState<(GithubProject & { items: GithubProjectItem[] }) | null>(
+    null,
+  );
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(Boolean(fullName && number && token));
   const [error, setError] = useState("");
@@ -473,11 +537,26 @@ export function ProjectTab({ tab }: { tab: WorkbenchTab }) {
   }, [fullName, number, revision, token]);
 
   if (!workspace.workspace) return <RepositoryRequired />;
-  if (!token) return <div className="tab-empty"><strong>Projects requires authentication</strong></div>;
-  if (!number) return <div className="tab-empty"><span>No project selected.</span></div>;
+  if (!token)
+    return (
+      <div className="tab-empty">
+        <strong>Projects requires authentication</strong>
+      </div>
+    );
+  if (!number)
+    return (
+      <div className="tab-empty">
+        <span>No project selected.</span>
+      </div>
+    );
   if (loading) return <LoadingState label="project" />;
   if (error) return <ErrorState error={error} />;
-  if (!project) return <div className="tab-empty"><span>Project not found.</span></div>;
+  if (!project)
+    return (
+      <div className="tab-empty">
+        <span>Project not found.</span>
+      </div>
+    );
 
   const edit = async () => {
     const title = window.prompt("Project title", project.title);
@@ -487,11 +566,7 @@ export function ProjectTab({ tab }: { tab: WorkbenchTab }) {
       project.shortDescription ?? "",
     );
     if (shortDescription === null) return;
-    await updateGithubProject(
-      project.id,
-      { title: title.trim(), shortDescription },
-      token,
-    );
+    await updateGithubProject(project.id, { title: title.trim(), shortDescription }, token);
     setRevision((value) => value + 1);
   };
 
@@ -504,18 +579,24 @@ export function ProjectTab({ tab }: { tab: WorkbenchTab }) {
     <div className="github-detail">
       <header className="github-detail-header">
         <div>
-          <strong>#{project.number} {project.title}</strong>
+          <strong>
+            #{project.number} {project.title}
+          </strong>
           <span>
             {project.closed ? "closed" : "open"}
             {project.shortDescription ? ` · ${project.shortDescription}` : ""}
           </span>
         </div>
         <div>
-          <button type="button" onClick={() => void edit()}>Edit</button>
+          <button type="button" onClick={() => void edit()}>
+            Edit
+          </button>
           <button type="button" onClick={() => void toggleClosed()}>
             {project.closed ? "Reopen" : "Close"}
           </button>
-          <a href={project.url} target="_blank" rel="noreferrer">GitHub</a>
+          <a href={project.url} target="_blank" rel="noreferrer">
+            GitHub
+          </a>
         </div>
       </header>
       <div className="github-detail-body">
@@ -525,8 +606,17 @@ export function ProjectTab({ tab }: { tab: WorkbenchTab }) {
             <div key={item.id} className="github-data-row">
               <strong>{item.title}</strong>
               <span>
-                {item.type}{item.number ? ` #${item.number}` : ""}
-                {item.url ? <> · <a href={item.url} target="_blank" rel="noreferrer">open</a></> : null}
+                {item.type}
+                {item.number ? ` #${item.number}` : ""}
+                {item.url ? (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <a href={item.url} target="_blank" rel="noreferrer">
+                      open
+                    </a>
+                  </>
+                ) : null}
               </span>
             </div>
           ))}

@@ -46,7 +46,9 @@ html[data-theme="oled"] {
   box-shadow: 0 10px 35px rgb(0 0 0 / 18%);
 }
 
-.publication-surface > :first-child { margin-top: 0; }
+.publication-surface > :first-child {
+  margin-top: 0;
+}
 .publication-surface p {
   margin: 0 0 8pt;
 }
@@ -63,24 +65,32 @@ html[data-theme="oled"] {
   line-height: 1.2;
   text-align: left;
 }
-.publication-surface h1 { font-size: 16pt; }
-.publication-surface h2 { font-size: 14pt; }
+.publication-surface h1 {
+  font-size: 16pt;
+}
+.publication-surface h2 {
+  font-size: 14pt;
+}
 .publication-surface h3,
 .publication-surface h4,
 .publication-surface h5,
-.publication-surface h6 { font-size: 12pt; }
+.publication-surface h6 {
+  font-size: 12pt;
+}
 
 .publication-surface a {
   color: var(--publication-link);
   text-decoration: underline;
-  text-underline-offset: .14em;
+  text-underline-offset: 0.14em;
 }
 .publication-surface ul,
 .publication-surface ol {
   margin: 0 0 8pt;
   padding-left: 1.55em;
 }
-.publication-surface li { margin: 2pt 0; }
+.publication-surface li {
+  margin: 2pt 0;
+}
 .publication-surface blockquote {
   margin: 10pt 0;
   padding-left: 12pt;
@@ -96,7 +106,7 @@ html[data-theme="oled"] {
 .publication-surface th,
 .publication-surface td {
   padding: 5pt 6pt;
-  border: .6pt solid var(--publication-border);
+  border: 0.6pt solid var(--publication-border);
   text-align: left;
   vertical-align: top;
 }
@@ -123,24 +133,27 @@ html[data-theme="oled"] {
   margin: 10pt 0;
   padding: 9pt 10pt;
   overflow: auto;
-  border: .6pt solid var(--publication-border);
+  border: 0.6pt solid var(--publication-border);
   background: var(--publication-code);
   color: var(--publication-code-text);
-  font: 9.5pt/1.45 "SFMono-Regular", Consolas, monospace;
+  font:
+    9.5pt / 1.45 "SFMono-Regular",
+    Consolas,
+    monospace;
   text-align: left;
 }
 .publication-surface code {
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: .9em;
+  font-size: 0.9em;
 }
 .publication-surface :not(pre) > code {
-  padding: .08em .25em;
+  padding: 0.08em 0.25em;
   background: var(--publication-code);
 }
 .publication-surface nav[role="doc-toc"] {
   margin: 16pt 0 24pt;
   padding: 10pt 12pt;
-  border: .6pt solid var(--publication-border);
+  border: 0.6pt solid var(--publication-border);
 }
 .publication-surface nav[role="doc-toc"] a {
   color: var(--publication-text);

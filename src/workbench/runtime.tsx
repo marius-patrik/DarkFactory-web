@@ -13,7 +13,11 @@ export type WorkbenchRuntime = {
   activeTab: WorkbenchTab | null;
   focusOmnibar: (mode: "navigation" | "command", value?: string) => void;
   setTheme: (theme: AppearanceMode) => void;
-  openTab: (type: WorkbenchTabType, surface?: WorkbenchSurface, state?: Record<string, unknown>) => void;
+  openTab: (
+    type: WorkbenchTabType,
+    surface?: WorkbenchSurface,
+    state?: Record<string, unknown>,
+  ) => void;
   moveTab: (id: string, surface: WorkbenchSurface) => void;
   transferTab: (id: string, target: WorkbenchSurface, drop: WorkbenchDropTarget) => boolean;
   splitTab: (id: string, direction: SplitDirection) => void;

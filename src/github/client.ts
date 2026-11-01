@@ -20,7 +20,13 @@ export type GithubRepository = {
   default_branch: string;
   html_url: string;
   owner: { login: string };
-  permissions?: { admin?: boolean; maintain?: boolean; push?: boolean; triage?: boolean; pull?: boolean };
+  permissions?: {
+    admin?: boolean;
+    maintain?: boolean;
+    push?: boolean;
+    triage?: boolean;
+    pull?: boolean;
+  };
 };
 
 export type GithubTreeEntry = {
@@ -273,12 +279,17 @@ async function githubGraphql<T>(
     },
     body: JSON.stringify({ query, variables }),
   });
-  const payload = await response.json() as {
+  const payload = (await response.json()) as {
     data?: T;
     errors?: Array<{ message?: string }>;
   };
   if (!response.ok || payload.errors?.length || !payload.data) {
-    throw new Error(payload.errors?.map((error) => error.message).filter(Boolean).join("; ") || "GitHub GraphQL request failed.");
+    throw new Error(
+      payload.errors
+        ?.map((error) => error.message)
+        .filter(Boolean)
+        .join("; ") || "GitHub GraphQL request failed.",
+    );
   }
   return payload.data;
 }
@@ -299,24 +310,15 @@ export function getGithubRepository(fullName: string, token: string | null) {
 }
 
 export function getGithubCommit(fullName: string, ref: string, token: string | null) {
-  return githubFetch<GithubCommit>(
-    `/repos/${fullName}/commits/${encodeURIComponent(ref)}`,
-    token,
-  );
+  return githubFetch<GithubCommit>(`/repos/${fullName}/commits/${encodeURIComponent(ref)}`, token);
 }
 
 export function getGithubPullRequest(fullName: string, number: number, token: string | null) {
-  return githubFetch<GithubPullRequest>(
-    `/repos/${fullName}/pulls/${number}`,
-    token,
-  );
+  return githubFetch<GithubPullRequest>(`/repos/${fullName}/pulls/${number}`, token);
 }
 
 async function getGithubTreeNode(fullName: string, sha: string, token: string | null) {
-  return githubFetch<GithubTree>(
-    `/repos/${fullName}/git/trees/${encodeURIComponent(sha)}`,
-    token,
-  );
+  return githubFetch<GithubTree>(`/repos/${fullName}/git/trees/${encodeURIComponent(sha)}`, token);
 }
 
 async function walkGithubTree(
@@ -331,7 +333,7 @@ async function walkGithubTree(
     const path = prefix ? `${prefix}/${entry.path}` : entry.path;
     entries.push({ ...entry, path });
     if (entry.type === "tree") {
-      entries.push(...await walkGithubTree(fullName, entry.sha, token, path));
+      entries.push(...(await walkGithubTree(fullName, entry.sha, token, path)));
     }
   }
   return entries;
@@ -362,7 +364,9 @@ export async function listGithubRefs(fullName: string, token: string | null) {
     ),
   ]);
   return [
-    ...branches.map((branch): GithubRef => ({ name: branch.name, sha: branch.commit.sha, kind: "branch" })),
+    ...branches.map(
+      (branch): GithubRef => ({ name: branch.name, sha: branch.commit.sha, kind: "branch" }),
+    ),
     ...tags.map((tag): GithubRef => ({ name: tag.name, sha: tag.commit.sha, kind: "tag" })),
   ];
 }
@@ -371,7 +375,6 @@ export async function getGithubBlob(fullName: string, sha: string, token: string
   const bytes = await getGithubBlobBytes(fullName, sha, token);
   return new TextDecoder().decode(bytes);
 }
-
 
 function encodedRefPath(branch: string) {
   return branch.split("/").map(encodeURIComponent).join("/");
@@ -390,15 +393,11 @@ export function getGithubBranchRef(fullName: string, branch: string, token: stri
 }
 
 export function createGithubBlob(fullName: string, content: string, token: string | null) {
-  return githubFetch<GithubCreatedBlob>(
-    `/repos/${fullName}/git/blobs`,
-    requireToken(token),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, encoding: "utf-8" }),
-    },
-  );
+  return githubFetch<GithubCreatedBlob>(`/repos/${fullName}/git/blobs`, requireToken(token), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, encoding: "utf-8" }),
+  });
 }
 
 export function createGithubTree(
@@ -407,15 +406,11 @@ export function createGithubTree(
   tree: GithubTreeMutation[],
   token: string | null,
 ) {
-  return githubFetch<GithubCreatedTree>(
-    `/repos/${fullName}/git/trees`,
-    requireToken(token),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ base_tree: baseTree, tree }),
-    },
-  );
+  return githubFetch<GithubCreatedTree>(`/repos/${fullName}/git/trees`, requireToken(token), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ base_tree: baseTree, tree }),
+  });
 }
 
 export function createGithubCommit(
@@ -425,15 +420,11 @@ export function createGithubCommit(
   parents: string[],
   token: string | null,
 ) {
-  return githubFetch<GithubCreatedCommit>(
-    `/repos/${fullName}/git/commits`,
-    requireToken(token),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, tree, parents }),
-    },
-  );
+  return githubFetch<GithubCreatedCommit>(`/repos/${fullName}/git/commits`, requireToken(token), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, tree, parents }),
+  });
 }
 
 export function updateGithubBranchRef(
@@ -459,15 +450,11 @@ export function createGithubBranchRef(
   sha: string,
   token: string | null,
 ) {
-  return githubFetch<GithubGitRef>(
-    `/repos/${fullName}/git/refs`,
-    requireToken(token),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }),
-    },
-  );
+  return githubFetch<GithubGitRef>(`/repos/${fullName}/git/refs`, requireToken(token), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }),
+  });
 }
 
 export async function getGithubBlobBytes(fullName: string, sha: string, token: string | null) {
@@ -475,18 +462,22 @@ export async function getGithubBlobBytes(fullName: string, sha: string, token: s
     `/repos/${fullName}/git/blobs/${sha}`,
     token,
   );
-  if (payload.encoding !== "base64") throw new Error(`Unsupported GitHub blob encoding: ${payload.encoding}`);
+  if (payload.encoding !== "base64")
+    throw new Error(`Unsupported GitHub blob encoding: ${payload.encoding}`);
   const binary = atob(payload.content.replace(/\n/g, ""));
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
-
 
 function requireWriteToken(token: string | null) {
   if (!token) throw new Error("Sign in with GitHub before using this write action.");
   return token;
 }
 
-export async function listGithubIssues(fullName: string, token: string | null, state: "open" | "closed" | "all" = "open") {
+export async function listGithubIssues(
+  fullName: string,
+  token: string | null,
+  state: "open" | "closed" | "all" = "open",
+) {
   const issues = await githubFetch<GithubIssue[]>(
     `/repos/${fullName}/issues?state=${state}&per_page=100&sort=updated&direction=desc`,
     token,
@@ -511,15 +502,11 @@ export function createGithubIssue(
   body: string,
   token: string | null,
 ) {
-  return githubFetch<GithubIssue>(
-    `/repos/${fullName}/issues`,
-    requireWriteToken(token),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, body }),
-    },
-  );
+  return githubFetch<GithubIssue>(`/repos/${fullName}/issues`, requireWriteToken(token), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, body }),
+  });
 }
 
 export function updateGithubIssue(
@@ -528,15 +515,11 @@ export function updateGithubIssue(
   patch: { title?: string; body?: string; state?: "open" | "closed" },
   token: string | null,
 ) {
-  return githubFetch<GithubIssue>(
-    `/repos/${fullName}/issues/${number}`,
-    requireWriteToken(token),
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    },
-  );
+  return githubFetch<GithubIssue>(`/repos/${fullName}/issues/${number}`, requireWriteToken(token), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
 }
 
 export function createGithubIssueComment(
@@ -556,7 +539,11 @@ export function createGithubIssueComment(
   );
 }
 
-export function listGithubPullRequests(fullName: string, token: string | null, state: "open" | "closed" | "all" = "open") {
+export function listGithubPullRequests(
+  fullName: string,
+  token: string | null,
+  state: "open" | "closed" | "all" = "open",
+) {
   return githubFetch<GithubPullRequest[]>(
     `/repos/${fullName}/pulls?state=${state}&per_page=100&sort=updated&direction=desc`,
     token,
@@ -568,15 +555,11 @@ export function createGithubPullRequest(
   input: { title: string; body: string; head: string; base: string; draft?: boolean },
   token: string | null,
 ) {
-  return githubFetch<GithubPullRequest>(
-    `/repos/${fullName}/pulls`,
-    requireWriteToken(token),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    },
-  );
+  return githubFetch<GithubPullRequest>(`/repos/${fullName}/pulls`, requireWriteToken(token), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
 }
 
 export function updateGithubPullRequest(
@@ -607,22 +590,14 @@ export function listGithubPullRequestCommits(
   );
 }
 
-export function listGithubPullRequestFiles(
-  fullName: string,
-  number: number,
-  token: string | null,
-) {
+export function listGithubPullRequestFiles(fullName: string, number: number, token: string | null) {
   return githubFetch<GithubPullRequestFile[]>(
     `/repos/${fullName}/pulls/${number}/files?per_page=100`,
     token,
   );
 }
 
-export async function listGithubCheckRuns(
-  fullName: string,
-  ref: string,
-  token: string | null,
-) {
+export async function listGithubCheckRuns(fullName: string, ref: string, token: string | null) {
   const result = await githubFetch<{ total_count: number; check_runs: GithubCheckRun[] }>(
     `/repos/${fullName}/commits/${encodeURIComponent(ref)}/check-runs?per_page=100`,
     token,
@@ -648,11 +623,7 @@ export function createGithubPullRequestReview(
   );
 }
 
-export function mergeGithubPullRequest(
-  fullName: string,
-  number: number,
-  token: string | null,
-) {
+export function mergeGithubPullRequest(fullName: string, number: number, token: string | null) {
   return githubFetch<{ sha: string; merged: boolean; message: string }>(
     `/repos/${fullName}/pulls/${number}/merge`,
     requireWriteToken(token),
@@ -749,23 +720,12 @@ async function githubDownload(
   return new Uint8Array(await response.arrayBuffer());
 }
 
-export function downloadGithubJobLogs(
-  fullName: string,
-  jobId: number,
-  token: string | null,
-) {
+export function downloadGithubJobLogs(fullName: string, jobId: number, token: string | null) {
   return githubDownload(`/repos/${fullName}/actions/jobs/${jobId}/logs`, token);
 }
 
-export function downloadGithubArtifact(
-  fullName: string,
-  artifactId: number,
-  token: string | null,
-) {
-  return githubDownload(
-    `/repos/${fullName}/actions/artifacts/${artifactId}/zip`,
-    token,
-  );
+export function downloadGithubArtifact(fullName: string, artifactId: number, token: string | null) {
+  return githubDownload(`/repos/${fullName}/actions/artifacts/${artifactId}/zip`, token);
 }
 
 export function downloadGithubRepositoryArchive(
@@ -773,10 +733,7 @@ export function downloadGithubRepositoryArchive(
   ref: string,
   token: string | null,
 ) {
-  return githubDownload(
-    `/repos/${fullName}/zipball/${encodeURIComponent(ref)}`,
-    token,
-  );
+  return githubDownload(`/repos/${fullName}/zipball/${encodeURIComponent(ref)}`, token);
 }
 
 export function downloadGithubReleaseAsset(
@@ -801,35 +758,41 @@ export function getGithubRelease(fullName: string, id: number, token: string | n
 
 export function createGithubRelease(
   fullName: string,
-  input: { tag_name: string; target_commitish?: string; name?: string; body?: string; draft?: boolean; prerelease?: boolean },
+  input: {
+    tag_name: string;
+    target_commitish?: string;
+    name?: string;
+    body?: string;
+    draft?: boolean;
+    prerelease?: boolean;
+  },
   token: string | null,
 ) {
-  return githubFetch<GithubRelease>(
-    `/repos/${fullName}/releases`,
-    requireWriteToken(token),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    },
-  );
+  return githubFetch<GithubRelease>(`/repos/${fullName}/releases`, requireWriteToken(token), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
 }
 
 export function updateGithubRelease(
   fullName: string,
   id: number,
-  patch: { tag_name?: string; target_commitish?: string; name?: string; body?: string; draft?: boolean; prerelease?: boolean },
+  patch: {
+    tag_name?: string;
+    target_commitish?: string;
+    name?: string;
+    body?: string;
+    draft?: boolean;
+    prerelease?: boolean;
+  },
   token: string | null,
 ) {
-  return githubFetch<GithubRelease>(
-    `/repos/${fullName}/releases/${id}`,
-    requireWriteToken(token),
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    },
-  );
+  return githubFetch<GithubRelease>(`/repos/${fullName}/releases/${id}`, requireWriteToken(token), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
 }
 
 export function listGithubCommits(fullName: string, token: string | null, ref?: string) {
@@ -932,13 +895,15 @@ export async function getGithubProject(fullName: string, number: number, token: 
   if (!project) throw new Error(`Project #${number} was not found.`);
   return {
     ...project,
-    items: project.items.nodes.map((item): GithubProjectItem => ({
-      id: item.id,
-      type: item.type,
-      title: item.content?.title || "Untitled item",
-      url: item.content && "url" in item.content ? item.content.url : undefined,
-      number: item.content && "number" in item.content ? item.content.number : undefined,
-    })),
+    items: project.items.nodes.map(
+      (item): GithubProjectItem => ({
+        id: item.id,
+        type: item.type,
+        title: item.content?.title || "Untitled item",
+        url: item.content && "url" in item.content ? item.content.url : undefined,
+        number: item.content && "number" in item.content ? item.content.number : undefined,
+      }),
+    ),
   };
 }
 
