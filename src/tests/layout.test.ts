@@ -2,6 +2,9 @@ import { expect, test } from "bun:test";
 import { contextMenuPosition } from "@/client/ActionsMenu";
 import {
   addPaneToLayoutTab,
+  canvasDeltaToWorld,
+  panCanvasViewport,
+  zoomCanvasViewport,
   insertPaneIntoLayout,
   leafPaneIds,
   removePaneFromLayout,
@@ -79,3 +82,22 @@ test("context menu placement stays inside narrow and desktop viewports", () => {
 function leaf(paneId: string): Extract<TiledLayoutNode, { type: "leaf" }> {
   return { type: "leaf", paneId, paneIds: [paneId], activePaneId: paneId };
 }
+
+test("canvas zoom preserves the world point beneath the cursor", () => {
+  const viewport = { x: 100, y: -20, zoom: 1 };
+  const result = zoomCanvasViewport(viewport, 400, 200, 2);
+  expect(result).toEqual({ x: -200, y: -240, zoom: 2 });
+  expect((400 - result.x) / result.zoom).toBe((400 - viewport.x) / viewport.zoom);
+  expect((200 - result.y) / result.zoom).toBe((200 - viewport.y) / viewport.zoom);
+});
+
+test("canvas pan and pane drag use independent screen and world coordinates", () => {
+  expect(panCanvasViewport({ x: 10, y: 20, zoom: 2 }, -30, 50)).toEqual({ x: -20, y: 70, zoom: 2 });
+  expect(canvasDeltaToWorld(100, 2)).toBe(50);
+  expect(canvasDeltaToWorld(-80, 0.5)).toBe(-160);
+});
+
+test("canvas zoom clamps to usable limits", () => {
+  expect(zoomCanvasViewport({ x: 0, y: 0, zoom: 1 }, 0, 0, 100).zoom).toBe(4);
+  expect(zoomCanvasViewport({ x: 0, y: 0, zoom: 1 }, 0, 0, 0.001).zoom).toBe(0.25);
+});

@@ -19,6 +19,9 @@ import {
   activateLayoutTab,
   addPaneToLayoutTab,
   clampPaneRect as clampRect,
+  canvasDeltaToWorld,
+  panCanvasViewport,
+  zoomCanvasViewport,
   firstPaneIdInLayout,
   insertPaneIntoLayout,
   leafPaneIds,
@@ -48,6 +51,7 @@ import type {
   TiledLayoutNode,
   Workspace,
   WorkspaceSettings,
+  ViewportState,
 } from "@/shared/schema";
 import { DEFAULT_WORKSPACE_SETTINGS } from "@/shared/schema";
 import { cn } from "@/shared/utils";
@@ -464,6 +468,11 @@ export function Canvas({
     [updateWorkspace, workspace.activePaneId, workspace.activeView, workspace.panes, workspace.tiledLayout],
   );
 
+  const onCanvasViewportChange = useCallback(
+    (canvasViewport: ViewportState) => updateWorkspace({ canvasViewport }),
+    [updateWorkspace],
+  );
+
   const updateSplitRatio = useCallback(
     (splitId: string, ratio: number) => {
       updateWorkspace({ tiledLayout: updateLayoutSplitRatio(workspace.tiledLayout, splitId, ratio) });
@@ -709,6 +718,7 @@ export function Canvas({
       ) : (
         <CanvasWorkspace
           panes={workspace.panes}
+          onCanvasViewportChange={onCanvasViewportChange}
           baseUrl={baseUrl}
           workspace={workspace}
           fileTrees={fileTrees}
@@ -888,10 +898,79 @@ function FreeformLayer({
   );
 }
 
-function CanvasWorkspace({ panes, ...props }: PaneRenderProps & { panes: PaneState[] }) {
+function CanvasWorkspace({
+  panes,
+  workspace,
+  onCanvasViewportChange,
+  ...props
+}: PaneRenderProps & {
+  panes: PaneState[];
+  onCanvasViewportChange: (viewport: ViewportState) => void;
+}) {
+  const [preview, setPreview] = useState<ViewportState | null>(null);
+  const drag = useRef<{ id: number; x: number; y: number; initial: ViewportState } | null>(null);
+  const viewport = preview ?? workspace.canvasViewport;
+
+  const finishPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const current = drag.current;
+    if (!current || current.id !== event.pointerId) return;
+    const result = panCanvasViewport(current.initial, event.clientX - current.x, event.clientY - current.y);
+    drag.current = null;
+    setPreview(null);
+    onCanvasViewportChange(result);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   return (
-    <div className="relative h-full overflow-hidden">
-      <FreeformLayer panes={panes} placement="canvas" {...props} />
+    <div
+      aria-label="Canvas workspace"
+      className="relative h-full overflow-hidden touch-none"
+      onPointerDown={(event) => {
+        if (event.target !== event.currentTarget || event.button !== 0) return;
+        drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, initial: viewport };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        const current = drag.current;
+        if (!current || current.id !== event.pointerId) return;
+        setPreview(panCanvasViewport(current.initial, event.clientX - current.x, event.clientY - current.y));
+      }}
+      onPointerUp={finishPan}
+      onPointerCancel={finishPan}
+      onWheel={(event) => {
+        if (event.target instanceof Element && event.target.closest("[data-canvas-pane]")) return;
+        event.preventDefault();
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (event.ctrlKey || event.metaKey) {
+          onCanvasViewportChange(
+            zoomCanvasViewport(viewport, event.clientX - rect.left, event.clientY - rect.top, Math.exp(-event.deltaY / 400)),
+          );
+        } else {
+          onCanvasViewportChange(panCanvasViewport(viewport, -event.deltaX, -event.deltaY));
+        }
+      }}
+    >
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          transform: `translate3d(${viewport.x}px, ${viewport.y}px, 0) scale(${viewport.zoom})`,
+          transformOrigin: "0 0",
+        }}
+      >
+        <FreeformLayer panes={panes} placement="canvas" workspace={workspace} {...props} />
+      </div>
+      <div className="absolute bottom-4 left-4 z-40 flex items-center gap-2 rounded-md border border-border bg-[var(--dock-bg)] px-2 py-1 text-xs text-foreground">
+        <span aria-label="Canvas zoom">{Math.round(viewport.zoom * 100)}%</span>
+        <button
+          type="button"
+          className="rounded px-2 py-1 hover:bg-[var(--surface-hover)]"
+          onClick={() => onCanvasViewportChange({ x: 0, y: 0, zoom: 1 })}
+        >
+          Reset view
+        </button>
+      </div>
     </div>
   );
 }
@@ -920,16 +999,13 @@ function FreeformPane({
     function onMove(event: PointerEvent) {
       const drag = dragRef.current;
       if (!drag) return;
-      const dx = event.clientX - drag.startX;
-      const dy = event.clientY - drag.startY;
-      const nextRect =
-        drag.mode === "move"
-          ? clampRect({ ...drag.rect, x: drag.rect.x + dx, y: drag.rect.y + dy })
-          : clampRect({
-              ...drag.rect,
-              width: drag.rect.width + dx,
-              height: drag.rect.height + dy,
-            });
+      const zoom = placement === "canvas" ? workspace.canvasViewport.zoom : 1;
+      const dx = canvasDeltaToWorld(event.clientX - drag.startX, zoom);
+      const dy = canvasDeltaToWorld(event.clientY - drag.startY, zoom);
+      const moved = drag.mode === "move"
+        ? { ...drag.rect, x: drag.rect.x + dx, y: drag.rect.y + dy }
+        : { ...drag.rect, width: Math.max(300, drag.rect.width + dx), height: Math.max(220, drag.rect.height + dy) };
+      const nextRect = placement === "canvas" ? moved : clampRect(moved);
       drag.nextRect = nextRect;
       setDraftRect(nextRect);
     }
@@ -949,12 +1025,13 @@ function FreeformPane({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [onUpdatePane, pane.id]);
+  }, [onUpdatePane, pane.id, placement, workspace.canvasViewport.zoom]);
 
   const rect = draftRect ?? pane.rect;
 
   return (
     <section
+      data-canvas-pane={placement === "canvas" ? "" : undefined}
       className="pointer-events-auto absolute overflow-hidden rounded-md border border-border bg-[var(--panel-bg)] shadow-xl backdrop-blur-xl"
       style={{
         left: rect.x,
