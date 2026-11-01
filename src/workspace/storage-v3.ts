@@ -600,6 +600,102 @@ export async function forkWorkspaceAtomic(fromId: string, target: WorkspaceSnaps
   }));
 }
 
+
+export type PushIntent = {
+  id: string;
+  sessionId: string;
+  principalKey: PrincipalKey;
+  sourceSha: string;
+  targetSha?: string;
+  commits: string[];
+  state: "preparing" | "target-ready" | "completed";
+};
+
+export async function beginPushIntent(id: string, sourceSha: string, commits: LocalCommit[]) {
+  const opId = crypto.randomUUID();
+  await mutate(id, (tx, session, done) => {
+    if (session.snapshot.baseSha !== sourceSha)
+      throw new StorageConflictError("Remote base changed since local commits were prepared.");
+    const intent: PushIntent = {
+      id: opId, sessionId: id, principalKey: session.principalKey,
+      sourceSha, commits: commits.map((commit) => commit.id), state: "preparing",
+    };
+    tx.objectStore("v3_push_ops").add(intent);
+    done();
+  });
+  return opId;
+}
+export async function updatePushTarget(id: string, opId: string, targetSha: string) {
+  return mutate(id, (tx, session, done, fail) => {
+    const store = tx.objectStore("v3_push_ops");
+    const request = store.get(opId);
+    request.onsuccess = () => {
+      const op = request.result as PushIntent | undefined;
+      if (!op || op.sessionId !== id || op.principalKey !== session.principalKey ||
+          op.state !== "preparing") {
+        fail(new StorageConflictError("Push intent missing or already finalized."));
+        return;
+      }
+      store.put({ ...op, targetSha, state: "target-ready" });
+      done();
+    };
+  });
+}
+export async function pendingPushIntents(id: string) {
+  const session = await readSession(id);
+  if (!session) throw new Error("Workspace session not accessible.");
+  return dbOperation(async (db) =>
+    (await all<PushIntent>(db, "v3_push_ops")).filter((op) =>
+      op.sessionId === id && op.principalKey === session.principalKey && op.state !== "completed"),
+  );
+}
+export function finishPushAtomic(snapshot: WorkspaceSnapshot, overlays: WorkingFile[], opId: string) {
+  validateSession(snapshot);
+  const id = snapshot.id;
+  if (overlays.some((item) => item.workspaceId !== id))
+    return Promise.reject(new StorageConflictError("Cross-session working tree rejected."));
+  return mutate(id, (tx, session, done, fail) => {
+    const store = tx.objectStore("v3_push_ops");
+    const request = store.get(opId);
+    request.onsuccess = () => {
+      const op = request.result as PushIntent | undefined;
+      if (!op || op.sessionId !== id || op.principalKey !== session.principalKey ||
+          op.targetSha !== snapshot.baseSha || op.state !== "target-ready") {
+        fail(new StorageConflictError("Push intent does not match the verified remote HEAD."));
+        return;
+      }
+      const records = tx.objectStore("v3_records");
+      const index = records.index("bySessionKind");
+      const kinds: RecordKind[] = ["staged", "committed", "commit"];
+      let remaining = kinds.length;
+      for (const kind of kinds) {
+        const keys = index.getAllKeys(IDBKeyRange.only([id, kind]));
+        keys.onsuccess = () => {
+          for (const key of keys.result) records.delete(key);
+          if (!--remaining) {
+            try {
+              for (const overlay of overlays) {
+                const remote = snapshot.tree.find(
+                  (row) => row.type === "blob" && row.path === overlay.path,
+                );
+                if (overlay.status === "deleted" && !remote)
+                  records.delete(keyFor(id, "overlay", overlay.path));
+                else if ((overlay.status === "added" || overlay.status === "renamed") && remote)
+                  putRecord(tx, session, "overlay", overlay.path, {
+                    ...overlay, status: "modified", baseSha: remote.sha,
+                    renamedFrom: undefined, updatedAt: Date.now(),
+                  });
+              }
+              store.put({ ...op, state: "completed" });
+              done({ session: { ...session, snapshot } });
+            } catch (reason) { fail(reason); }
+          }
+        };
+      }
+    };
+  });
+}
+
 export async function listLegacyQuarantine(): Promise<LegacyRecord[]> {
   return dbOperation((db) => all<LegacyRecord>(db, "v3_legacy"));
 }
