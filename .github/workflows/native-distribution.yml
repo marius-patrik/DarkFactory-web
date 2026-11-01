@@ -57,7 +57,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/rscode-chromium
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/out/browser-cache
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
