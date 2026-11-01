@@ -136,6 +136,10 @@ export class BrowserFrameService {
   readonly executablePath = findChromiumExecutable();
   private readonly liveBrowsers = new Map<string, Promise<LiveBrowser>>();
   private readonly closingBrowsers = new Set<Promise<void>>();
+  // Serialize slot reservation/eviction so concurrent browser subscriptions
+  // cannot all observe a free slot and exceed the Chromium context limit.
+  private allocationQueue: Promise<void> = Promise.resolve();
+  private closing = false;
   private nextSubscriberId = 1;
 
   constructor(
@@ -327,6 +331,8 @@ export class BrowserFrameService {
   }
 
   async close(): Promise<void> {
+    this.closing = true;
+    await this.allocationQueue;
     const liveBrowsers = await Promise.allSettled(this.liveBrowsers.values());
     this.liveBrowsers.clear();
     await Promise.all(
@@ -340,10 +346,24 @@ export class BrowserFrameService {
   }
 
   private async liveBrowserFor(session: BrowserSession): Promise<LiveBrowser> {
+    if (this.closing) throw new Error("browser service is shutting down");
     const key = session.profilePath;
-    let pending = this.liveBrowsers.get(key);
-    if (!pending) {
+    const current = this.liveBrowsers.get(key);
+    if (current) return current;
+
+    const predecessor = this.allocationQueue;
+    let release!: () => void;
+    this.allocationQueue = new Promise<void>((resolveQueue) => {
+      release = resolveQueue;
+    });
+    await predecessor;
+    try {
+      if (this.closing) throw new Error("browser service is shutting down");
+      // Another subscriber might have reserved this profile while we waited.
+      const alreadyPending = this.liveBrowsers.get(key);
+      if (alreadyPending) return alreadyPending;
       // Reclaim disconnected contexts before refusing another browser pane.
+      // This entire reservation/eviction sequence runs under allocationQueue.
       for (const [profilePath, candidate] of this.liveBrowsers) {
         if (this.liveBrowsers.size < MAX_ACTIVE_BROWSERS) break;
         const existing = await candidate.catch(() => null);
@@ -353,13 +373,16 @@ export class BrowserFrameService {
         await existing.context.close().catch(() => undefined);
       }
       if (this.liveBrowsers.size >= MAX_ACTIVE_BROWSERS) throw new Error("too many active Chromium profiles");
-      pending = this.createLiveBrowser(session).catch((error) => {
+      const pending = this.createLiveBrowser(session).catch((error) => {
         this.liveBrowsers.delete(key);
         throw error;
       });
       this.liveBrowsers.set(key, pending);
+      return pending;
+    } finally {
+      // Do not hold the reservation lock while Chromium itself initializes.
+      release();
     }
-    return pending;
   }
 
   private async createLiveBrowser(session: BrowserSession): Promise<LiveBrowser> {
