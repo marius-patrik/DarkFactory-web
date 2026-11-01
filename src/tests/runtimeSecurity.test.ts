@@ -25,7 +25,7 @@ test("strict loopback host and origin gate rejects sibling-site and rebinding re
 });
 
 test("API lookup never crosses into Object or Function prototypes", () => {
-  expect(lookupHandler("workspace.list")).toBeFunction();
+  expect(typeof lookupHandler("workspace.list")).toBe("function");
   for (const path of ["constructor", "toString", "__proto__", "fs.__proto__", "fs.tree.constructor"]) {
     expect(lookupHandler(path)).toBeNull();
   }
