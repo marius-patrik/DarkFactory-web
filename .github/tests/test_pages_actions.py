@@ -11,6 +11,10 @@ class PagesActionsTests(unittest.TestCase):
         self.assertIn("actions/deploy-pages@v4", ci)
         self.assertIn("needs: build-site", ci)
         self.assertIn("needs: deploy-pages", ci)
+        self.assertIn("test -d dist/static", ci)
+        self.assertIn("test -d dist/static/js", ci)
+        self.assertIn("test -d dist/static/css", ci)
+        self.assertNotIn("test -d dist/assets", ci)
         self.assertNotIn("git push origin HEAD:gh-pages", ci)
         self.assertFalse((ROOT / ".github/workflows/pr-preview.yml").exists())
 
