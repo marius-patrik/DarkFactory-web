@@ -350,6 +350,13 @@ export class BrowserFrameService {
     });
     const page = context.pages()[0] ?? (await context.newPage());
     await page.setViewportSize({ width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height });
+    // A newly created about:blank tab may not have a painted compositor surface.
+    // Establish a real blank document while preserving its native about:blank URL.
+    if (page.url() === "about:blank") {
+      await page.setContent("<!doctype html><html><head><title>Blank</title></head><body></body></html>", {
+        waitUntil: "domcontentloaded",
+      });
+    }
     const cdp = await context.newCDPSession(page);
     const live: LiveBrowser = {
       context,
