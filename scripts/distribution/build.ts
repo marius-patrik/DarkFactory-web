@@ -1,5 +1,5 @@
-import { chmod, cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { chmod, cp, lstat, mkdir, readFile, readlink, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
 
 const repositoryRoot = resolve(import.meta.dir, "..", "..");
 const outputRoot = join(repositoryRoot, "out", "native");
@@ -30,9 +30,14 @@ for (const path of ["package.json", "bun.lock", "tsconfig.json"]) {
 for (const path of ["src", "node_modules"]) {
   await cp(join(repositoryRoot, path), join(stage, path), { recursive: true });
 }
+// Bun's node_modules/.bin may contain absolute symlinks back into the checkout.
+// These command shims are not needed by the installed runtime and would make
+// Linux tar extraction unsafe and the payload non-portable.
+await rm(join(stage, "node_modules", ".bin"), { recursive: true, force: true });
 await cp(join(repositoryRoot, "dist", "web"), join(stage, "dist", "web"), { recursive: true });
 await cp(browsersPath, join(stage, "browsers"), { recursive: true });
 await cp(process.execPath, join(stage, "bin", platform === "win32" ? "bun.exe" : "bun"));
+await rejectNonPortableSymlinks(stage);
 for (const filename of ["launch.ts", "browser-probe.ts", "terminal-probe.ts"]) {
   await cp(join(import.meta.dir, filename), join(stage, "bin", filename));
 }
@@ -67,4 +72,19 @@ async function gitHead(): Promise<string> {
   const output = await new Response(proc.stdout).text();
   if ((await proc.exited) !== 0) throw new Error("Unable to identify Git HEAD");
   return output.trim();
+}
+
+async function rejectNonPortableSymlinks(dir: string): Promise<void> {
+  for (const entry of await readdir(dir)) {
+    const path = join(dir, entry);
+    const info = await lstat(path);
+    if (info.isSymbolicLink()) {
+      const target = resolve(dir, await readlink(path));
+      if (!target.startsWith(stage + sep) && target !== stage) {
+        throw new Error(`Non-portable distribution symlink outside stage: ${path} -> ${target}`);
+      }
+    } else if (info.isDirectory()) {
+      await rejectNonPortableSymlinks(path);
+    }
+  }
 }
