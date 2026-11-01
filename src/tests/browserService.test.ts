@@ -182,9 +182,13 @@ test(
   async () => {
     tempRoot = await mkdtemp(join(tmpdir(), "canvas-browser-failed-"));
     const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined, 50);
-    const session = { ...browserSession("<title>Invalid URL</title>"), url: "http://[invalid" };
+    const session = browserSession("<title>Subscriber failure</title>");
     try {
-      await expect(service.stream(session, { send: () => undefined })).rejects.toThrow();
+      // A callback throwing during stream initialization must detach and release
+      // Chromium; avoid unreliable external-protocol/browser-network failure fixtures.
+      await expect(service.stream(session, { send: (message) => {
+        if (message.type === "state") throw new Error("fixture subscriber failure");
+      } })).rejects.toThrow("fixture subscriber failure");
       const internals = service as unknown as { liveBrowsers: Map<string, unknown> };
       await waitFor(() => internals.liveBrowsers.size === 0, "failed stream cleanup");
     } finally {
