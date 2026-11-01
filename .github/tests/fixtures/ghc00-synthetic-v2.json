@@ -20,12 +20,16 @@
       "login": "synthetic-a",
       "repositoryAccess": [
         "acme/private"
-      ]
+      ],
+      "id": 10001,
+      "principalId": "gh:github.com:10001"
     },
     {
       "fixtureAccount": "account-B",
       "login": "synthetic-b",
-      "repositoryAccess": []
+      "repositoryAccess": [],
+      "id": 20002,
+      "principalId": "gh:github.com:20002"
     }
   ],
   "workspaces": [
