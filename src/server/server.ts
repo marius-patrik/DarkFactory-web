@@ -458,8 +458,18 @@ function isBrowserInteractionMessage(command: Record<string, unknown>): command 
       (command.promptText === undefined || typeof command.promptText === "string");
   }
   if (command.type === "chooseFiles") {
-    return Array.isArray(command.paths) && command.paths.length <= 20 &&
-      command.paths.every((path: unknown) => typeof path === "string");
+    const paths = command.paths;
+    const files = command.files;
+    return (paths === undefined || (Array.isArray(paths) && paths.length <= 20 &&
+      paths.every((path: unknown) => typeof path === "string"))) &&
+      (files === undefined || (Array.isArray(files) && files.length <= 20 &&
+        files.every((file: unknown) => {
+          if (!file || typeof file !== "object") return false;
+          const candidate = file as Record<string, unknown>;
+          return typeof candidate.name === "string" &&
+            typeof candidate.mimeType === "string" &&
+            typeof candidate.data === "string";
+        })));
   }
   return false;
 }

@@ -91,7 +91,7 @@ export type BrowserInteractionMessage =
   | { type: "click"; x: number; y: number; button?: "left" | "middle" | "right" }
   | { type: "type"; text: string }
   | { type: "dialogResponse"; accept: boolean; promptText?: string }
-  | { type: "chooseFiles"; paths: string[] };
+  | { type: "chooseFiles"; paths?: string[]; files?: Array<{ name: string; mimeType: string; data: string }> };
 
 export type BrowserStreamSubscriber = {
   send: (message: BrowserServerMessage) => void | Promise<void>;
@@ -236,13 +236,32 @@ export class BrowserFrameService {
       return;
     }
     if (message.type === "chooseFiles") {
-      if (message.paths.length > 20 ||
-        message.paths.some((path) => !isAbsolute(path) || path.includes(String.fromCharCode(0)))) {
-        throw new Error("file chooser accepts up to 20 absolute local file paths");
+      const paths = message.paths ?? [];
+      const files = message.files ?? [];
+      if (paths.length + files.length > 20 ||
+        paths.some((path) => !isAbsolute(path) || path.includes(String.fromCharCode(0))) ||
+        files.some((file) =>
+          !file.name || !file.mimeType || file.name.includes(String.fromCharCode(0)) ||
+          file.data.length > 8_000_000
+        ) ||
+        files.reduce((sum, file) => sum + file.data.length, 0) > 12_000_000) {
+        throw new Error("file chooser rejected invalid paths or oversized files");
       }
       const chooser = live.pendingFileChooser;
       live.pendingFileChooser = null;
-      if (chooser) await chooser.setFiles(message.paths);
+      if (chooser) {
+        if (files.length > 0) {
+          await chooser.setFiles(files.map((file) => ({
+            name: basename(file.name.replaceAll("\\\\", "/")),
+            mimeType: file.mimeType,
+            buffer: Buffer.from(file.data, "base64"),
+          })));
+        } else {
+          await chooser.setFiles(paths);
+        }
+        await this.updateTitle(live);
+        await this.broadcastState(live);
+      }
       return;
     }
 
