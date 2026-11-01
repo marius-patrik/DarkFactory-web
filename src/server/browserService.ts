@@ -135,6 +135,7 @@ const MAX_SAVED_DOWNLOAD_BYTES = 100 * 1024 * 1024;
 export class BrowserFrameService {
   readonly executablePath = findChromiumExecutable();
   private readonly liveBrowsers = new Map<string, Promise<LiveBrowser>>();
+  private readonly closingBrowsers = new Set<Promise<void>>();
   private nextSubscriberId = 1;
 
   constructor(
@@ -166,7 +167,9 @@ export class BrowserFrameService {
           live.idleTimer = setTimeout(() => {
             if (live.subscribers.size !== 0) return;
             this.liveBrowsers.delete(session.profilePath);
-            void live.context.close().catch(() => undefined);
+            const closing = live.context.close().catch(() => undefined);
+            this.closingBrowsers.add(closing);
+            void closing.finally(() => this.closingBrowsers.delete(closing));
           }, this.idleTimeoutMs);
           live.idleTimer.unref();
         }
@@ -333,6 +336,7 @@ export class BrowserFrameService {
         await result.value.context.close().catch(() => undefined);
       }),
     );
+    await Promise.all(this.closingBrowsers);
   }
 
   private async liveBrowserFor(session: BrowserSession): Promise<LiveBrowser> {
