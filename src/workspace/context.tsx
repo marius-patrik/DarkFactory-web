@@ -684,7 +684,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const stageGroupFor = useCallback(
     (path: string) => {
-      const lease = capture();
       const selected = overlays.find((entry) => entry.path === path);
       if (!selected) return [];
       const group = [selected];
@@ -760,6 +759,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const discardFile = useCallback(
     async (path: string) => {
       if (!workspace) throw new Error("No workspace is open.");
+      const lease = capture();
       const selected = overlays.find((entry) => entry.path === path);
       const paths = new Set([path]);
       if (selected?.status === "renamed" && selected.renamedFrom) paths.add(selected.renamedFrom);
