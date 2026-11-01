@@ -793,6 +793,8 @@ export type PushIntent = {
   sourceSha: string;
   targetSha?: string;
   commits: string[];
+  expectedRevision: number;
+  targetRevision?: number;
   state: "preparing" | "target-ready" | "completed";
 };
 
@@ -807,6 +809,7 @@ export async function beginPushIntent(id: string, sourceSha: string, commits: Lo
       principalKey: session.principalKey,
       sourceSha,
       commits: commits.map((commit) => commit.id),
+      expectedRevision: session.revision + 1,
       state: "preparing",
     };
     tx.objectStore("v3_push_ops").add(intent);
@@ -824,12 +827,13 @@ export async function updatePushTarget(id: string, opId: string, targetSha: stri
         !op ||
         op.sessionId !== id ||
         op.principalKey !== session.principalKey ||
-        op.state !== "preparing"
+        op.state !== "preparing" ||
+        op.expectedRevision !== session.revision
       ) {
         fail(new StorageConflictError("Push intent missing or already finalized."));
         return;
       }
-      store.put({ ...op, targetSha, state: "target-ready" });
+      store.put({ ...op, targetSha, targetRevision: session.revision + 1, state: "target-ready" });
       done();
     };
   });
@@ -863,6 +867,7 @@ export function finishPushAtomic(
         op.sessionId !== id ||
         op.principalKey !== session.principalKey ||
         op.targetSha !== snapshot.baseSha ||
+        op.targetRevision !== session.revision ||
         op.state !== "target-ready"
       ) {
         fail(new StorageConflictError("Push intent does not match the verified remote HEAD."));
@@ -870,7 +875,7 @@ export function finishPushAtomic(
       }
       const records = tx.objectStore("v3_records");
       const index = records.index("bySessionKind");
-      const kinds: RecordKind[] = ["staged", "committed", "commit"];
+      const kinds: RecordKind[] = ["committed", "commit"];
       let remaining = kinds.length;
       for (const kind of kinds) {
         const keys = index.getAllKeys(IDBKeyRange.only([id, kind]));
