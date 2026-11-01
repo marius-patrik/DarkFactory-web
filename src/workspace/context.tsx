@@ -843,14 +843,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     },
-    [
-      assertCurrent,
-      capture,
-      loadLocalState,
-      principal,
-      token,
-      workspace,
-    ],
+    [assertCurrent, capture, loadLocalState, principal, token, workspace],
   );
 
   const pushLocalCommits = useCallback(async () => {
