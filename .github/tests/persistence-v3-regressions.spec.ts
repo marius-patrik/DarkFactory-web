@@ -88,7 +88,7 @@ test("v2 private work is attributed only after explicit user confirmation and ma
   await authenticateAndOpen(page);
   expect((await records(page)).records.some((row) =>
     row.value.content === "LEGACY_OVERLAY_SENTINEL")).toBe(false);
-  await page.getByRole("button", { name: /Open Repository/ }).first().click();
+  await page.locator(".workspace-repository-button").click();
   await page.getByRole("button", { name: "Review unattributed workspaces" }).click();
   const adopt = page.getByRole("button", { name: "Recover into current repository" });
   await expect(adopt).toBeDisabled();
