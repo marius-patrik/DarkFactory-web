@@ -76,7 +76,7 @@ jobs:
         run: bunx playwright install chromium
       - name: Provision Linux Chromium system libraries
         if: matrix.expected_platform == 'linux'
-        run: sudo bunx playwright install-deps chromium
+        run: bunx playwright install-deps chromium
       - name: Build web and native payload
         shell: bash
         run: |
