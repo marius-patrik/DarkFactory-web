@@ -908,7 +908,9 @@ export function abandonUnsentPushes(id: string) {
     const query = store.getAll();
     query.onsuccess = () => {
       const pending = (query.result as PushIntent[]).filter(
-        (op) => op.sessionId === id && op.principalKey === session.principalKey &&
+        (op) =>
+          op.sessionId === id &&
+          op.principalKey === session.principalKey &&
           op.state !== "completed",
       );
       if (pending.some((op) => op.state !== "preparing" || op.targetSha)) {
