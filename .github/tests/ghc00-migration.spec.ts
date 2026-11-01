@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import fixture from "./fixtures/ghc00-synthetic-v2.json";
+import { readFileSync } from "node:fs";
+const fixture = JSON.parse(readFileSync(new URL("./fixtures/ghc00-synthetic-v2.json", import.meta.url), "utf8"));
 import { inspectWorkbench } from "./ghc00-db-inspection";
 
 /**
