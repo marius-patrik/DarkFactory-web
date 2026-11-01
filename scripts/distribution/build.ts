@@ -1,4 +1,4 @@
-import { chmod, cp, lstat, mkdir, readFile, readlink, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, cp, lstat, mkdir, readFile, readdir, readlink, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 
 const repositoryRoot = resolve(import.meta.dir, "..", "..");
