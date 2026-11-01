@@ -59,14 +59,19 @@ export function anonymousPrincipal(): AnonymousPrincipal {
 }
 
 export function githubPrincipal(id: number): GithubPrincipal {
-  if (!Number.isSafeInteger(id) || id <= 0) throw new Error("GitHub /user has no valid numeric ID.");
+  if (!Number.isSafeInteger(id) || id <= 0)
+    throw new Error("GitHub /user has no valid numeric ID.");
   return { kind: "github", userId: id, key: `gh:github.com:${id}` };
 }
 
 export function repositoryIdentity(repository: GithubRepository): RepositoryIdentity {
   if (!Number.isSafeInteger(repository.id) || repository.id <= 0)
     throw new Error("Repository is missing a valid immutable GitHub ID.");
-  return { key: `gh:github.com:repo:${repository.id}`, id: repository.id, fullName: repository.full_name };
+  return {
+    key: `gh:github.com:repo:${repository.id}`,
+    id: repository.id,
+    fullName: repository.full_name,
+  };
 }
 
 export function canonicalGitRef(name: string, refs: GithubRef[]): GitRef {
@@ -123,9 +128,6 @@ export function isOwnedWorkspace(
   );
 }
 
-export function sameOwnership(
-  active: OwnershipGeneration,
-  captured: OwnershipGeneration,
-): boolean {
+export function sameOwnership(active: OwnershipGeneration, captured: OwnershipGeneration): boolean {
   return active.generation === captured.generation && active.principalKey === captured.principalKey;
 }
