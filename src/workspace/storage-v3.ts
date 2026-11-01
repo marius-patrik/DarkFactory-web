@@ -547,7 +547,10 @@ export function writeRecords<
   return mutate(sessionId, (tx, session, done, fail) => {
     const records = tx.objectStore("v3_records");
     let pending = rows.length;
-    if (!pending) { done(); return; }
+    if (!pending) {
+      done();
+      return;
+    }
     for (const row of rows) {
       const name =
         kind === "blob" ? String(row.sha) : kind === "commit" ? String(row.id) : String(row.path);
@@ -557,14 +560,28 @@ export function writeRecords<
       find.onsuccess = () => {
         const existing = find.result as PersistedRecord | undefined;
         try {
-          putRecord(tx, session, kind, name, structuredClone(row), revisionId, existing?.resourceId);
+          putRecord(
+            tx,
+            session,
+            kind,
+            name,
+            structuredClone(row),
+            revisionId,
+            existing?.resourceId,
+          );
           if (revisionId)
             tx.objectStore("v3_revisions").add({
-              id: revisionId, sessionId, principalKey: session.principalKey,
-              kind, resourceId: existing?.resourceId, value: structuredClone(row),
+              id: revisionId,
+              sessionId,
+              principalKey: session.principalKey,
+              kind,
+              resourceId: existing?.resourceId,
+              value: structuredClone(row),
             });
           if (!--pending) done();
-        } catch (reason) { fail(reason); }
+        } catch (reason) {
+          fail(reason);
+        }
       };
     }
   });
