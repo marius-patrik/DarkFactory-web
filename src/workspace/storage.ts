@@ -3,21 +3,25 @@ import type {
 } from "./model";
 import { isOwnedWorkspace, type PrincipalKey } from "./identity";
 import {
+  beginPushIntent,
   clearKinds,
+  finishPushAtomic,
   commitStagedAtomic,
   exportLegacyQuarantine,
   forkWorkspaceAtomic,
   importLegacyQuarantine,
   listLegacyQuarantine,
   loadOwnedWorkspace,
+  pendingPushIntents,
   persistWorkspace,
   readRecord,
   readRecords,
   removeRecords,
   replacePath,
+  updatePushTarget,
   writeRecords,
 } from "./storage-v3";
-export { writeRecords, removeRecords } from "./storage-v3";
+export { beginPushIntent, finishPushAtomic, pendingPushIntents, updatePushTarget, writeRecords, removeRecords } from "./storage-v3";
 
 const OWNED_RECENT_PREFIX = "ghcode-recent-owned-v1:";
 
