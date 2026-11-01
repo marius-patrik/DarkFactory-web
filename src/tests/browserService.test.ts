@@ -188,19 +188,29 @@ test(
     );
     const messages: Array<{ type: string; message?: string }> = [];
     try {
+      console.error("DIALOG_TRACE: starting stream");
       const handle = await service.stream(session, { send: (message) => { messages.push(message); } });
+      console.error("DIALOG_TRACE: stream ready");
       try {
         await service.interact(session, { type: "mouse", event: "down", x: 40, y: 35, button: "left" });
+        console.error("DIALOG_TRACE: mouse down");
         const click = service.interact(session, { type: "mouse", event: "up", x: 40, y: 35, button: "left" });
+        console.error("DIALOG_TRACE: mouse up dispatched");
         await waitFor(() => messages.some((message) => message.type === "dialog"), "browser confirmation dialog");
+        console.error("DIALOG_TRACE: event received");
         expect(messages.some((message) => message.message === "Proceed?")).toBe(true);
         await service.interact(session, { type: "dialogResponse", accept: true });
+        console.error("DIALOG_TRACE: accepted");
         await click;
+        console.error("DIALOG_TRACE: click completed");
       } finally {
+        console.error("DIALOG_TRACE: closing handle");
         handle.close();
       }
     } finally {
+      console.error("DIALOG_TRACE: closing service");
       await service.close();
+      console.error("DIALOG_TRACE: service closed");
     }
   },
   20_000,
