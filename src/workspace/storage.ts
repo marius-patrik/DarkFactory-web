@@ -10,6 +10,7 @@ import {
   beginPushIntent,
   clearKinds,
   finishPushAtomic,
+  attributeUnattributedV2,
   commitStagedAtomic,
   exportLegacyQuarantine,
   forkWorkspaceAtomic,
@@ -49,6 +50,7 @@ export {
   forkWorkspaceAtomic,
   importLegacyQuarantine,
   listLegacyQuarantine,
+  listUnattributedWorkspaces,
   replacePath,
 };
 
