@@ -157,6 +157,43 @@ test(
   20_000,
 );
 
+
+test(
+  "disconnected browser streams release orphan Chromium contexts",
+  async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "canvas-browser-idle-"));
+    const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined, 50);
+    const session = browserSession("<title>Idle cleanup</title>");
+    try {
+      const handle = await service.stream(session, { send: () => undefined });
+      const internals = service as unknown as { liveBrowsers: Map<string, unknown> };
+      expect(internals.liveBrowsers.size).toBe(1);
+      handle.close();
+      await waitFor(() => internals.liveBrowsers.size === 0, "idle Chromium cleanup");
+    } finally {
+      await service.close();
+    }
+  },
+  20_000,
+);
+
+test(
+  "failed browser stream initialization does not retain a subscriber",
+  async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "canvas-browser-failed-"));
+    const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined, 50);
+    const session = { ...browserSession("<title>Invalid URL</title>"), url: "not-a-valid-page://example" };
+    try {
+      await expect(service.stream(session, { send: () => undefined })).rejects.toThrow();
+      const internals = service as unknown as { liveBrowsers: Map<string, unknown> };
+      await waitFor(() => internals.liveBrowsers.size === 0, "failed stream cleanup");
+    } finally {
+      await service.close();
+    }
+  },
+  20_000,
+);
+
 function browserSession(html: string): BrowserSession {
   return {
     workspaceId: "workspace:test",
