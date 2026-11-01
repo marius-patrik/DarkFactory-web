@@ -868,7 +868,8 @@ function isWithinDirectory(root: string, child: string): boolean {
 }
 
 function validBase64(value: string): boolean {
-  if (value.length === 0 || value.length % 4 !== 0) return false;
+  // Empty files are legitimate uploads: their Base64 representation is empty.
+  if (value.length % 4 !== 0) return false;
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value)) return false;
   return Buffer.from(value, "base64").toString("base64") === value;
 }
