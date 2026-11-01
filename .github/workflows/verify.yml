@@ -2,7 +2,7 @@ name: Verify
 
 on:
   push:
-    branches: ["main", "pmarius/**"]
+    branches: ["main", "pmarius/**", "integration/ghcode-consolidation"]
   pull_request:
 
 jobs:
