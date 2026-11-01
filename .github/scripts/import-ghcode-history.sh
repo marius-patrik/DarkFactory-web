@@ -9,6 +9,26 @@ test "$target_branch" = "integration/ghcode-consolidation"
 initial="$(git rev-parse HEAD)"
 git diff --quiet
 git diff --cached --quiet
+
+# The first run already imported all source commits, but tag pushes were denied
+# by the GitHub App's workflow-file restriction. Source tags are lightweight and
+# their exact original name->SHA mappings are preserved in the manifest.
+# On a retry, validate the complete ancestry instead of creating redundant merges.
+if [[ -f docs/migrations/GHCODE_GIT_HISTORY.json ]]; then
+  python3 - <<'PY'
+import json
+import subprocess
+from pathlib import Path
+manifest = json.loads(Path("docs/migrations/GHCODE_GIT_HISTORY.json").read_text())
+refs = manifest["refs"]
+assert manifest["sourceMain"] == "534e2203425d91783111e5d02d5ec92649fec594"
+for sha in sorted({x["commit"] for x in refs}):
+    subprocess.run(["git", "merge-base", "--is-ancestor", sha, "HEAD"], check=True)
+print("Verified original GHCode commit ancestry:", len({x["commit"] for x in refs}), "tip commits in", len(refs), "source refs")
+PY
+  exit 0
+fi
+
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -109,9 +129,10 @@ git diff --exit-code "$initial" "$last" -- src package.json bun.lock rsbuild.con
 git reset --hard "$last"
 git push origin "HEAD:refs/heads/$target_branch"
 
-# Namespaced original release tags are retained without collisions with RSCode tags.
-git push origin 'refs/tags/ghcode/*:refs/tags/ghcode/*'
-
+# The original GHCode tag-name-to-SHA mapping is retained in the manifest.
+# Original tags are lightweight and their commit objects are covered by the
+# ancestry merge. Do not push tag refs with this low-privilege Actions token:
+# GitHub rejects such pushes when historical commits modify workflow files.
 echo "Imported GHCode original Git history into RSCode $target_branch at $last."
-echo "Imported original release tag refs to refs/tags/ghcode/*."
+echo "Original tag identities are preserved in the provenance manifest."
 echo "No application source changed; no source repository deletion was attempted."
