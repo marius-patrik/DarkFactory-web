@@ -84,18 +84,18 @@ test("A private repository is not accessible to anonymous or denied account B", 
   await page.locator('[data-workbench-surface="primary"]').getByTitle("README.md").click();
   await expect.poll(async () => page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("darkfactory-workbench", 2);
+      const request = indexedDB.open("darkfactory-workbench", 3);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });
     return await new Promise<boolean>((resolve, reject) => {
-      const tx = database.transaction("blobs", "readonly");
-      const request = tx.objectStore("blobs").getAll();
+      const tx = database.transaction("v3_records", "readonly");
+      const request = tx.objectStore("v3_records").getAll();
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         resolve(request.result.some((record) =>
-          record.content === "# Private repository\n" &&
-          record.workspaceId.includes(encodeURIComponent("gh:github.com:1001")),
+          record.kind === "blob" && record.value.content === "# Private repository\n" &&
+          record.sessionId.includes(encodeURIComponent("gh:github.com:1001")),
         ));
         database.close();
       };
@@ -123,12 +123,12 @@ test("same repository and login are isolated by immutable numeric user ID", asyn
   await openRepository(page);
   const aIds = await page.evaluate(async () => {
     return new Promise<string[]>((resolve, reject) => {
-      const request = indexedDB.open("darkfactory-workbench", 2);
+      const request = indexedDB.open("darkfactory-workbench", 3);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const db = request.result;
-        const tx = db.transaction("workspaces", "readonly");
-        const query = tx.objectStore("workspaces").getAllKeys();
+        const tx = db.transaction("v3_sessions", "readonly");
+        const query = tx.objectStore("v3_sessions").getAllKeys();
         query.onsuccess = () => {
           resolve(query.result.map(String));
           db.close();
@@ -142,13 +142,13 @@ test("same repository and login are isolated by immutable numeric user ID", asyn
   await openRepository(page);
   const keys = await page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("darkfactory-workbench", 2);
+      const request = indexedDB.open("darkfactory-workbench", 3);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });
     return await new Promise<string[]>((resolve, reject) => {
-      const tx = db.transaction("workspaces", "readonly");
-      const request = tx.objectStore("workspaces").getAllKeys();
+      const tx = db.transaction("v3_sessions", "readonly");
+      const request = tx.objectStore("v3_sessions").getAllKeys();
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         resolve(request.result.map(String));
@@ -219,7 +219,7 @@ test("legacy unattributed cache and layout remain intact but cannot render", asy
   await openRepository(page, PUBLIC_REPOSITORY);
   await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("darkfactory-workbench", 2);
+      const request = indexedDB.open("darkfactory-workbench", 3);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });
@@ -289,7 +289,7 @@ test("legacy unattributed cache and layout remain intact but cannot render", asy
   await expect(page.getByText("LEGACY_PRIVATE_SENTINEL")).toHaveCount(0);
   const legacy = await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("darkfactory-workbench", 2);
+      const request = indexedDB.open("darkfactory-workbench", 3);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });
