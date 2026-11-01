@@ -1,4 +1,5 @@
 import type { GithubRef, GithubRepository, GithubTreeEntry, GithubUser } from "@/github/client";
+import type { OwnedWorkspaceIdentity } from "./identity";
 
 export type WorkspaceRepository = {
   id: number;
@@ -13,6 +14,8 @@ export type WorkspaceRepository = {
 
 export type WorkspaceSnapshot = {
   version: 2;
+  /** Absent in unattributed legacy v2 records, which must never be implicitly restored. */
+  ownership?: OwnedWorkspaceIdentity;
   id: string;
   repository: WorkspaceRepository;
   ref: string;
