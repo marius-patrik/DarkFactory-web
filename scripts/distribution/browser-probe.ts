@@ -14,8 +14,9 @@ const context = await chromium.launchPersistentContext(profile, {
 });
 try {
   const page = context.pages()[0] ?? await context.newPage();
-  const response = await page.goto("http://127.0.0.1:" + process.env.CANVAS_PORT + "/", { waitUntil: "domcontentloaded", timeout: 20000 });
+  const response = await page.goto(`http://127.0.0.1:${process.env.CANVAS_PORT}/`, { waitUntil: "domcontentloaded", timeout: 20000 });
   if (!response || !response.ok()) throw new Error("Frontend not available in bundled Chromium");
+  await page.getByPlaceholder("Search files or web, / commands, > terminal").waitFor({ timeout: 15000 });
   const html = await page.locator("body").innerText();
   if (!html.trim()) throw new Error("Bundled browser rendered an empty application");
   const storage = await page.evaluate((probeMode) => {
