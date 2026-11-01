@@ -114,6 +114,7 @@ type LiveBrowser = {
   loading: boolean;
   viewport: BrowserViewport;
   screencastStarted: boolean;
+  screencastStarting: Promise<void> | null;
   lastFrame: BrowserFrameMessage | null;
   subscribers: Map<number, BrowserStreamSubscriber>;
   persistSubscriberId: number | null;
@@ -444,6 +445,7 @@ export class BrowserFrameService {
         loading: false,
         viewport: DEFAULT_VIEWPORT,
         screencastStarted: false,
+        screencastStarting: null,
         lastFrame: null,
         subscribers: new Map(),
         persistSubscriberId: null,
@@ -526,18 +528,31 @@ export class BrowserFrameService {
 
   private async startScreencast(live: LiveBrowser): Promise<void> {
     if (live.screencastStarted) return;
-    live.screencastStarted = true;
-    const onFrame = (event: unknown) => {
-      this.runBackground(this.handleScreencastFrame(live, event as ScreencastEvent), "screencast frame");
-    };
+    // A boolean set before the first await incorrectly lets other subscribers
+    // navigate and capture while CDP initialization is still unfinished.
+    if (live.screencastStarting) return live.screencastStarting;
+    const start = (async () => {
+      const onFrame = (event: unknown) => {
+        this.runBackground(this.handleScreencastFrame(live, event as ScreencastEvent), "screencast frame");
+      };
+      try {
+        await live.cdp.send("Page.enable");
+        if (this.closing) throw new Error("browser service is shutting down");
+        live.cdp.on("Page.screencastFrame", onFrame);
+        await live.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+        if (this.closing) throw new Error("browser service is shutting down");
+        live.screencastStarted = true;
+      } catch (error) {
+        live.cdp.off("Page.screencastFrame", onFrame);
+        live.screencastStarted = false;
+        throw error;
+      }
+    })();
+    live.screencastStarting = start;
     try {
-      await live.cdp.send("Page.enable");
-      live.cdp.on("Page.screencastFrame", onFrame);
-      await live.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
-    } catch (error) {
-      live.cdp.off("Page.screencastFrame", onFrame);
-      live.screencastStarted = false;
-      throw error;
+      await start;
+    } finally {
+      if (live.screencastStarting === start) live.screencastStarting = null;
     }
   }
 
