@@ -300,7 +300,7 @@ export async function getGithubUser(token: string): Promise<GithubUser> {
   const value: unknown = await githubFetch<unknown>("/user", token);
   if (!value || typeof value !== "object") throw new Error("Invalid authenticated GitHub identity.");
   const user = value as Record<string, unknown>;
-  if (!Number.isSafeInteger(user.id) || (user.id as number) <= 0 ||
+  if (typeof user.id !== "number" || !Number.isSafeInteger(user.id) || user.id <= 0 ||
       typeof user.login !== "string" || !user.login.trim() ||
       typeof user.avatar_url !== "string" || typeof user.html_url !== "string") {
     throw new Error("Invalid authenticated GitHub identity: /user must include a numeric ID.");
