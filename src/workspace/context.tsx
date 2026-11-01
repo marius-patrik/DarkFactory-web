@@ -54,6 +54,7 @@ import {
   clearLocalGitState,
   clearStaged,
   commitStagedAtomic,
+  forkWorkspaceAtomic,
   loadBlob,
   loadCommittedFiles,
   loadLocalCommits,
@@ -820,44 +821,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           ref: name,
           updatedAt: Date.now(),
         };
-        await saveWorkspace(nextWorkspace);
-        assertCurrent(lease);
-
-        for (const file of overlays) {
-          await saveOverlay({
-            ...file,
-            key: overlayKey(nextId, file.path),
-            workspaceId: nextId,
-          });
-        }
-        for (const file of staged) {
-          await saveStaged({
-            ...file,
-            key: overlayKey(nextId, file.path),
-            workspaceId: nextId,
-          });
-        }
-        for (const file of committedFiles) {
-          await saveCommittedFile({
-            ...file,
-            key: overlayKey(nextId, file.path),
-            workspaceId: nextId,
-          });
-        }
-        for (const localCommit of commits) {
-          const id = `${nextId}:local:${localCommit.createdAt}:${crypto.randomUUID()}`;
-          await saveLocalCommit({
-            ...localCommit,
-            id,
-            workspaceId: nextId,
-            files: localCommit.files.map((file) => ({
-              ...file,
-              key: overlayKey(nextId, file.path),
-              workspaceId: nextId,
-            })),
-          });
-        }
-
+        await forkWorkspaceAtomic(workspace.id, nextWorkspace);
         assertCurrent(lease);
         setWorkspace(nextWorkspace);
         setRemoteHeadSha(workspace.baseSha);
