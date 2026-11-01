@@ -51,6 +51,7 @@ import {
   type Principal,
 } from "./identity";
 import {
+  attributeUnattributedV2,
   beginPushIntent,
   finishPushAtomic,
   pendingPushIntents,
@@ -125,6 +126,7 @@ type WorkspaceContextValue = {
   commitStaged: (message: string) => Promise<LocalCommit>;
   createBranch: (branch: string) => Promise<void>;
   pushLocalCommits: () => Promise<string>;
+  recoverLegacy: (legacyId: string) => Promise<void>;
   exportPatch: (scope?: PatchExportScope, commitId?: string) => Promise<void>;
   exportWorkspaceZip: () => Promise<void>;
   exportRemoteArchive: () => Promise<void>;
@@ -1001,6 +1003,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [assertCurrent, capture, commits, loadLocalState, overlays, refs, token, workspace]);
 
+  const recoverLegacy = useCallback(
+    async (legacyId: string) => {
+      if (!workspace) throw new Error("Open and verify the matching repository and ref first.");
+      const lease = capture();
+      assertCurrent(lease);
+      const snapshot = await attributeUnattributedV2(legacyId, workspace, true);
+      assertCurrent(lease);
+      setWorkspace(snapshot);
+      setRecent(rememberWorkspace(snapshot));
+      await loadLocalState(snapshot.id, lease);
+      assertCurrent(lease);
+      setDialogOpen(false);
+    },
+    [assertCurrent, capture, loadLocalState, workspace],
+  );
+
   const exportPatch = useCallback(
     async (scope: PatchExportScope = "all", commitId?: string) => {
       if (!workspace) throw new Error("No workspace is open.");
@@ -1204,6 +1222,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       commitStaged,
       createBranch,
       pushLocalCommits,
+      recoverLegacy,
       exportPatch,
       exportWorkspaceZip,
       exportRemoteArchive,
