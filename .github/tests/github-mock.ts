@@ -2,6 +2,8 @@ import type { Page, Route } from "@playwright/test";
 
 export const MOCK_REPOSITORY = "acme/private";
 export const PUBLIC_REPOSITORY = "acme/public";
+export const MOCK_ACCOUNT_A_ID = 10001;
+export const MOCK_ACCOUNT_B_ID = 20002;
 export const BASE_SHA = "1111111111111111111111111111111111111111";
 const BASE_TREE = "2222222222222222222222222222222222222222";
 const README_BLOB = "3333333333333333333333333333333333333333";
@@ -29,9 +31,17 @@ const publicRepository = {
 };
 
 const user = {
+  id: MOCK_ACCOUNT_A_ID,
   login: "octocat",
   avatar_url: "https://avatars.example/octocat.png",
   html_url: "https://github.com/octocat",
+};
+
+const accountB = {
+  id: MOCK_ACCOUNT_B_ID,
+  login: "account-b",
+  avatar_url: "https://avatars.example/account-b.png",
+  html_url: "https://github.com/account-b",
 };
 
 const issue = {
@@ -180,6 +190,9 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
+    const authorization = request.headers().authorization ?? "";
+    const isB = authorization.includes("account-b");
+    const mayReadPrivate = authorization.includes("test-token");
 
     if (path === "/graphql" && method === "POST") {
       const body = request.postDataJSON() as { query?: string; variables?: Record<string, unknown> };
@@ -215,8 +228,12 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
       return json(route, { errors: [{ message: "Unhandled test GraphQL operation" }] }, 400);
     }
 
-    if (path === "/user" && method === "GET") return json(route, user);
-    if (path === "/user/repos" && method === "GET") return json(route, [repository]);
+    if (path === "/user" && method === "GET") return json(route, isB ? accountB : user);
+    if (path === "/user/repos" && method === "GET") return json(route, isB ? [] : [repository]);
+    // Private GitHub API endpoints deny B and anonymous access regardless of cache.
+    if (path.startsWith("/repos/" + MOCK_REPOSITORY) && !mayReadPrivate) {
+      return json(route, { message: "Private repository unavailable" }, 404);
+    }
 
     if (path === `/repos/${MOCK_REPOSITORY}` && method === "GET") {
       return json(route, repository);
