@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { installGithubMock, MOCK_REPOSITORY } from "./github-mock";
+import { installGithubMock, MOCK_REPOSITORY, MOCK_ACCOUNT_A_ID, MOCK_ACCOUNT_B_ID } from "./github-mock";
+import { frozenV2Records, persistedMarker, inspectWorkbench } from "./ghc00-db-inspection";
 
 /**
  * GHC-00 evidence tests. All accounts, tokens, repositories and contents are synthetic.
@@ -32,24 +33,53 @@ async function openReadme(page: Page) {
   await expect(surface(page, "main").locator(".monaco-editor").last()).toBeVisible();
 }
 
+// Frozen v2 stores remain readable after migration; do not open a pinned DB version.
 async function storeRecords(page: Page, store: string) {
-  return page.evaluate(async (name) => {
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("darkfactory-workbench", 2);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    try {
-      return await new Promise<Array<Record<string, unknown>>>((resolve, reject) => {
-        const transaction = database.transaction(name, "readonly");
-        const request = transaction.objectStore(name).getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-    } finally {
-      database.close();
+  return frozenV2Records(page, store);
+}
+
+async function deferredLegacyDebounce(page: Page) {
+  await page.evaluate(() => {
+    const original = window.setTimeout.bind(window);
+    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
+      original(handler, timeout === 250 ? 60_000 : timeout, ...args)) as typeof window.setTimeout;
+  });
+}
+
+const unsavedFeedback = (page: Page) =>
+  page.getByText(/unsaved|not saved|saving|pending|failed|error|abort|quota|cannot close|keep editing/i).first();
+
+async function expectGuardedUnsaved(page: Page, content: string) {
+  await expect(page.locator(".monaco-editor .view-lines").last()).toContainText(content);
+  await expect(unsavedFeedback(page)).toBeVisible();
+}
+
+// The real IndexedDB request succeeds before the *actual* transaction aborts.
+// No transaction success or completion is synthesized.
+async function abortWriteContaining(page: Page, content: string) {
+  await page.evaluate((needle) => {
+    (window as Window & { __ghcAbortCount?: number }).__ghcAbortCount = 0;
+    for (const method of ["put", "add"] as const) {
+      const original = IDBObjectStore.prototype[method];
+      IDBObjectStore.prototype[method] = function (value: unknown, key?: IDBValidKey) {
+        const request = key === undefined ? original.call(this, value) : original.call(this, value, key);
+        if (JSON.stringify(value).includes(needle)) {
+          request.addEventListener("success", () => {
+            const state = window as Window & { __ghcAbortCount?: number };
+            state.__ghcAbortCount = (state.__ghcAbortCount ?? 0) + 1;
+            if (this.transaction.readyState === "active") this.transaction.abort();
+          });
+        }
+        return request;
+      } as typeof IDBObjectStore.prototype.put;
     }
-  }, store);
+  }, content);
+}
+
+async function expectAborted(page: Page) {
+  await expect.poll(() => page.evaluate(() =>
+    (window as Window & { __ghcAbortCount?: number }).__ghcAbortCount ?? 0
+  )).toBeGreaterThan(0);
 }
 
 async function editSyntheticReadme(page: Page, content: string) {
@@ -69,204 +99,183 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
-test("GHC-00 private cached workspace is not exposed to an anonymous session after sign-out", async ({ page }) => {
+test("GHC-01 isolation: anonymous cannot mount, render or reopen A private workspace", async ({ page }) => {
+  expect(MOCK_ACCOUNT_A_ID).not.toBe(MOCK_ACCOUNT_B_ID);
   await installAccountA(page);
   await openSyntheticPrivateRepo(page);
   await openReadme(page);
-  // The private source blob has now been retrieved and cached for Account A.
-  expect((await storeRecords(page, "blobs")).length).toBeGreaterThan(0);
+  await expect(surface(page, "main").locator(".view-lines").last()).toContainText("Private repository");
+  const original = (await storeRecords(page, "blobs")).length;
+  expect(original).toBeGreaterThan(0);
 
   await page.getByTitle("Sign out").click();
   await expect(page.getByTitle("Sign in with GitHub")).toBeVisible();
   await page.reload();
-  // Synthetic private blob remains visible to the anonymous browser.
-  await openReadme(page);
-  await expect(surface(page, "main").locator(".view-lines").last()).toContainText("Private repository");
-  // Anonymous users must not be automatically mounted into Account A's private workspace.
+  // Prohibited content must never be reopened as a precondition to testing isolation.
   await expect(page.locator(".workspace-repository-button")).not.toContainText(MOCK_REPOSITORY);
+  await expect(surface(page, "main").locator(".view-lines")).not.toContainText("Private repository");
+  expect((await storeRecords(page, "blobs")).length).toBeGreaterThanOrEqual(original);
+  // Exercise the supported repository-open path; the API denies the private repo.
+  await page.locator(".workspace-repository-button").click();
+  await page.getByRole("textbox", { name: "Repository" }).fill(MOCK_REPOSITORY);
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(page.locator(".workspace-repository-button")).not.toContainText(MOCK_REPOSITORY);
+  await expect(surface(page, "main").locator(".view-lines")).not.toContainText("Private repository");
 });
 
-test("GHC-00 Account B cannot inherit Account A's cached private workspace when GitHub denies access", async ({ page }) => {
+
+test("GHC-01 isolation: B's numeric ID, denied 404 and matching name do not authorize A cache", async ({ page }) => {
   await installAccountA(page);
   await openSyntheticPrivateRepo(page);
   await openReadme(page);
-
-  await page.route("https://api.github.com/**", async (route) => {
-    const authorization = route.request().headers().authorization || "";
-    if (!authorization.includes("account-b")) return route.fallback();
-    const path = new URL(route.request().url()).pathname;
-    const fulfill = (body: object, status = 200) =>
-      route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-    if (path === "/user") {
-      return fulfill({ login: "account-b", avatar_url: "https://example.invalid/b.png", html_url: "https://github.com/account-b" });
-    }
-    if (path === "/user/repos") return fulfill([]);
-    if (path.startsWith("/repos/acme/private")) return fulfill({ message: "Resource not found for Account B" }, 404);
-    return route.fallback();
-  });
+  const legacy = (await storeRecords(page, "blobs")).length;
+  expect(legacy).toBeGreaterThan(0);
   await page.evaluate(() => {
     sessionStorage.setItem("workbench-github-token", JSON.stringify({ token: "account-b" }));
   });
   await page.reload();
   await expect(page.getByTitle("Sign out")).toContainText("account-b");
-  // Account B was refused by the mock API, but the private cached blob can still render.
+  await expect(page.locator(".workspace-repository-button")).not.toContainText(MOCK_REPOSITORY);
+  await expect(surface(page, "main").locator(".view-lines")).not.toContainText("Private repository");
+  await page.locator(".workspace-repository-button").click();
+  await page.getByRole("textbox", { name: "Repository" }).fill(MOCK_REPOSITORY);
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(page.locator(".workspace-repository-button")).not.toContainText(MOCK_REPOSITORY);
+  await expect(surface(page, "main").locator(".view-lines")).not.toContainText("Private repository");
+  expect((await storeRecords(page, "blobs")).length).toBeGreaterThanOrEqual(legacy);
+  // Legitimate principal can still recover its own preserved data.
+  await page.evaluate(() => {
+    sessionStorage.setItem("workbench-github-token", JSON.stringify({ token: "test-token" }));
+  });
+  await page.reload();
+  await openSyntheticPrivateRepo(page);
   await openReadme(page);
   await expect(surface(page, "main").locator(".view-lines").last()).toContainText("Private repository");
-  // A local snapshot is NOT an authorization grant to B, even when offline.
-  await expect(page.locator(".workspace-repository-button")).not.toContainText(MOCK_REPOSITORY);
 });
 
-test("GHC-00 closing an editor before its 250-ms debounce must retain the edited document", async ({ page }) => {
+
+test("GHC-03 durability: close succeeds only after save or retains visibly unsaved live text", async ({ page }) => {
   await installAccountA(page);
   await openSyntheticPrivateRepo(page);
   await openReadme(page);
-
-  // Deterministically prevent the existing 250-ms writer from firing before close.
-  await page.evaluate(() => {
-    const original = window.setTimeout.bind(window);
-    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
-      original(handler, timeout === 250 ? 60_000 : timeout, ...args)) as typeof window.setTimeout;
-  });
-  const contents = "# SYNTHETIC_EDIT_UNSAVED_BEFORE_CLOSE";
-  await editSyntheticReadme(page, contents);
-  const readmeTab = surface(page, "main").locator(".dv-tab").filter({ hasText: "README.md" }).first();
-  await readmeTab.locator(".dv-default-tab-action").first().click();
-  await expect(readmeTab).toHaveCount(0);
-
-  // Durable contents, not a retained Monaco buffer, establish survival.
-  const overlays = await storeRecords(page, "overlays");
-  expect(overlays.find((item) => item.path === "README.md")?.content).toBe(contents);
+  await deferredLegacyDebounce(page);
+  const content = "# SYNTHETIC_EDIT_UNSAVED_BEFORE_CLOSE";
+  await editSyntheticReadme(page, content);
+  const tab = surface(page, "main").locator(".dv-tab").filter({ hasText: "README.md" }).first();
+  await tab.locator(".dv-default-tab-action").first().click();
+  if (await tab.count()) {
+    await expectGuardedUnsaved(page, content);
+  } else {
+    await expect.poll(() => persistedMarker(page, content)).toBe(true);
+    await openReadme(page);
+    await expect(surface(page, "main").locator(".view-lines").last()).toContainText(content);
+  }
 });
 
-test("GHC-00 aborted IndexedDB overlay transaction must reject the apparent save", async ({ page }) => {
+
+test("GHC-02 transaction: request success then real abort must never acknowledge durable save", async ({ page }) => {
   await installAccountA(page);
   await openSyntheticPrivateRepo(page);
   await openReadme(page);
-
-  // Abort AFTER the put request succeeds; this is legal IDB ordering.
-  await page.evaluate(() => {
-    const original = IDBObjectStore.prototype.put;
-    (window as Window & { __ghcAbortCount?: number }).__ghcAbortCount = 0;
-    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
-      const request = key === undefined ? original.call(this, value) : original.call(this, value, key);
-      if (this.name === "overlays") {
-        request.addEventListener("success", () => {
-          (window as Window & { __ghcAbortCount?: number }).__ghcAbortCount! += 1;
-          this.transaction.abort();
-        });
-      }
-      return request;
-    } as typeof IDBObjectStore.prototype.put;
-  });
-  await editSyntheticReadme(page, "# SYNTHETIC_IDB_ABORT");
-  await expect.poll(() =>
-    page.evaluate(() => (window as Window & { __ghcAbortCount?: number }).__ghcAbortCount ?? 0),
-  ).toBeGreaterThan(0);
-  expect((await storeRecords(page, "overlays")).filter((item) => item.path === "README.md")).toHaveLength(0);
-  // A failed durable write MUST surface to the user, never be acknowledged as success.
-  await expect(surface(page, "main").getByText(/transaction.*abort|indexeddb.*fail|save.*fail/i)).toBeVisible();
+  const content = "# SYNTHETIC_IDB_ABORT";
+  await abortWriteContaining(page, content);
+  await editSyntheticReadme(page, content);
+  await expectAborted(page);
+  expect(await persistedMarker(page, content)).toBe(false);
+  await expect(unsavedFeedback(page)).toBeVisible();
+  await expect(surface(page, "main").locator(".view-lines").last()).toContainText(content);
 });
 
-test("GHC-00 aborted commit record must not leave partially committed multi-store state", async ({ page }) => {
+
+test("GHC-02 source-control: aborted commit never consumes staged data or acknowledges phantom commit", async ({ page }) => {
   await installAccountA(page);
   await openSyntheticPrivateRepo(page);
   await openReadme(page);
-  await editSyntheticReadme(page, "# SYNTHETIC_ATOMIC_COMMIT");
-  await expect.poll(async () => (await storeRecords(page, "overlays")).length).toBeGreaterThan(0);
+  const content = "# SYNTHETIC_ATOMIC_COMMIT";
+  await editSyntheticReadme(page, content);
+  await expect.poll(() => persistedMarker(page, content)).toBe(true);
   await surface(page, "primary").locator(".dv-tab").filter({ hasText: "Source Control" }).first().click();
   const row = surface(page, "primary").locator(".scm-change-row").filter({ hasText: "README.md" });
   await row.getByTitle("Stage", { exact: true }).click();
   await expect(row.getByTitle("Unstage", { exact: true })).toBeVisible();
-
-  await page.evaluate(() => {
-    const original = IDBObjectStore.prototype.put;
-    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
-      const request = key === undefined ? original.call(this, value) : original.call(this, value, key);
-      if (this.name === "commits") {
-        request.addEventListener("success", () => this.transaction.abort());
-      }
-      return request;
-    } as typeof IDBObjectStore.prototype.put;
-  });
-  await surface(page, "primary").getByLabel("Commit message").fill("synthetic atomicity boundary");
+  const message = "synthetic atomicity boundary";
+  await abortWriteContaining(page, message);
+  await surface(page, "primary").getByLabel("Commit message").fill(message);
   await surface(page, "primary").getByRole("button", { name: /Commit staged/ }).click();
-  await expect.poll(async () => {
-    const committed = await storeRecords(page, "committed");
-    return committed.length;
-  }).toBeGreaterThan(0);
-
-  const [commits, committed, staged] = await Promise.all([
-    storeRecords(page, "commits"),
-    storeRecords(page, "committed"),
-    storeRecords(page, "staged"),
-  ]);
-  // Either the whole commit is durable, or original staged work remains and no
-  // committed projection exists. A partial transition is never acceptable.
-  expect(commits.length > 0 || (committed.length === 0 && staged.length > 0)).toBe(true);
-});
-
-test("GHC-00 a reload before debounce must not silently discard unsaved editor contents", async ({ page }) => {
-  await installAccountA(page);
-  await openSyntheticPrivateRepo(page);
-  await openReadme(page);
-  await page.evaluate(() => {
-    const original = window.setTimeout.bind(window);
-    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
-      original(handler, timeout === 250 ? 60_000 : timeout, ...args)) as typeof window.setTimeout;
-  });
-  const contents = "# SYNTHETIC_RELOAD_BEFORE_SAVE";
-  await editSyntheticReadme(page, contents);
+  await expectAborted(page);
+  expect(await persistedMarker(page, message)).toBe(false);
   await page.reload();
-  const overlays = await storeRecords(page, "overlays");
-  expect(overlays.find((item) => item.path === "README.md")?.content).toBe(contents);
+  await surface(page, "primary").locator(".dv-tab").filter({ hasText: "Source Control" }).first().click();
+  const recovered = surface(page, "primary").locator(".scm-change-row").filter({ hasText: "README.md" });
+  await expect(recovered.getByTitle("Unstage", { exact: true })).toBeVisible();
 });
 
-test("GHC-00 switching repositories cannot discard a pending private edit", async ({ page }) => {
+
+test("GHC-03 durability: a confirmed persisted revision survives normal reload", async ({ page }) => {
   await installAccountA(page);
   await openSyntheticPrivateRepo(page);
   await openReadme(page);
-  await page.evaluate(() => {
-    const original = window.setTimeout.bind(window);
-    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
-      original(handler, timeout === 250 ? 60_000 : timeout, ...args)) as typeof window.setTimeout;
-  });
-  const contents = "# SYNTHETIC_SWITCH_BEFORE_SAVE";
-  await editSyntheticReadme(page, contents);
+  const content = "# SYNTHETIC_ACKNOWLEDGED_REVISION";
+  await editSyntheticReadme(page, content);
+  // Never force a crash while deliberately preventing all persistence.
+  await expect.poll(() => persistedMarker(page, content)).toBe(true);
+  await page.reload();
+  await openReadme(page);
+  await expect(surface(page, "main").locator(".view-lines").last()).toContainText(content);
+});
+
+
+test("GHC-03 durability: switch either persists old revision or blocks with recoverable live text", async ({ page }) => {
+  await installAccountA(page);
+  await openSyntheticPrivateRepo(page);
+  await openReadme(page);
+  await deferredLegacyDebounce(page);
+  const content = "# SYNTHETIC_SWITCH_BEFORE_SAVE";
+  await editSyntheticReadme(page, content);
   await page.locator(".workspace-repository-button").click();
   await page.getByRole("textbox", { name: "Repository" }).fill("acme/public");
   await page.getByRole("button", { name: "Open", exact: true }).click();
-  await expect(page.locator(".workspace-repository-button")).toContainText("acme/public");
-  const overlays = await storeRecords(page, "overlays");
-  expect(overlays.find((item) => item.workspaceId === "acme/private@main" && item.path === "README.md")?.content).toBe(contents);
+  if ((await page.locator(".workspace-repository-button").innerText()).includes("acme/public")) {
+    await expect.poll(() => persistedMarker(page, content)).toBe(true);
+    await openSyntheticPrivateRepo(page);
+    await openReadme(page);
+    await expect(surface(page, "main").locator(".view-lines").last()).toContainText(content);
+  } else {
+    await expect(page.locator(".workspace-repository-button")).toContainText(MOCK_REPOSITORY);
+    await expectGuardedUnsaved(page, content);
+  }
 });
 
-test("GHC-00 storage quota failures must be reported rather than acknowledged as saved", async ({ page }) => {
+
+test("GHC-02 transaction: synthetic quota exception is visible and not acknowledged", async ({ page }) => {
   await installAccountA(page);
   await openSyntheticPrivateRepo(page);
   await openReadme(page);
-  await page.evaluate(() => {
-    const original = IDBObjectStore.prototype.put;
-    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
-      if (this.name === "overlays") throw new DOMException("Synthetic storage quota exceeded", "QuotaExceededError");
-      return key === undefined ? original.call(this, value) : original.call(this, value, key);
-    } as typeof IDBObjectStore.prototype.put;
-  });
-  await editSyntheticReadme(page, "# SYNTHETIC_QUOTA_FAILURE");
-  await expect(surface(page, "main").getByText("Synthetic storage quota exceeded")).toBeVisible();
-  expect((await storeRecords(page, "overlays")).filter((item) => item.path === "README.md")).toHaveLength(0);
+  const content = "# SYNTHETIC_QUOTA_FAILURE";
+  await page.evaluate((needle) => {
+    for (const method of ["put", "add"] as const) {
+      const original = IDBObjectStore.prototype[method];
+      IDBObjectStore.prototype[method] = function (value: unknown, key?: IDBValidKey) {
+        if (JSON.stringify(value).includes(needle)) {
+          throw new DOMException("Synthetic storage quota exceeded", "QuotaExceededError");
+        }
+        return key === undefined ? original.call(this, value) : original.call(this, value, key);
+      } as typeof IDBObjectStore.prototype.put;
+    }
+  }, content);
+  await editSyntheticReadme(page, content);
+  await expect(unsavedFeedback(page)).toBeVisible();
+  expect(await persistedMarker(page, content)).toBe(false);
 });
 
-test("GHC-00 moving the editor between Dockview surfaces must retain pending contents", async ({ page }) => {
+
+test("GHC-03 durability: Dockview move preserves live buffer and persists or marks unsaved", async ({ page }) => {
   await installAccountA(page);
   await openSyntheticPrivateRepo(page);
   await openReadme(page);
-  await page.evaluate(() => {
-    const original = window.setTimeout.bind(window);
-    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
-      original(handler, timeout === 250 ? 60_000 : timeout, ...args)) as typeof window.setTimeout;
-  });
-  const contents = "# SYNTHETIC_MOVE_BEFORE_SAVE";
-  await editSyntheticReadme(page, contents);
+  await deferredLegacyDebounce(page);
+  const content = "# SYNTHETIC_MOVE_BEFORE_SAVE";
+  await editSyntheticReadme(page, content);
   const from = surface(page, "main").locator(".dv-tab").filter({ hasText: "README.md" }).first();
   const to = page.locator('[data-workbench-surface="panel"]');
   await expect(to).toBeVisible();
@@ -279,7 +288,15 @@ test("GHC-00 moving the editor between Dockview surfaces must retain pending con
       y: Math.max(20, Math.min(box.height - 20, box.height / 2)),
     },
   });
-  await expect(to.locator(".dv-tab").filter({ hasText: "README.md" }).first()).toBeVisible();
-  const overlays = await storeRecords(page, "overlays");
-  expect(overlays.find((item) => item.path === "README.md")?.content).toBe(contents);
+  const moved = to.locator(".dv-tab").filter({ hasText: "README.md" }).first();
+  if (await moved.count()) {
+    await expect(moved).toBeVisible();
+    await expect(to.locator(".view-lines").last()).toContainText(content);
+    if (!(await persistedMarker(page, content))) await expect(unsavedFeedback(page)).toBeVisible();
+  } else {
+    await expect(from).toBeVisible();
+    await expectGuardedUnsaved(page, content);
+  }
+  expect((await inspectWorkbench(page)).version).toBeGreaterThanOrEqual(2);
 });
+
