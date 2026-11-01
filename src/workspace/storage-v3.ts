@@ -940,24 +940,41 @@ export async function attributeUnattributedV2(
   if (!confirmed) throw new Error("Explicit legacy ownership confirmation required.");
   validateSession(target);
   const quarantine = await listLegacyQuarantine();
-  const sourceRecord = quarantine.find((record) =>
-    record.source === "idb:workspaces" && record.originalKey === legacyId);
+  const sourceRecord = quarantine.find(
+    (record) => record.source === "idb:workspaces" && record.originalKey === legacyId,
+  );
   const source = sourceRecord?.value as WorkspaceSnapshot | undefined;
-  if (!source || source.ownership || source.version !== 2 ||
-      !Array.isArray(source.tree) || !source.repository ||
-      source.repository.id !== target.repository.id || source.ref !== target.ref)
+  if (
+    !source ||
+    source.ownership ||
+    source.version !== 2 ||
+    !Array.isArray(source.tree) ||
+    !source.repository ||
+    source.repository.id !== target.repository.id ||
+    source.ref !== target.ref
+  )
     throw new StorageConflictError("Legacy state does not match the verified repository and ref.");
-  const rows = (["blobs", "overlays", "staged", "committed", "commits"] as const)
-    .map((name) => ({
-      name,
-      values: quarantine.filter((record) =>
-        record.source === "idb:" + name &&
-        typeof record.value === "object" && record.value !== null &&
-        (record.value as {workspaceId?: string}).workspaceId === legacyId)
-        .map((record) => record.value as {
-          workspaceId?: string; key?: string; path?: string; sha?: string; id?: string;
-        }),
-    }));
+  const rows = (["blobs", "overlays", "staged", "committed", "commits"] as const).map((name) => ({
+    name,
+    values: quarantine
+      .filter(
+        (record) =>
+          record.source === "idb:" + name &&
+          typeof record.value === "object" &&
+          record.value !== null &&
+          (record.value as { workspaceId?: string }).workspaceId === legacyId,
+      )
+      .map(
+        (record) =>
+          record.value as {
+            workspaceId?: string;
+            key?: string;
+            path?: string;
+            sha?: string;
+            id?: string;
+          },
+      ),
+  }));
   const snapshot: WorkspaceSnapshot = {
     ...target,
     baseSha: source.baseSha,
