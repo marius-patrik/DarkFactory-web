@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
-import { basename, isAbsolute, join, resolve } from "node:path";
+import { mkdir, realpath, rm, stat } from "node:fs/promises";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { browserRuntimeUrl, browserStoredUrl } from "@/shared/browser";
 import type { BrowserSession } from "@/shared/schema";
 import { type BrowserContext, type CDPSession, type Dialog, type FileChooser, type Frame, type Page, chromium } from "playwright-chromium";
@@ -128,6 +128,8 @@ type ScreencastEvent = {
 
 const DEFAULT_VIEWPORT: BrowserViewport = { width: 1280, height: 720, deviceScaleFactor: 1 };
 const MAX_VIEWPORT = { width: 4096, height: 4096 };
+const MAX_ACTIVE_BROWSERS = 24;
+const MAX_SAVED_DOWNLOAD_BYTES = 100 * 1024 * 1024;
 
 export class BrowserFrameService {
   readonly executablePath = findChromiumExecutable();
@@ -242,7 +244,7 @@ export class BrowserFrameService {
         paths.some((path) => !isAbsolute(path) || path.includes(String.fromCharCode(0))) ||
         files.some((file) =>
           !file.name || !file.mimeType || file.name.includes(String.fromCharCode(0)) ||
-          file.data.length > 8_000_000
+          file.data.length > 8_000_000 || !validBase64(file.data)
         ) ||
         files.reduce((sum, file) => sum + file.data.length, 0) > 12_000_000) {
         throw new Error("file chooser rejected invalid paths or oversized files");
@@ -318,6 +320,7 @@ export class BrowserFrameService {
     const key = session.profilePath;
     let pending = this.liveBrowsers.get(key);
     if (!pending) {
+      if (this.liveBrowsers.size >= MAX_ACTIVE_BROWSERS) throw new Error("too many active Chromium profiles");
       pending = this.createLiveBrowser(session).catch((error) => {
         this.liveBrowsers.delete(key);
         throw error;
@@ -328,17 +331,34 @@ export class BrowserFrameService {
   }
 
   private async createLiveBrowser(session: BrowserSession): Promise<LiveBrowser> {
+    // Workspace and pane identifiers are user-controlled persistence keys.
+    // Their encoded representation can still contain '..' path segments.
+    const profile = resolve(session.profilePath);
+    const profilesRoot = resolve(this.profilesRoot);
+    if (!isWithinDirectory(profilesRoot, profile)) {
+      throw new Error("browser profile is outside the browser profiles directory");
+    }
     const executablePath = this.requireExecutablePath();
-    await mkdir(resolve(this.profilesRoot, encodeURIComponent(session.workspaceId)), { recursive: true });
-    const userDataDir = join(session.profilePath, "chromium");
+    await mkdir(profilesRoot, { recursive: true });
+    await mkdir(profile, { recursive: true });
+    const realRoot = await realpath(profilesRoot);
+    const realProfile = await realpath(profile);
+    if (!isWithinDirectory(realRoot, realProfile)) {
+      throw new Error("browser profile resolves outside the browser profiles directory");
+    }
+    const userDataDir = join(profile, "chromium");
     await mkdir(userDataDir, { recursive: true });
+    if (!isWithinDirectory(realRoot, await realpath(userDataDir))) {
+      throw new Error("Chromium user-data directory resolves outside browser profiles");
+    }
     await clearChromiumSingletonFiles(userDataDir);
     const context = await chromium.launchPersistentContext(userDataDir, {
       executablePath,
       headless: true,
       viewport: { width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height },
       deviceScaleFactor: DEFAULT_VIEWPORT.deviceScaleFactor,
-      ignoreHTTPSErrors: true,
+      // Invalid TLS certificates must not be silently accepted by a privileged browser.
+      ignoreHTTPSErrors: process.env.CANVAS_BROWSER_IGNORE_HTTPS_ERRORS === "1",
       acceptDownloads: true,
       args: [
         "--disable-background-networking",
@@ -348,34 +368,39 @@ export class BrowserFrameService {
         "--no-first-run",
       ],
     });
-    const page = context.pages()[0] ?? (await context.newPage());
-    await page.setViewportSize({ width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height });
-    // A newly created about:blank tab may not have a painted compositor surface.
-    // Establish a real blank document while preserving its native about:blank URL.
-    if (page.url() === "about:blank") {
-      await page.setContent("<!doctype html><html><head><title>Blank</title></head><body></body></html>", {
-        waitUntil: "domcontentloaded",
-      });
+    try {
+      const page = context.pages()[0] ?? (await context.newPage());
+      await page.setViewportSize({ width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height });
+      // A newly created about:blank tab may not have a painted compositor surface.
+      // Establish a real blank document while preserving its native about:blank URL.
+      if (page.url() === "about:blank") {
+        await page.setContent("<!doctype html><html><head><title>Blank</title></head><body></body></html>", {
+          waitUntil: "domcontentloaded",
+        });
+      }
+      const cdp = await context.newCDPSession(page);
+      const live: LiveBrowser = {
+        context,
+        page,
+        cdp,
+        session,
+        currentUrl: null,
+        title: session.title,
+        loading: false,
+        viewport: DEFAULT_VIEWPORT,
+        screencastStarted: false,
+        lastFrame: null,
+        subscribers: new Map(),
+        persistSubscriberId: null,
+        pendingDialog: null,
+        pendingFileChooser: null,
+      };
+      this.bindPageEvents(live);
+      return live;
+    } catch (error) {
+      await context.close().catch(() => undefined);
+      throw error;
     }
-    const cdp = await context.newCDPSession(page);
-    const live: LiveBrowser = {
-      context,
-      page,
-      cdp,
-      session,
-      currentUrl: null,
-      title: session.title,
-      loading: false,
-      viewport: DEFAULT_VIEWPORT,
-      screencastStarted: false,
-      lastFrame: null,
-      subscribers: new Map(),
-      persistSubscriberId: null,
-      pendingDialog: null,
-      pendingFileChooser: null,
-    };
-    this.bindPageEvents(live);
-    return live;
   }
 
   private bindPageEvents(live: LiveBrowser): void {
@@ -405,6 +430,10 @@ export class BrowserFrameService {
           const filename = basename(download.suggestedFilename()) || "download";
           const path = join(directory, `${randomUUID()}-${filename}`);
           await download.saveAs(path);
+          if ((await stat(path)).size > MAX_SAVED_DOWNLOAD_BYTES) {
+            await rm(path, { force: true });
+            throw new Error("download exceeds 100 MiB local retention limit");
+          }
           await this.broadcast(live, { type: "download", filename, path });
         } catch (error) {
           await this.broadcast(live, { type: "error", message: `Download failed: ${errorMessage(error)}` });
@@ -802,6 +831,17 @@ function pngDimensions(base64: string): { width: number; height: number } | null
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function isWithinDirectory(root: string, child: string): boolean {
+  const rel = relative(root, child);
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+function validBase64(value: string): boolean {
+  if (value.length === 0 || value.length % 4 !== 0) return false;
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value)) return false;
+  return Buffer.from(value, "base64").toString("base64") === value;
 }
 
 function errorMessage(error: unknown): string {
