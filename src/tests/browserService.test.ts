@@ -184,18 +184,17 @@ test(
     tempRoot = await mkdtemp(join(tmpdir(), "canvas-browser-"));
     const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined);
     const session = browserSession(
-      `<button id="confirm" style="position:absolute;left:10px;top:10px;width:140px;height:50px" onclick="document.title=confirm('Proceed?')?'confirmed':'cancelled'">Confirm</button>`,
+      "<title>Dialog fixture</title><script>setTimeout(() => { document.title = confirm('Proceed?') ? 'confirmed' : 'cancelled'; }, 1200);</script>",
     );
     const messages: Array<{ type: string; message?: string }> = [];
     try {
       const handle = await service.stream(session, { send: (message) => { messages.push(message); } });
       try {
-        await service.interact(session, { type: "mouse", event: "down", x: 40, y: 35, button: "left" });
-        const click = service.interact(session, { type: "mouse", event: "up", x: 40, y: 35, button: "left" });
         await waitFor(() => messages.some((message) => message.type === "dialog"), "browser confirmation dialog");
         expect(messages.some((message) => message.message === "Proceed?")).toBe(true);
         await service.interact(session, { type: "dialogResponse", accept: true });
-        await click;
+        const state = await service.stateFor(session);
+        expect(state.title).toBe("confirmed");
       } finally {
         handle.close();
       }
