@@ -198,3 +198,54 @@ test("GHC-00 aborted commit record must not leave partially committed multi-stor
   // committed projection exists. A partial transition is never acceptable.
   expect(commits.length > 0 || (committed.length === 0 && staged.length > 0)).toBe(true);
 });
+
+test("GHC-00 a reload before debounce must not silently discard unsaved editor contents", async ({ page }) => {
+  await installAccountA(page);
+  await openSyntheticPrivateRepo(page);
+  await openReadme(page);
+  await page.evaluate(() => {
+    const original = window.setTimeout.bind(window);
+    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
+      original(handler, timeout === 250 ? 60_000 : timeout, ...args)) as typeof window.setTimeout;
+  });
+  const contents = "# SYNTHETIC_RELOAD_BEFORE_SAVE";
+  await editSyntheticReadme(page, contents);
+  await page.reload();
+  const overlays = await storeRecords(page, "overlays");
+  expect(overlays.find((item) => item.path === "README.md")?.content).toBe(contents);
+});
+
+test("GHC-00 switching repositories cannot discard a pending private edit", async ({ page }) => {
+  await installAccountA(page);
+  await openSyntheticPrivateRepo(page);
+  await openReadme(page);
+  await page.evaluate(() => {
+    const original = window.setTimeout.bind(window);
+    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
+      original(handler, timeout === 250 ? 60_000 : timeout, ...args)) as typeof window.setTimeout;
+  });
+  const contents = "# SYNTHETIC_SWITCH_BEFORE_SAVE";
+  await editSyntheticReadme(page, contents);
+  await page.locator(".workspace-repository-button").click();
+  await page.getByRole("textbox", { name: "Repository" }).fill("acme/public");
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(page.locator(".workspace-repository-button")).toContainText("acme/public");
+  const overlays = await storeRecords(page, "overlays");
+  expect(overlays.find((item) => item.workspaceId === "acme/private@main" && item.path === "README.md")?.content).toBe(contents);
+});
+
+test("GHC-00 storage quota failures must be reported rather than acknowledged as saved", async ({ page }) => {
+  await installAccountA(page);
+  await openSyntheticPrivateRepo(page);
+  await openReadme(page);
+  await page.evaluate(() => {
+    const original = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
+      if (this.name === "overlays") throw new DOMException("Synthetic storage quota exceeded", "QuotaExceededError");
+      return key === undefined ? original.call(this, value) : original.call(this, value, key);
+    } as typeof IDBObjectStore.prototype.put;
+  });
+  await editSyntheticReadme(page, "# SYNTHETIC_QUOTA_FAILURE");
+  await expect(surface(page, "main").getByText("Synthetic storage quota exceeded")).toBeVisible();
+  expect((await storeRecords(page, "overlays")).filter((item) => item.path === "README.md")).toHaveLength(0);
+});
