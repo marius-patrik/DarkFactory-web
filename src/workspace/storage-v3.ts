@@ -463,7 +463,7 @@ export function mutate<T = void>(
       }
       const value = await complete<{ value: T; revision: number }>(
         db,
-        ["v3_sessions", "v3_records", "v3_revisions", "v3_push_ops"],
+        ["v3_sessions", "v3_records", "v3_revisions", "v3_push_ops", "v3_manifests"],
         "readwrite",
         (tx, set, fail) => {
           const request = tx.objectStore("v3_sessions").get(id);
