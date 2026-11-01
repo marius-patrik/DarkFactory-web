@@ -248,6 +248,39 @@ test(
   20_000,
 );
 
+test("concurrent Chromium profile allocation never exceeds the 24-context ceiling", async () => {
+  tempRoot = await mkdtemp(join(tmpdir(), "canvas-browser-cap-"));
+  const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined);
+  const internals = service as unknown as {
+    liveBrowserFor: (session: BrowserSession) => Promise<unknown>;
+    createLiveBrowser: (session: BrowserSession) => Promise<unknown>;
+  };
+  // Avoid starting 50 Chromium instances; simulate slow context creation and
+  // keep each profile subscribed so it is not eligible for idle eviction.
+  internals.createLiveBrowser = async () => {
+    await Bun.sleep(5);
+    return {
+      subscribers: new Map([[1, true]]),
+      idleTimer: null,
+      context: { close: async () => undefined },
+    };
+  };
+  try {
+    const requests = Array.from({ length: 50 }, (_, index) => ({
+      ...browserSession("<title>Capacity</title>"),
+      profilePath: join(tempRoot, "profiles", String(index)),
+    }));
+    const results = await Promise.allSettled(requests.map((session) => internals.liveBrowserFor(session)));
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(24);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(26);
+    for (const result of results) {
+      if (result.status === "rejected") expect(String(result.reason)).toContain("too many active Chromium profiles");
+    }
+  } finally {
+    await service.close();
+  }
+}, 10_000);
+
 function browserSession(html: string): BrowserSession {
   return {
     workspaceId: "workspace:test",
