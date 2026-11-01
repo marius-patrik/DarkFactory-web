@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Preserves all DarkFactory-template visible Git heads/tags/PR heads in RSCode ancestry.
+# Preserves all DarkFactory-template visible Git heads/tags/PR heads in DarkFactory-web ancestry.
 # This NEVER checks out or executes source code from DarkFactory-template.
 # This NEVER modifies main, production releases, or DarkFactory-template.
 set -euo pipefail
 source_url="${TEMPLATE_URL:?TEMPLATE_URL required}"
 target_branch="${IMPORT_BRANCH:?IMPORT_BRANCH required}"
-test "$target_branch" = "integration/template-consolidation"
+test "$target_branch" = "integration/ghcode-consolidation"
 initial="$(git rev-parse HEAD)"
 git diff --quiet
 git diff --cached --quiet
@@ -67,7 +67,7 @@ payload = {
     "target": "marius-patrik/DarkFactory-web",
     "method": "multi-parent no-squash ancestry import",
     "sourceMain": "63a6e0e0c044deead678a7f7c7a3551450eda8b2",
-    "originalHistoryPolicy": "Retain original commit SHAs and every fetched branch, tag and pull/head in RSCode ancestry.",
+    "originalHistoryPolicy": "Retain original commit SHAs and every fetched branch, tag and pull/head in DarkFactory-web ancestry.",
     "integrationPolicy": "Import is history-only. No DarkFactory-template runtime code is enabled until separately audited and adapted into the RSCode architecture.",
     "unsafeSourceCandidates": [
         {"ref": "refs/remotes/template/agent/ghc-02-transactional-v3", "reason": "PR #34 failed independent principal-isolation and push-queue review. Preserve history, do not enable as production code."}
@@ -133,6 +133,6 @@ git push origin "HEAD:refs/heads/$target_branch"
 # Original tags are lightweight and their commit objects are covered by the
 # ancestry merge. Do not push tag refs with this low-privilege Actions token:
 # GitHub rejects such pushes when historical commits modify workflow files.
-echo "Imported DarkFactory-template original Git history into RSCode $target_branch at $last."
+echo "Imported DarkFactory-template original Git history into DarkFactory-web $target_branch at $last."
 echo "Original tag identities are preserved in the provenance manifest."
 echo "No application source changed; no source repository deletion was attempted."
