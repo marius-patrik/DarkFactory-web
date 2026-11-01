@@ -622,13 +622,29 @@ export function replacePath(
   remove: Array<{ kind: RecordKind; name: string }>,
   put: Array<{ kind: RecordKind; name: string; value: WorkingFile | StagedFile }>,
 ) {
-  return mutate(sessionId, (tx, session, done) => {
+  return mutate(sessionId, (tx, session, done, fail) => {
     for (const row of put)
       if (row.value.workspaceId !== sessionId) throw new Error("Cross-session rename rejected.");
-    for (const row of remove)
-      tx.objectStore("v3_records").delete(keyFor(sessionId, row.kind, row.name));
-    for (const row of put) putRecord(tx, session, row.kind, row.name, structuredClone(row.value));
-    done();
+    const records = tx.objectStore("v3_records");
+    const rename = put.find((row) => row.kind === "overlay" && row.value.status === "renamed");
+    const priorPath = rename?.value.renamedFrom ??
+      (put.length ? remove.find((row) => row.kind === "overlay")?.name : undefined);
+    const apply = (priorResourceId?: string) => {
+      try {
+        for (const row of remove)
+          records.delete(keyFor(sessionId, row.kind, row.name));
+        for (const row of put) {
+          const inherited = row.kind === "overlay" && row.name !== priorPath
+            ? priorResourceId : undefined;
+          putRecord(tx, session, row.kind, row.name, structuredClone(row.value), undefined, inherited);
+        }
+        done();
+      } catch (reason) { fail(reason); }
+    };
+    if (!priorPath) { apply(); return; }
+    const original = records.get(keyFor(sessionId, "overlay", priorPath));
+    original.onsuccess = () =>
+      apply((original.result as PersistedRecord<WorkingFile> | undefined)?.resourceId);
   });
 }
 export function commitStagedAtomic(id: string, message: string): Promise<LocalCommit> {
