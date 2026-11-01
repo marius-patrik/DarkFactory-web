@@ -182,7 +182,7 @@ test(
   async () => {
     tempRoot = await mkdtemp(join(tmpdir(), "canvas-browser-failed-"));
     const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined, 50);
-    const session = { ...browserSession("<title>Invalid URL</title>"), url: "not-a-valid-page://example" };
+    const session = { ...browserSession("<title>Invalid URL</title>"), url: "http://[invalid" };
     try {
       await expect(service.stream(session, { send: () => undefined })).rejects.toThrow();
       const internals = service as unknown as { liveBrowsers: Map<string, unknown> };
