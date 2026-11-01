@@ -16,6 +16,7 @@ import {
   forkWorkspaceAtomic,
   importLegacyQuarantine,
   listLegacyQuarantine,
+  listUnattributedWorkspaces,
   loadOwnedWorkspace,
   pendingPushIntents,
   persistWorkspace,
@@ -45,6 +46,7 @@ function recentKey(owner: PrincipalKey) {
 export const saveWorkspace = persistWorkspace;
 export const loadWorkspace = loadOwnedWorkspace;
 export {
+  attributeUnattributedV2,
   commitStagedAtomic,
   exportLegacyQuarantine,
   forkWorkspaceAtomic,
