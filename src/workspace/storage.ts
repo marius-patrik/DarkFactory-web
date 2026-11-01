@@ -16,6 +16,7 @@ import {
   replacePath,
   writeRecords,
 } from "./storage-v3";
+export { writeRecords, removeRecords } from "./storage-v3";
 
 const OWNED_RECENT_PREFIX = "ghcode-recent-owned-v1:";
 
