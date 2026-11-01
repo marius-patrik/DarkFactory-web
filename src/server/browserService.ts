@@ -137,6 +137,11 @@ export class BrowserFrameService {
 
     await this.startScreencast(live);
     await this.ensurePageUrl(live, session.url);
+    // about:blank does not always repaint after screencast activation.
+    // Make an explicit initial capture so a new pane never waits forever for CDP frames.
+    if (!live.lastFrame || live.lastFrame.url !== browserStoredUrl(live.page.url())) {
+      await this.captureInitialFrame(live);
+    }
     await this.sendToSubscriber(subscriber, await this.stateForLive(live));
     if (live.lastFrame) await this.sendToSubscriber(subscriber, live.lastFrame);
 
@@ -331,6 +336,30 @@ export class BrowserFrameService {
       void this.handleScreencastFrame(live, event as ScreencastEvent);
     });
     await live.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+  }
+
+  private async captureInitialFrame(live: LiveBrowser): Promise<void> {
+    const result = (await live.cdp.send("Page.captureScreenshot", {
+      format: "png",
+      captureBeyondViewport: true,
+      fromSurface: true,
+      clip: { x: 0, y: 0, width: live.viewport.width, height: live.viewport.height, scale: 1 },
+    })) as { data: string };
+    const dimensions = pngDimensions(result.data);
+    if (!dimensions) throw new Error("Chromium initial screenshot did not produce a valid PNG");
+    const frame: BrowserFrameMessage = {
+      type: "frame",
+      url: browserStoredUrl(live.page.url()),
+      image: `data:image/png;base64,${result.data}`,
+      mimeType: "image/png",
+      renderer: "chromium",
+      width: dimensions.width,
+      height: dimensions.height,
+      ts: Date.now(),
+    };
+    live.currentUrl = live.page.url();
+    live.lastFrame = frame;
+    await this.broadcast(live, frame);
   }
 
   private async handleScreencastFrame(live: LiveBrowser, event: ScreencastEvent): Promise<void> {

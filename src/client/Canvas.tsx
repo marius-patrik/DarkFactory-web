@@ -18,18 +18,18 @@ import {
 import {
   activateLayoutTab,
   addPaneToLayoutTab,
-  clampPaneRect as clampRect,
   canvasDeltaToWorld,
-  panCanvasViewport,
-  zoomCanvasViewport,
+  clampPaneRect as clampRect,
   firstPaneIdInLayout,
   insertPaneIntoLayout,
   leafPaneIds,
   maxPaneZ,
   offsetDropRect,
+  panCanvasViewport,
   removePaneFromLayout,
   splitLayoutAt,
   updateLayoutSplitRatio,
+  zoomCanvasViewport,
 } from "@/client/paneLayout";
 import {
   type WorkspaceModalRequest,
@@ -49,9 +49,9 @@ import type {
   PaneState,
   PaneType,
   TiledLayoutNode,
+  ViewportState,
   Workspace,
   WorkspaceSettings,
-  ViewportState,
 } from "@/shared/schema";
 import { DEFAULT_WORKSPACE_SETTINGS } from "@/shared/schema";
 import { cn } from "@/shared/utils";

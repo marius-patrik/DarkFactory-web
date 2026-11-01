@@ -3,12 +3,12 @@ import { contextMenuPosition } from "@/client/ActionsMenu";
 import {
   addPaneToLayoutTab,
   canvasDeltaToWorld,
-  panCanvasViewport,
-  zoomCanvasViewport,
   insertPaneIntoLayout,
   leafPaneIds,
+  panCanvasViewport,
   removePaneFromLayout,
   splitLayoutAt,
+  zoomCanvasViewport,
 } from "@/client/paneLayout";
 import type { TiledLayoutNode } from "@/shared/schema";
 
