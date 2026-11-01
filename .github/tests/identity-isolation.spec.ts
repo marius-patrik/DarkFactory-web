@@ -12,7 +12,7 @@ async function setup(page: Page, options: { denyB?: boolean; invalidId?: unknown
     const url = new URL(route.request().url());
     const authorization = route.request().headers().authorization ?? "";
     if (url.pathname === "/user") {
-      const id = options.invalidId ?? (authorization.includes("token-b") ? B_ID : A_ID);
+      const id = Object.hasOwn(options, "invalidId") ? options.invalidId : (authorization.includes("token-b") ? B_ID : A_ID);
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -54,7 +54,6 @@ test("A private repository is not accessible to anonymous or denied account B", 
   await setup(page, { denyB: true });
   await authenticate(page, "token-a");
   await openRepository(page);
-  await page.getByTitle("Explorer", { exact: true }).first().catch(() => null);
   await page.getByTitle("Sign out").click();
   await expect(page.locator(".workspace-repository-button")).toContainText("Open Repository");
   await expect(page.getByTitle("Sign in with GitHub")).toBeVisible();
