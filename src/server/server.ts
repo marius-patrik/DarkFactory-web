@@ -491,7 +491,10 @@ export function isBrowserInteractionMessage(command: Record<string, unknown>): c
   const finite = (value: unknown) => typeof value === "number" && Number.isFinite(value);
   const shortText = (value: unknown) => typeof value === "string" && value.length <= 65_536;
   if (command.type === "viewport") {
-    return finite(command.width) && finite(command.height) && (command.width as number) > 0 && (command.height as number) > 0;
+    return finite(command.width) && finite(command.height) &&
+      (command.width as number) > 0 && (command.height as number) > 0 &&
+      (command.deviceScaleFactor === undefined ||
+        (finite(command.deviceScaleFactor) && (command.deviceScaleFactor as number) > 0));
   }
   if (command.type === "mouse") {
     return (
