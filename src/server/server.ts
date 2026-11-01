@@ -103,7 +103,9 @@ export function isTrustedLocalRequest(
   if (!host) return false;
   try {
     const authority = new URL(`http://${host}`);
-    if (!isLoopbackHostname(authority.hostname) || Number(authority.port || 80) !== servicePort) return false;
+    const hostPort = Number(authority.port || 80);
+    const allowedHostPort = hostPort === servicePort || (Number.isInteger(devWebPort) && devWebPort > 0 && hostPort === devWebPort);
+    if (!isLoopbackHostname(authority.hostname) || !allowedHostPort) return false;
     if (authority.username || authority.password || authority.pathname !== "/") return false;
     const origin = request.headers.get("origin");
     if (!origin) return true; // Non-browser clients (e.g. CLI) do not send Origin.
