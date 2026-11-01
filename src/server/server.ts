@@ -99,29 +99,20 @@ export function isTrustedLocalRequest(
   servicePort = getServicePort(),
   devWebPort = Number(process.env.CANVAS_DEV_WEB_PORT),
 ): boolean {
-  const host = request.headers.get("host");
-  if (!host) return false;
-  try {
-    const authority = new URL(`http://${host}`);
-    const hostPort = Number(authority.port || 80);
-    const allowedHostPort = hostPort === servicePort || (Number.isInteger(devWebPort) && devWebPort > 0 && hostPort === devWebPort);
-    if (!isLoopbackHostname(authority.hostname) || !allowedHostPort) return false;
-    if (authority.username || authority.password || authority.pathname !== "/") return false;
-    const origin = request.headers.get("origin");
-    if (!origin) return true; // Non-browser clients (e.g. CLI) do not send Origin.
-    const parsedOrigin = new URL(origin);
-    // An Origin is a serialized origin, not an arbitrary URL with a path.
-    if (parsedOrigin.origin !== origin || parsedOrigin.protocol !== "http:") return false;
-    if (!isLoopbackHostname(parsedOrigin.hostname)) return false;
-    const port = Number(parsedOrigin.port || 80);
-    return port === servicePort || (Number.isInteger(devWebPort) && devWebPort > 0 && port === devWebPort);
-  } catch {
-    return false;
-  }
-}
+  // Browser origins are security principals, not interchangeable loopback addresses.
+  // The service binds to 127.0.0.1; an unrelated process can serve [::1] on
+  // the *same port*. Trust only the exact first-party authority and dev proxy.
+  const validPort = (port: number) => Number.isInteger(port) && port >= 1 && port <= 65535;
+  if (!validPort(servicePort)) return false;
+  const authorities = [`127.0.0.1:${servicePort}`];
+  if (validPort(devWebPort)) authorities.push(`127.0.0.1:${devWebPort}`);
+  if (!authorities.includes(request.headers.get("host") ?? "")) return false;
 
-function isLoopbackHostname(hostname: string): boolean {
-  return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "[::1]";
+  const origin = request.headers.get("origin");
+  if (origin === null) return true; // Intentional originless local CLI access.
+  // Exact serialized-origin matching excludes IPv6/localhost aliases, DNS
+  // rebinding, malformed URLs, user-info, paths, fragments and extra ports.
+  return authorities.some((authority) => origin === `http://${authority}`);
 }
 
 export async function startServer() {
@@ -386,7 +377,7 @@ export async function startServer() {
           replace: true,
         });
       } catch (error) {
-        ws.send(JSON.stringify({ type: "error", message: errorMessage(error) }));
+        reportBrowserFailure(ws, "navigation", error);
       }
       return;
     }
@@ -396,10 +387,31 @@ export async function startServer() {
         await browserFrames.interact(session, command);
         return;
       } catch (error) {
-        ws.send(JSON.stringify({ type: "error", message: errorMessage(error) }));
+        reportBrowserFailure(ws, "interaction", error);
+        return;
       }
     }
     ws.send(JSON.stringify({ type: "error", message: "unsupported browser command" }));
+  }
+
+  function reportBrowserFailure(ws: ServerWebSocketLike, activity: "navigation" | "interaction", error: unknown): void {
+    // Errors from workspace storage, Chromium and the OS may contain absolute
+    // paths, process details, or privileged command output. Keep those in logs.
+    const message = activity === "interaction" && error instanceof Error &&
+      error.message === "file chooser rejected invalid paths or oversized files"
+      ? "file chooser rejected invalid paths or oversized files"
+      : `browser ${activity} failed`;
+    if (!closedSockets.has(ws as unknown as object)) {
+      try {
+        ws.send(JSON.stringify({ type: "error", message }));
+      } catch {
+        // The client may have disconnected while the browser command ran.
+      }
+    }
+    void logLine(
+      paths.serviceLogFile,
+      `[${new Date().toISOString()}] browser ${activity}: ${errorMessage(error).replace(/[\r\n]/g, " ").slice(0, 1000)}`,
+    ).catch(() => undefined);
   }
 
   async function spawnTerminalSession(ws: ServerWebSocketLike, paneId: string, cwd: string): Promise<TerminalSession> {
