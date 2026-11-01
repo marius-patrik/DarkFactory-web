@@ -220,8 +220,31 @@ test("legacy unattributed cache and layout remain intact but cannot render", asy
       tree: [],
       updatedAt: 1,
     };
-    const tx = database.transaction("workspaces", "readwrite");
+    const legacyId = historical.id;
+    const fileKey = `${legacyId}:README.md`;
+    const stores = ["workspaces", "blobs", "overlays", "staged", "committed", "commits"];
+    const tx = database.transaction(stores, "readwrite");
     tx.objectStore("workspaces").put(historical);
+    tx.objectStore("blobs").put({
+      key: `${legacyId}:private-blob`, workspaceId: legacyId,
+      sha: "private-blob", content: "LEGACY_PRIVATE_BLOB", updatedAt: 1,
+    });
+    tx.objectStore("overlays").put({
+      key: fileKey, workspaceId: legacyId, path: "README.md",
+      status: "modified", content: "LEGACY_PRIVATE_OVERLAY", updatedAt: 1,
+    });
+    tx.objectStore("staged").put({
+      key: fileKey, workspaceId: legacyId, path: "README.md",
+      status: "modified", content: "LEGACY_PRIVATE_STAGED", stagedAt: 1, updatedAt: 1,
+    });
+    tx.objectStore("committed").put({
+      key: fileKey, workspaceId: legacyId, path: "README.md",
+      content: "LEGACY_PRIVATE_COMMITTED", deleted: false, updatedAt: 1,
+    });
+    tx.objectStore("commits").put({
+      id: `${legacyId}:local:1:test`, workspaceId: legacyId,
+      message: "LEGACY_PRIVATE_COMMIT", createdAt: 1, files: [],
+    });
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -248,22 +271,23 @@ test("legacy unattributed cache and layout remain intact but cannot render", asy
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });
-    const tx = database.transaction("workspaces", "readonly");
-    const request = tx.objectStore("workspaces").get("acme/private@main");
-    return await new Promise<{ exists: boolean; recents: string | null; layout: string | null }>(
-      (resolve) => {
-        request.onsuccess = () => {
-          resolve({
-            exists: !!request.result,
-            recents: localStorage.getItem("workbench-recent-workspaces-v1"),
-            layout: localStorage.getItem("workbench-layout-v2"),
-          });
-          database.close();
-        };
-      },
-    );
+    const names = ["workspaces", "blobs", "overlays", "staged", "committed", "commits"];
+    const tx = database.transaction(names, "readonly");
+    const preserved = await Promise.all(names.map((name) => new Promise<boolean>((resolve, reject) => {
+      const request = tx.objectStore(name).getAll();
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result.some((item) =>
+        name === "workspaces" ? item.id === "acme/private@main" : item.workspaceId === "acme/private@main",
+      ));
+    })));
+    database.close();
+    return {
+      preserved,
+      recents: localStorage.getItem("workbench-recent-workspaces-v1"),
+      layout: localStorage.getItem("workbench-layout-v2"),
+    };
   });
-  expect(legacy.exists).toBe(true);
+  expect(legacy.preserved).toEqual([true, true, true, true, true, true]);
   expect(legacy.recents).toContain("acme/private@main");
   expect(legacy.layout).toContain("LEGACY_PRIVATE_SENTINEL");
 });
