@@ -14,7 +14,6 @@ import type {
 const DATABASE = "darkfactory-workbench";
 export const STORAGE_VERSION = 3;
 const LEGACY = ["workspaces", "blobs", "overlays", "staged", "committed", "commits"] as const;
-type LegacyStore = (typeof LEGACY)[number];
 export type RecordKind = "blob" | "overlay" | "staged" | "committed" | "commit";
 export type PersistedRecord<T = unknown> = {
   id: string;
@@ -41,13 +40,6 @@ export type LegacyRecord = {
   originalKey: IDBValidKey | string;
   value: unknown;
 };
-type StorageName =
-  | "v3_sessions"
-  | "v3_records"
-  | "v3_revisions"
-  | "v3_legacy"
-  | "v3_manifests"
-  | "v3_push_ops";
 export class StorageConflictError extends Error {
   constructor(message = "Concurrent workspace update detected. Your local work was not committed.") {
     super(message);
@@ -327,14 +319,14 @@ export async function persistWorkspace(snapshot: WorkspaceSnapshot) {
   validateSession(snapshot);
   const existing = await readSession(snapshot.id, snapshot.ownership.principalKey);
   if (existing) {
-    await mutate(snapshot.id, (tx, session) => {
+    await mutate(snapshot.id, (_tx, session, done) => {
       const identity = sessionFromSnapshot(snapshot);
       if (identity.repositoryKey !== session.repositoryKey ||
           identity.workspaceId !== session.workspaceId ||
           identity.principalKey !== session.principalKey ||
           identity.gitRef !== session.gitRef)
         throw new StorageConflictError("Immutable repository-session identity changed.");
-      return { session: { ...session, snapshot } };
+      done({ session: { ...session, snapshot } });
     });
     return;
   }
@@ -349,11 +341,6 @@ export async function persistWorkspace(snapshot: WorkspaceSnapshot) {
   });
 }
 type MutationResult<T> = { session?: Session; value?: T };
-type Mutation<T> = (
-  tx: IDBTransaction, session: Session,
-  done: (value: MutationResult<T>) => void,
-  fail: (reason: unknown) => void,
-) => void;
 function exclusive<T>(id: string, action: () => Promise<T>): Promise<T> {
   const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
   if (locks?.request)
