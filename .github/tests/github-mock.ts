@@ -64,7 +64,11 @@ const pullRequest = {
   created_at: "2026-09-20T10:00:00Z",
   updated_at: "2026-09-22T10:00:00Z",
   base: { sha: BASE_SHA, ref: "main", repo: { full_name: MOCK_REPOSITORY } },
-  head: { sha: "5555555555555555555555555555555555555555", ref: "feature", repo: { full_name: MOCK_REPOSITORY } },
+  head: {
+    sha: "5555555555555555555555555555555555555555",
+    ref: "feature",
+    repo: { full_name: MOCK_REPOSITORY },
+  },
 };
 
 const workflow = {
@@ -134,7 +138,12 @@ function tree(sha: string) {
     truncated: false,
     tree: [
       { path: "README.md", mode: "100644", type: "blob", sha: README_BLOB, size: 32 },
-      { path: "src", mode: "040000", type: "tree", sha: "6666666666666666666666666666666666666666" },
+      {
+        path: "src",
+        mode: "040000",
+        type: "tree",
+        sha: "6666666666666666666666666666666666666666",
+      },
       { path: "src/app.ts", mode: "100644", type: "blob", sha: APP_BLOB, size: 54 },
     ],
   };
@@ -183,7 +192,10 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
     const method = request.method();
 
     if (path === "/graphql" && method === "POST") {
-      const body = request.postDataJSON() as { query?: string; variables?: Record<string, unknown> };
+      const body = request.postDataJSON() as {
+        query?: string;
+        variables?: Record<string, unknown>;
+      };
       const query = body.query || "";
       if (query.includes("RepositoryProjects")) {
         return json(route, { data: { repository: { projectsV2: { nodes: [project] } } } });
@@ -253,7 +265,11 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
     if (path.startsWith(`/repos/${MOCK_REPOSITORY}/commits/`) && method === "GET") {
       const ref = decodeURIComponent(path.split("/").at(-1) || "");
       const sha = ref === "main" ? state.remoteHead : ref;
-      return json(route, commits.get(sha) ?? commit(sha, BASE_TREE, sha === state.remoteHead ? "Remote head" : "Commit detail"));
+      return json(
+        route,
+        commits.get(sha) ??
+          commit(sha, BASE_TREE, sha === state.remoteHead ? "Remote head" : "Commit detail"),
+      );
     }
 
     if (path === `/repos/${MOCK_REPOSITORY}/commits` && method === "GET") {
@@ -273,7 +289,10 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
       return json(route, { encoding: "base64", content: btoa("# Private repository\n") });
     }
     if (path === `/repos/${MOCK_REPOSITORY}/git/blobs/${APP_BLOB}` && method === "GET") {
-      return json(route, { encoding: "base64", content: btoa("export function hello() {\n  return \"world\";\n}\n") });
+      return json(route, {
+        encoding: "base64",
+        content: btoa('export function hello() {\n  return "world";\n}\n'),
+      });
     }
 
     if (path === `/repos/${MOCK_REPOSITORY}/git/ref/heads/main` && method === "GET") {
@@ -320,15 +339,37 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
     if (path === `/repos/${MOCK_REPOSITORY}/issues` && method === "GET") {
       return json(route, [issue]);
     }
-    if (path === `/repos/${MOCK_REPOSITORY}/issues/7` && method === "GET") return json(route, issue);
-    if (path === `/repos/${MOCK_REPOSITORY}/issues/7/comments` && method === "GET") return json(route, []);
+    if (path === `/repos/${MOCK_REPOSITORY}/issues/7` && method === "GET")
+      return json(route, issue);
+    if (path === `/repos/${MOCK_REPOSITORY}/issues/7/comments` && method === "GET")
+      return json(route, []);
 
-    if (path === `/repos/${MOCK_REPOSITORY}/pulls` && method === "GET") return json(route, [pullRequest]);
-    if (path === `/repos/${MOCK_REPOSITORY}/pulls/3` && method === "GET") return json(route, pullRequest);
-    if (path === `/repos/${MOCK_REPOSITORY}/pulls/3/commits` && method === "GET") return json(route, [commit(BASE_SHA)]);
-    if (path === `/repos/${MOCK_REPOSITORY}/pulls/3/files` && method === "GET") return json(route, []);
-    if (path === `/repos/${MOCK_REPOSITORY}/commits/${pullRequest.head.sha}/check-runs` && method === "GET") {
-      return json(route, { total_count: 1, check_runs: [{ id: 1, name: "CI", status: "completed", conclusion: "success", html_url: null, started_at: null, completed_at: null }] });
+    if (path === `/repos/${MOCK_REPOSITORY}/pulls` && method === "GET")
+      return json(route, [pullRequest]);
+    if (path === `/repos/${MOCK_REPOSITORY}/pulls/3` && method === "GET")
+      return json(route, pullRequest);
+    if (path === `/repos/${MOCK_REPOSITORY}/pulls/3/commits` && method === "GET")
+      return json(route, [commit(BASE_SHA)]);
+    if (path === `/repos/${MOCK_REPOSITORY}/pulls/3/files` && method === "GET")
+      return json(route, []);
+    if (
+      path === `/repos/${MOCK_REPOSITORY}/commits/${pullRequest.head.sha}/check-runs` &&
+      method === "GET"
+    ) {
+      return json(route, {
+        total_count: 1,
+        check_runs: [
+          {
+            id: 1,
+            name: "CI",
+            status: "completed",
+            conclusion: "success",
+            html_url: null,
+            started_at: null,
+            completed_at: null,
+          },
+        ],
+      });
     }
 
     if (path === `/repos/${MOCK_REPOSITORY}/actions/workflows` && method === "GET") {
@@ -337,16 +378,22 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
     if (path === `/repos/${MOCK_REPOSITORY}/actions/runs` && method === "GET") {
       return json(route, { total_count: 1, workflow_runs: [workflowRun] });
     }
-    if (path === `/repos/${MOCK_REPOSITORY}/actions/runs/20` && method === "GET") return json(route, workflowRun);
+    if (path === `/repos/${MOCK_REPOSITORY}/actions/runs/20` && method === "GET")
+      return json(route, workflowRun);
     if (path === `/repos/${MOCK_REPOSITORY}/actions/runs/20/jobs` && method === "GET") {
-      return json(route, { total_count: 1, jobs: [{ id: 21, name: "test", status: "completed", conclusion: "success" }] });
+      return json(route, {
+        total_count: 1,
+        jobs: [{ id: 21, name: "test", status: "completed", conclusion: "success" }],
+      });
     }
     if (path === `/repos/${MOCK_REPOSITORY}/actions/runs/20/artifacts` && method === "GET") {
       return json(route, { total_count: 0, artifacts: [] });
     }
 
-    if (path === `/repos/${MOCK_REPOSITORY}/releases` && method === "GET") return json(route, [release]);
-    if (path === `/repos/${MOCK_REPOSITORY}/releases/9` && method === "GET") return json(route, release);
+    if (path === `/repos/${MOCK_REPOSITORY}/releases` && method === "GET")
+      return json(route, [release]);
+    if (path === `/repos/${MOCK_REPOSITORY}/releases/9` && method === "GET")
+      return json(route, release);
 
     return json(route, { message: `Unhandled test GitHub endpoint: ${method} ${path}` }, 501);
   });
