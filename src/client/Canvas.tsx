@@ -909,7 +909,13 @@ function CanvasWorkspace({
 }) {
   const [preview, setPreview] = useState<ViewportState | null>(null);
   const drag = useRef<{ id: number; x: number; y: number; initial: ViewportState } | null>(null);
+  const wheelPreview = useRef<ViewportState | null>(null);
+  const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewport = preview ?? workspace.canvasViewport;
+
+  useEffect(() => () => {
+    if (wheelTimer.current) clearTimeout(wheelTimer.current);
+  }, []);
 
   const finishPan = (event: ReactPointerEvent<HTMLDivElement>) => {
     const current = drag.current;
@@ -929,6 +935,12 @@ function CanvasWorkspace({
       className="relative h-full overflow-hidden touch-none"
       onPointerDown={(event) => {
         if (event.target !== event.currentTarget || event.button !== 0) return;
+        if (wheelTimer.current) {
+          clearTimeout(wheelTimer.current);
+          wheelTimer.current = null;
+          wheelPreview.current = null;
+          onCanvasViewportChange(viewport);
+        }
         drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, initial: viewport };
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
@@ -943,13 +955,19 @@ function CanvasWorkspace({
         if (event.target instanceof Element && event.target.closest("[data-canvas-pane]")) return;
         event.preventDefault();
         const rect = event.currentTarget.getBoundingClientRect();
-        if (event.ctrlKey || event.metaKey) {
-          onCanvasViewportChange(
-            zoomCanvasViewport(viewport, event.clientX - rect.left, event.clientY - rect.top, Math.exp(-event.deltaY / 400)),
-          );
-        } else {
-          onCanvasViewportChange(panCanvasViewport(viewport, -event.deltaX, -event.deltaY));
-        }
+        const current = wheelPreview.current ?? workspace.canvasViewport;
+        const next = event.ctrlKey || event.metaKey
+          ? zoomCanvasViewport(current, event.clientX - rect.left, event.clientY - rect.top, Math.exp(-event.deltaY / 400))
+          : panCanvasViewport(current, -event.deltaX, -event.deltaY);
+        wheelPreview.current = next;
+        setPreview(next);
+        if (wheelTimer.current) clearTimeout(wheelTimer.current);
+        wheelTimer.current = setTimeout(() => {
+          wheelTimer.current = null;
+          wheelPreview.current = null;
+          setPreview(null);
+          onCanvasViewportChange(next);
+        }, 140);
       }}
     >
       <div

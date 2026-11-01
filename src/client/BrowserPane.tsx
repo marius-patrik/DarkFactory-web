@@ -360,7 +360,7 @@ export function BrowserPane({
         ) : null}
       </button>
       {dialog ? (
-        <div role="dialog" aria-label="Browser dialog" className="shrink-0 border-t border-border bg-[var(--panel-bg)] p-3 text-xs">
+        <dialog open aria-label="Browser dialog" className="relative m-0 w-full shrink-0 border-t border-border bg-[var(--panel-bg)] p-3 text-xs text-foreground">
           <p className="mb-2 break-words">{dialog.message}</p>
           {dialog.kind === "prompt" ? (
             <input
@@ -382,14 +382,14 @@ export function BrowserPane({
               OK
             </button>
           </div>
-        </div>
+        </dialog>
       ) : null}
       {fileChooser ? (
         <form
           className="shrink-0 border-t border-border bg-[var(--panel-bg)] p-3 text-xs"
           onSubmit={(event) => {
             event.preventDefault();
-            const paths = filePaths.split("\\n").map((path) => path.trim()).filter(Boolean);
+            const paths = filePaths.split(/\r?\n/).map((path) => path.trim()).filter(Boolean);
             sendBrowserMessage({ type: "chooseFiles", paths });
             setFileChooser(null);
           }}
@@ -414,10 +414,10 @@ export function BrowserPane({
         </form>
       ) : null}
       {downloadNotice ? (
-        <div role="status" className="flex shrink-0 items-center gap-2 border-t border-border px-3 py-2 text-xs">
+        <output className="flex shrink-0 items-center gap-2 border-t border-border px-3 py-2 text-xs">
           <span className="min-w-0 flex-1 break-all">{downloadNotice}</span>
           <button type="button" onClick={() => setDownloadNotice(null)} className="rounded border border-border px-2 py-1">Dismiss</button>
-        </div>
+        </output>
       ) : null}
     </div>
   );
