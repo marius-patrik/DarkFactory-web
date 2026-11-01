@@ -119,6 +119,7 @@ type LiveBrowser = {
   persistSubscriberId: number | null;
   pendingDialog: Dialog | null;
   pendingFileChooser: FileChooser | null;
+  idleTimer: ReturnType<typeof setTimeout> | null;
 };
 
 type ScreencastEvent = {
@@ -139,28 +140,21 @@ export class BrowserFrameService {
   constructor(
     private readonly profilesRoot: string,
     private readonly log: (line: string) => void | Promise<void>,
+    private readonly idleTimeoutMs = 60_000,
   ) {}
 
   async stream(session: BrowserSession, subscriber: BrowserStreamSubscriber): Promise<BrowserStreamHandle> {
     const live = await this.liveBrowserFor(session);
     live.session = session;
+    if (live.idleTimer) clearTimeout(live.idleTimer);
+    live.idleTimer = null;
     const subscriberId = this.nextSubscriberId++;
     live.subscribers.set(subscriberId, subscriber);
     if (subscriber.onNavigation && live.persistSubscriberId === null) live.persistSubscriberId = subscriberId;
 
-    await this.startScreencast(live);
-    await this.ensurePageUrl(live, session.url);
-    // about:blank does not always repaint after screencast activation.
-    // Make an explicit initial capture so a new pane never waits forever for CDP frames.
-    if (!live.lastFrame || live.lastFrame.url !== browserStoredUrl(live.page.url())) {
-      await this.captureInitialFrame(live);
-    }
-    await this.sendToSubscriber(subscriber, await this.stateForLive(live));
-    if (live.lastFrame) await this.sendToSubscriber(subscriber, live.lastFrame);
-
-    return {
+    const handle: BrowserStreamHandle = {
       close: () => {
-        live.subscribers.delete(subscriberId);
+        if (!live.subscribers.delete(subscriberId)) return;
         if (live.subscribers.size === 0) {
           const dialog = live.pendingDialog;
           live.pendingDialog = null;
@@ -168,6 +162,13 @@ export class BrowserFrameService {
           const chooser = live.pendingFileChooser;
           live.pendingFileChooser = null;
           if (chooser) void chooser.setFiles([]).catch(() => undefined);
+          // Do not retain orphan Chromium processes after a disconnected pane.
+          live.idleTimer = setTimeout(() => {
+            if (live.subscribers.size !== 0) return;
+            this.liveBrowsers.delete(session.profilePath);
+            void live.context.close().catch(() => undefined);
+          }, this.idleTimeoutMs);
+          live.idleTimer.unref();
         }
         if (live.persistSubscriberId === subscriberId) {
           live.persistSubscriberId = null;
@@ -179,6 +180,22 @@ export class BrowserFrameService {
         }
       },
     };
+
+    try {
+      await this.startScreencast(live);
+      await this.ensurePageUrl(live, session.url);
+      // about:blank does not always repaint after screencast activation.
+      // Make an explicit initial capture so a new pane never waits forever for CDP frames.
+      if (!live.lastFrame || live.lastFrame.url !== browserStoredUrl(live.page.url())) {
+        await this.captureInitialFrame(live);
+      }
+      await this.sendToSubscriber(subscriber, await this.stateForLive(live));
+      if (live.lastFrame) await this.sendToSubscriber(subscriber, live.lastFrame);
+      return handle;
+    } catch (error) {
+      handle.close();
+      throw error;
+    }
   }
 
   async frameFor(session: BrowserSession): Promise<BrowserFrameMessage> {
@@ -311,7 +328,9 @@ export class BrowserFrameService {
     this.liveBrowsers.clear();
     await Promise.all(
       liveBrowsers.map(async (result) => {
-        if (result.status === "fulfilled") await result.value.context.close().catch(() => undefined);
+        if (result.status !== "fulfilled") return;
+        if (result.value.idleTimer) clearTimeout(result.value.idleTimer);
+        await result.value.context.close().catch(() => undefined);
       }),
     );
   }
@@ -320,6 +339,15 @@ export class BrowserFrameService {
     const key = session.profilePath;
     let pending = this.liveBrowsers.get(key);
     if (!pending) {
+      // Reclaim disconnected contexts before refusing another browser pane.
+      for (const [profilePath, candidate] of this.liveBrowsers) {
+        if (this.liveBrowsers.size < MAX_ACTIVE_BROWSERS) break;
+        const existing = await candidate.catch(() => null);
+        if (!existing || existing.subscribers.size !== 0) continue;
+        if (existing.idleTimer) clearTimeout(existing.idleTimer);
+        this.liveBrowsers.delete(profilePath);
+        await existing.context.close().catch(() => undefined);
+      }
       if (this.liveBrowsers.size >= MAX_ACTIVE_BROWSERS) throw new Error("too many active Chromium profiles");
       pending = this.createLiveBrowser(session).catch((error) => {
         this.liveBrowsers.delete(key);
@@ -394,6 +422,7 @@ export class BrowserFrameService {
         persistSubscriberId: null,
         pendingDialog: null,
         pendingFileChooser: null,
+        idleTimer: null,
       };
       this.bindPageEvents(live);
       return live;
