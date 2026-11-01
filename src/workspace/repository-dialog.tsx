@@ -9,7 +9,11 @@ import {
 import { useWorkspace } from "./context";
 import { downloadText } from "./export";
 import type { WorkspaceSnapshot } from "./model";
-import { exportLegacyQuarantine, importLegacyQuarantine, listUnattributedWorkspaces } from "./storage";
+import {
+  exportLegacyQuarantine,
+  importLegacyQuarantine,
+  listUnattributedWorkspaces,
+} from "./storage";
 
 export function RepositoryDialog() {
   const workspace = useWorkspace();
@@ -172,12 +176,14 @@ export function RepositoryDialog() {
           </div>
           {legacyVisible && (
             <div className="workspace-list">
-              {legacy.length === 0 && <p>No valid unattributed workspaces in the recovery archive.</p>}
+              {legacy.length === 0 && (
+                <p>No valid unattributed workspaces in the recovery archive.</p>
+              )}
               {legacy.map((item) => {
                 const matching = Boolean(
                   workspace.workspace &&
-                  workspace.workspace.repository.id === item.repository.id &&
-                  workspace.workspace.ref === item.ref
+                    workspace.workspace.repository.id === item.repository.id &&
+                    workspace.workspace.ref === item.ref,
                 );
                 return (
                   <div key={item.id} className="workspace-account-row">
