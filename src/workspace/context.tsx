@@ -150,8 +150,8 @@ function asWorkingFile(file: StagedFile): WorkingFile {
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [anonymous] = useState(anonymousPrincipal);
   const [principal, setPrincipal] = useState<Principal>(anonymous);
-  const [authPhase, setAuthPhase] = useState<WorkspaceContextValue["authPhase"]>(
-    () => getGithubToken() ? "resolving" : "anonymous",
+  const [authPhase, setAuthPhase] = useState<WorkspaceContextValue["authPhase"]>(() =>
+    getGithubToken() ? "resolving" : "anonymous",
   );
   const [ownershipGeneration, setOwnershipGeneration] = useState(0);
   const authority = useRef<OwnershipGeneration>({ principalKey: anonymous.key, generation: 0 });
@@ -165,14 +165,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [staged, setStaged] = useState<StagedFile[]>([]);
   const [committedFiles, setCommittedFiles] = useState<CommittedFile[]>([]);
   const [commits, setCommits] = useState<LocalCommit[]>([]);
-  const [recent, setRecent] = useState<WorkspaceSnapshot[]>(() => loadRecentWorkspaces(anonymous.key));
+  const [recent, setRecent] = useState<WorkspaceSnapshot[]>(() =>
+    loadRecentWorkspaces(anonymous.key),
+  );
   const [remoteHeadSha, setRemoteHeadSha] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const capture = useCallback((): OwnershipGeneration => ({ ...authority.current }), []);
-  const isCurrent = useCallback((lease: OwnershipGeneration) => sameOwnership(authority.current, lease), []);
+  const isCurrent = useCallback(
+    (lease: OwnershipGeneration) => sameOwnership(authority.current, lease),
+    [],
+  );
   const assertCurrent = useCallback((lease: OwnershipGeneration) => {
     if (!sameOwnership(authority.current, lease))
       throw new Error("Repository session invalidated by an identity transition.");
@@ -199,55 +204,63 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return { ...authority.current };
   }, []);
 
-  const loadLocalState = useCallback(async (id: string, lease: OwnershipGeneration) => {
-    assertCurrent(lease);
-    const [nextOverlays, nextStaged, nextCommitted, nextCommits] = await Promise.all([
-      loadOverlays(id),
-      loadStaged(id),
-      loadCommittedFiles(id),
-      loadLocalCommits(id),
-    ]);
-    assertCurrent(lease);
-    setOverlays(nextOverlays);
-    setStaged(nextStaged);
-    setCommittedFiles(nextCommitted);
-    setCommits(nextCommits);
-    return {
-      overlays: nextOverlays, staged: nextStaged,
-      committedFiles: nextCommitted, commits: nextCommits,
-    };
-  }, [assertCurrent]);
+  const loadLocalState = useCallback(
+    async (id: string, lease: OwnershipGeneration) => {
+      assertCurrent(lease);
+      const [nextOverlays, nextStaged, nextCommitted, nextCommits] = await Promise.all([
+        loadOverlays(id),
+        loadStaged(id),
+        loadCommittedFiles(id),
+        loadLocalCommits(id),
+      ]);
+      assertCurrent(lease);
+      setOverlays(nextOverlays);
+      setStaged(nextStaged);
+      setCommittedFiles(nextCommitted);
+      setCommits(nextCommits);
+      return {
+        overlays: nextOverlays,
+        staged: nextStaged,
+        committedFiles: nextCommitted,
+        commits: nextCommits,
+      };
+    },
+    [assertCurrent],
+  );
 
-  const connectToken = useCallback(async (candidate: string) => {
-    const value = candidate.trim();
-    if (!value) throw new Error("GitHub token cannot be empty.");
-    const lease = transition(anonymous, "resolving");
-    setLoading(true);
-    try {
-      // /user is authoritative. A token and mutable login never establish a principal.
-      const nextUser = await getGithubUser(value);
-      assertCurrent(lease);
-      const nextRepositories = await listGithubRepositories(value);
-      assertCurrent(lease);
-      const verified = githubPrincipal(nextUser.id);
-      setGithubToken(value);
-      transition(verified, "authenticated");
-      setToken(value);
-      setUser(nextUser);
-      setRepositories(nextRepositories);
-      setRecent(loadRecentWorkspaces(verified.key));
-      channel.current?.postMessage({ type: "invalidate" });
-    } catch (reason) {
-      if (isCurrent(lease)) {
-        clearGithubToken();
-        transition(anonymous, "failed");
-        setError(reason instanceof Error ? reason.message : String(reason));
+  const connectToken = useCallback(
+    async (candidate: string) => {
+      const value = candidate.trim();
+      if (!value) throw new Error("GitHub token cannot be empty.");
+      const lease = transition(anonymous, "resolving");
+      setLoading(true);
+      try {
+        // /user is authoritative. A token and mutable login never establish a principal.
+        const nextUser = await getGithubUser(value);
+        assertCurrent(lease);
+        const nextRepositories = await listGithubRepositories(value);
+        assertCurrent(lease);
+        const verified = githubPrincipal(nextUser.id);
+        setGithubToken(value);
+        transition(verified, "authenticated");
+        setToken(value);
+        setUser(nextUser);
+        setRepositories(nextRepositories);
+        setRecent(loadRecentWorkspaces(verified.key));
+        channel.current?.postMessage({ type: "invalidate" });
+      } catch (reason) {
+        if (isCurrent(lease)) {
+          clearGithubToken();
+          transition(anonymous, "failed");
+          setError(reason instanceof Error ? reason.message : String(reason));
+        }
+        throw reason;
+      } finally {
+        if (isCurrent(lease)) setLoading(false);
       }
-      throw reason;
-    } finally {
-      if (isCurrent(lease)) setLoading(false);
-    }
-  }, [anonymous, assertCurrent, isCurrent, transition]);
+    },
+    [anonymous, assertCurrent, isCurrent, transition],
+  );
 
   const signOut = useCallback(() => {
     clearGithubToken();
@@ -282,7 +295,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const openRepository = useCallback(
     async (input: string, requestedRef?: string) => {
       if (authPhase === "resolving" || authPhase === "failed" || authPhase === "invalidated")
-        throw new Error("Resolve your GitHub identity or continue anonymously before opening a repository.");
+        throw new Error(
+          "Resolve your GitHub identity or continue anonymously before opening a repository.",
+        );
       const lease = capture();
       const fullName = parseRepositoryInput(input);
       setLoading(true);
@@ -306,8 +321,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         assertCurrent(lease);
         const localState: [WorkingFile[], StagedFile[], CommittedFile[], LocalCommit[]] = cached
           ? await Promise.all([
-              loadOverlays(cached.id), loadStaged(cached.id), loadCommittedFiles(cached.id), loadLocalCommits(cached.id),
-            ]) : [[], [], [], []];
+              loadOverlays(cached.id),
+              loadStaged(cached.id),
+              loadCommittedFiles(cached.id),
+              loadLocalCommits(cached.id),
+            ])
+          : [[], [], [], []];
         assertCurrent(lease);
         const hasLocalState = localState.some((items) => items.length > 0);
         if (cached && hasLocalState && cached.baseSha !== remoteCommit.sha) {
@@ -325,13 +344,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         }
         const tree = await getGithubTree(repository.full_name, remoteCommit.commit.tree.sha, token);
         assertCurrent(lease);
-        const ownership = cached?.ownership ?? createOwnedWorkspaceIdentity(principal, repositoryKey, fullRef);
+        const ownership =
+          cached?.ownership ?? createOwnedWorkspaceIdentity(principal, repositoryKey, fullRef);
         const snapshot: WorkspaceSnapshot = {
           version: 2,
           id: cached?.id ?? ownedWorkspaceId(ownership),
           ownership,
           repository: repositoryFromGithub(repository),
-          ref, baseSha: remoteCommit.sha, treeSha: tree.sha, tree: tree.tree,
+          ref,
+          baseSha: remoteCommit.sha,
+          treeSha: tree.sha,
+          tree: tree.tree,
           updatedAt: Date.now(),
         };
         // Writes use only newly attributed v2 keys. Old anonymous records remain untouched.
@@ -437,7 +460,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } finally {
       if (isCurrent(lease)) setLoading(false);
     }
-  }, [assertCurrent, capture, committedFiles, commits, isCurrent, overlays, refs, staged, token, workspace]);
+  }, [
+    assertCurrent,
+    capture,
+    committedFiles,
+    commits,
+    isCurrent,
+    overlays,
+    refs,
+    staged,
+    token,
+    workspace,
+  ]);
 
   const readBaseFile = useCallback(
     async (path: string, sha?: string) => {
@@ -650,6 +684,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const stageGroupFor = useCallback(
     (path: string) => {
+      const lease = capture();
       const selected = overlays.find((entry) => entry.path === path);
       if (!selected) return [];
       const group = [selected];
@@ -725,7 +760,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const discardFile = useCallback(
     async (path: string) => {
       if (!workspace) throw new Error("No workspace is open.");
-      const lease = capture();
       const selected = overlays.find((entry) => entry.path === path);
       const paths = new Set([path]);
       if (selected?.status === "renamed" && selected.renamedFrom) paths.add(selected.renamedFrom);
@@ -821,7 +855,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const lease = capture();
         await createGithubBranchRef(workspace.repository.fullName, name, workspace.baseSha, token);
         assertCurrent(lease);
-        const ownership = createOwnedWorkspaceIdentity(principal, { key: `gh:github.com:repo:${workspace.repository.id}`, id: workspace.repository.id, fullName: workspace.repository.fullName }, `refs/heads/${name}`);
+        const ownership = createOwnedWorkspaceIdentity(
+          principal,
+          {
+            key: `gh:github.com:repo:${workspace.repository.id}`,
+            id: workspace.repository.id,
+            fullName: workspace.repository.fullName,
+          },
+          `refs/heads/${name}`,
+        );
         const nextId = ownedWorkspaceId(ownership);
         const nextWorkspace: WorkspaceSnapshot = {
           ...workspace,
@@ -880,7 +922,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     },
-    [assertCurrent, capture, committedFiles, commits, loadLocalState, overlays, principal, staged, token, workspace],
+    [
+      assertCurrent,
+      capture,
+      committedFiles,
+      commits,
+      loadLocalState,
+      overlays,
+      principal,
+      staged,
+      token,
+      workspace,
+    ],
   );
 
   const pushLocalCommits = useCallback(async () => {
@@ -1109,7 +1162,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         "text/x-patch;charset=utf-8",
       );
     },
-    [assertCurrent, capture, committedFiles, commits, overlays, readBaseFile, readFile, staged, workspace],
+    [
+      assertCurrent,
+      capture,
+      committedFiles,
+      commits,
+      overlays,
+      readBaseFile,
+      readFile,
+      staged,
+      workspace,
+    ],
   );
 
   const exportWorkspaceZip = useCallback(async () => {
