@@ -223,3 +223,43 @@ test("different anonymous profiles never read one another's workspaces", async (
   await openDialog(page);
   await expect(page.getByText("Recent Workspaces")).toHaveCount(0);
 });
+
+test("late private blob response cannot repopulate UI after sign-out", async ({ page }) => {
+  await setup(page);
+  await authenticate(page, "token-a");
+  await openRepository(page);
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let started: () => void = () => {};
+  const requestStarted = new Promise<void>((resolve) => { started = resolve; });
+  await page.route("https://api.github.com/repos/acme/private/git/blobs/3333333333333333333333333333333333333333", async (route) => {
+    started();
+    await gate;
+    await route.fallback();
+  });
+  await page.locator('[data-workbench-surface="primary"]').getByTitle("README.md").click();
+  await requestStarted;
+  await page.getByTitle("Sign out").click();
+  release();
+  await expect(page.locator(".workspace-repository-button")).toContainText("Open Repository");
+  await expect(page.locator(".monaco-editor")).toHaveCount(0);
+});
+
+test("repeated A-to-anonymous-to-B-to-A transitions restore only A's owned recents", async ({ page }) => {
+  await setup(page);
+  await authenticate(page, "token-a");
+  await openRepository(page);
+  await page.getByTitle("Sign out").click();
+  await openDialog(page);
+  await expect(page.getByText("Recent Workspaces")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await authenticate(page, "token-b");
+  await openDialog(page);
+  await expect(page.getByText("Recent Workspaces")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByTitle("Sign out").click();
+  await authenticate(page, "token-a");
+  await openDialog(page);
+  await expect(page.getByText("Recent Workspaces")).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(MOCK_REPOSITORY) })).toBeVisible();
+});
