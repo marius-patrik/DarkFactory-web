@@ -472,7 +472,12 @@ export class BrowserFrameService {
 
   private async ensurePageUrl(live: LiveBrowser, url: string): Promise<void> {
     const targetUrl = browserRuntimeUrl(url);
-    if (live.currentUrl === targetUrl && live.page.url() === targetUrl) return;
+    // CDP screencast timestamps can lag the actual page URL. Do not navigate a second
+    // time merely because the cached screencast URL is stale during user interaction.
+    if (live.page.url() === targetUrl) {
+      live.currentUrl = targetUrl;
+      return;
+    }
     live.loading = true;
     await this.broadcastState(live);
     await live.page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 12_000 });
