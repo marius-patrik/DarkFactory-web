@@ -142,3 +142,42 @@ These are not test evidence of a functioning diagnostics or output service.
 
 **Handoff:** draft PR #30 targets `development`; orchestrator controls
 subsequent contract approval and migration work.
+
+
+## GHC-A04 — historical freeze and future-compatible acceptance
+
+**Immutable original PR head:** `65d8de8e57f617560f6c027010c07668a270a3b5`.
+**Original exact-head Actions run:** [41266979465](https://github.com/marius-patrik/GHCode/actions/runs/41266979465).
+**Original browser outcome:** 18 passing / **8 failing** on Chromium, plus 24 passing Python tests. Formatting, typecheck/build and generated-document checks passed. Original browser acceptance was **red**; these counts are never to be reported as a passing acceptance suite.
+
+| Original failure | Actual observed behavior | Classification of original assertion |
+| --- | --- | --- |
+| Anonymous after sign-out | The UI re-mounted synthetic `acme/private` and rendered its cached README. | Real identity defect; test incorrectly reopened forbidden content. |
+| Account B, GitHub 404 | B re-mounted A's `acme/private` and rendered cached README. | Real identity defect; test incorrectly reopened forbidden content. |
+| Editor close | Deferred 250-ms writer left no durable overlay after close. | Real data-loss defect; correctness permits a guarded, visibly unsaved close instead of immediate storage. |
+| Request success / transaction abort | No committed overlay survived and no failure was shown. | Real acknowledgment/error defect; keep real IDB lifecycle. |
+| Local commit abort | A committed projection survived without matching commit or retained staged input. | Real transaction atomicity defect. |
+| Reload before debounce | Deliberately unpersisted text did not survive forced reload. | Invalid historical assertion for *unacknowledged* in-memory bytes; verify saved revisions and normal navigation guards separately. |
+| Repository switch | Deferred private edit not in immediate overlay after changing repo. | Real lifecycle risk; correctness permits save-before-switch **or** a blocked switch with recoverable unsaved text. |
+| Dockview move | Deferred edit absent in immediate overlay after tab movement. | Real lifecycle risk; verify live ownership and eventual persistence or explicit unsaved retention instead. |
+
+### Test profile separation
+
+- **Historical reproduction:** `.github/tests/ghc00-v018-reproduction.spec.ts`, an exact copy of the original browser probe file at the original PR head. It is excluded from default Playwright discovery. Explicit opt-in: `bunx playwright test --config=.github/tests/historical.playwright.config.ts`. It is expected red on v0.1.8; it is **not** an acceptance gate.
+- **Current expected behavior:** `.github/tests/ghc00-integrity.spec.ts`; tests are phrased to pass on correct fail-closed implementation and correct document/transaction lifecycle, not on a specific store layout or a forbidden read.
+- **Future migration acceptance:** `.github/tests/ghc00-migration.spec.ts`; seeds a complete synthetic v2 database and localStorage on a blank same-origin page, then checks the v3+ upgrade preserves all six legacy stores byte-for-byte and does not silently mount private legacy data. Re-entry must be idempotent. New v3 store count/names are intentionally unspecified.
+- **Forensic inspector:** `.github/tests/ghc00-db-inspection.ts` opens the existing database without an explicit version; reads only finish when the real readonly transaction completes. This is raw test inspection, **not** an authorized application cache lookup or security boundary.
+- **Identity fixtures:** GitHub `/user` for A and B uses stable distinct numeric IDs `10001` and `20002`; the B/anonymous test API refuses private endpoints with 404. The fixture contains no credentials.
+
+### Acceptance and dependency classification
+
+| Gate | Tests | Expected condition |
+| --- | --- | --- |
+| GHC-01 (#25) | Anonymous and B account-isolation probes; denied same-name reopen; A recovery | Must pass when principal/session scoping is integrated. |
+| GHC-02 (#26) | Aborted successful request; aborted staged commit; quota exception; v2 -> v3 lossless/idempotent migration | Must pass only after transaction and migration corrections. |
+| GHC-03 (#27) | Close guard / save; previously persisted reload; repository switch; Dockview transfer | Must pass after canonical document ownership and lifecycle guards. |
+| Existing healthy application | Existing non-GHC browser tests and repository Python tests | Remain green; regression here is a separate defect or harness incompatibility. |
+
+### Limitations and integration notes
+
+Tests use one isolated Chromium browser context per case and synthetic GitHub responses; they do not prove isolation from same-origin hostile scripts, cross-tab revision fencing, true disk exhaustion, crash durability of unacknowledged memory, or a real authenticated GitHub session. The acceptance assertions reject both leaking private UI/cache reads and silently losing acknowledged work; physical existence of A's legacy data is tested separately from its accessibility by B/anonymous. For GHC-A03, align only synthetic principal IDs and app-level identity contract; do not create a competing identity service in these tests. Integrate the test PR with GHC-01/02/03 changes, preserve the historical profile, and keep default CI red until all required behavioral invariants are implemented.
