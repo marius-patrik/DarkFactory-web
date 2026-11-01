@@ -52,6 +52,7 @@ import {
 } from "./identity";
 import {
   attributeUnattributedV2,
+  abandonUnsentPushes,
   beginPushIntent,
   finishPushAtomic,
   pendingPushIntents,
@@ -860,6 +861,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const lease = capture();
+      const previous = await pendingPushIntents(workspace.id);
+      assertCurrent(lease);
+      if (previous.length && previous.every((op) => op.state === "preparing")) {
+        await abandonUnsentPushes(workspace.id);
+        assertCurrent(lease);
+      }
       const pending = await pendingPushIntents(workspace.id);
       assertCurrent(lease);
       if (pending.length) {
