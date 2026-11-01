@@ -533,6 +533,73 @@ export function clearKinds(id: string, kinds: RecordKind[]) {
     }
   });
 }
+
+/** Copy a newly created branch session in one IDB transaction; source stays untouched. */
+export async function forkWorkspaceAtomic(fromId: string, target: WorkspaceSnapshot) {
+  validateSession(target);
+  if (fromId === target.id) throw new StorageConflictError("Branch must have a separate session.");
+  const source = await readSession(fromId);
+  if (!source || source.principalKey !== target.ownership.principalKey)
+    throw new StorageConflictError("Cannot fork a workspace owned by another principal.");
+  return exclusive(fromId, () => dbOperation(async (db) => {
+    const expected = revisionCache.get(fromId);
+    if (expected === undefined || invalidated.has(fromId))
+      throw new StorageConflictError();
+    await complete<void>(
+      db, ["v3_sessions", "v3_records", "v3_revisions"], "readwrite",
+      (tx, set, fail) => {
+        const sessions = tx.objectStore("v3_sessions");
+        const readSource = sessions.get(fromId);
+        readSource.onsuccess = () => {
+          const current = readSource.result as Session | undefined;
+          if (!current || current.revision !== expected ||
+              current.principalKey !== target.ownership.principalKey) {
+            fail(new StorageConflictError()); return;
+          }
+          const recordStore = tx.objectStore("v3_records");
+          const readRows = recordStore.index("byPrincipal").getAll(current.principalKey);
+          readRows.onsuccess = () => {
+            try {
+              const rows = (readRows.result as PersistedRecord[])
+                .filter((row) => row.sessionId === fromId);
+              const next = sessionFromSnapshot(target);
+              sessions.add(next);
+              const revisions = tx.objectStore("v3_revisions");
+              for (const original of rows) {
+                const kind = original.kind;
+                const value = structuredClone(original.value) as Record<string, unknown>;
+                value.workspaceId = target.id;
+                if (typeof value.key === "string" && kind !== "commit")
+                  value.key = target.id + ":" + String(original.name);
+                if (kind === "commit") {
+                  value.id = target.id + ":local:" + String(value.createdAt) + ":" + crypto.randomUUID();
+                  const files = Array.isArray(value.files) ? value.files : [];
+                  value.files = files.map((item) => ({
+                    ...item, workspaceId: target.id, key: target.id + ":" + String(item.path),
+                  }));
+                }
+                const name = kind === "commit" ? String(value.id) : original.name;
+                const revisionId = kind === "staged" ? crypto.randomUUID() : undefined;
+                recordStore.add({
+                  id: keyFor(target.id, kind, name), sessionId: target.id,
+                  principalKey: next.principalKey, kind, name, value,
+                  resourceId: crypto.randomUUID(), revisionId,
+                });
+                if (revisionId) revisions.add({
+                  id: revisionId, sessionId: target.id,
+                  principalKey: next.principalKey, kind, value: structuredClone(value),
+                });
+              }
+              set(undefined);
+            } catch (reason) { fail(reason); }
+          };
+        };
+      },
+    );
+    noteRevision(target.id, 0);
+  }));
+}
+
 export async function listLegacyQuarantine(): Promise<LegacyRecord[]> {
   return dbOperation((db) => all<LegacyRecord>(db, "v3_legacy"));
 }
