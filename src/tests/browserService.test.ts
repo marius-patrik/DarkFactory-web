@@ -297,7 +297,7 @@ test("concurrent screencast subscribers await exactly one CDP startup", async ()
         if (name === "Page.enable") await enable;
       },
       on: (name: string) => { subscriptions.push(name); },
-      off: (name: string) => { subscriptions.push("off:" + name); },
+      off: (name: string) => { subscriptions.push(`off:${name}`); },
     },
   };
   const internal = service as unknown as { startScreencast: (live: unknown) => Promise<void> };
