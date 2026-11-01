@@ -13,12 +13,17 @@ function IdentityBoundWorkbench() {
   );
 }
 
+function IdentityBoundRepositoryDialog() {
+  const { principal, ownershipGeneration } = useWorkspace();
+  return <RepositoryDialog key={`${principal.key}:${ownershipGeneration}`} />;
+}
+
 export function WorkbenchApp() {
   return (
     <WorkspaceProvider>
       <GithubAuthController />
       <IdentityBoundWorkbench />
-      <RepositoryDialog />
+      <IdentityBoundRepositoryDialog />
     </WorkspaceProvider>
   );
 }
