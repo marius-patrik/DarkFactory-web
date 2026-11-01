@@ -4,7 +4,7 @@
 
 Canvas is implemented as a Bun/React local app with source under `src/`.
 It owns its local server, store, workspace persistence, filesystem API,
-tmux-backed terminal WebSocket, readonly git API, live CDP streamed Chromium browser panes, and Rsbuild
+tmux-backed terminal WebSocket, Git status/diff/stage/unstage/commit API, live CDP streamed Chromium browser panes, and Rsbuild
 frontend development server.
 
 Development is split across two watched processes:
@@ -39,6 +39,7 @@ Development is split across two watched processes:
 ## Known Gaps
 
 - Browser panes stream Chromium pixels over CDP; they are not native DOM embedding.
+- Browser file selection uses absolute local paths rather than an OS-native file picker; downloads are kept in the local profile directory.
 - Browser file chooser, download, and dialog handling is basic.
 - Production-style `bun run start` is single-process and serves `dist/web`; frontend HMR is intentionally only in `bun run dev`.
 
@@ -48,3 +49,7 @@ Development is split across two watched processes:
 - Existing workspace, pane, browser, git, and terminal tests pass.
 - `bun run dev` starts the Bun API watcher and Rsbuild dev server with HMR.
 - `bun run start` builds `dist/web` before serving `http://127.0.0.1:4567`.
+
+## v0.2.0 local preview
+
+Completed Canvas viewport pan/zoom and world-coordinate pane interactions, local Git stage/unstage/commit operations, explicit initial Chromium capture, and dialog/download/file-chooser handling. Browser and viewport regression checks run in isolated Chromium tests and a real UI smoke. Release remains loopback-only. Remote authentication, native desktop packaging, and provider/agent workflows are deliberately not represented as completed.

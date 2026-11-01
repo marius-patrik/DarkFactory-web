@@ -12,13 +12,13 @@ The app runs as a local Bun server with a React frontend served from `dist/web`.
 ## Role
 
 - Provides local filesystem browsing and editing.
-- Provides tiled panes, canvas panes, tmux-backed terminals, readonly git inspection, and live CDP streamed Chromium browser panes.
+- Provides tiled panes, canvas panes, tmux-backed terminals, local Git inspection and staged change/commit operations, and live CDP streamed Chromium browser panes.
 - Exports `CanvasMount` as an internal embeddable Canvas mount surface.
 
 ## Current Status
 
 Implemented Bun/React app with workspace persistence, Monaco editor panes,
-tmux-backed terminal panes, filesystem APIs, readonly git panes, live CDP streamed
+tmux-backed terminal panes, filesystem APIs, Git status, diff, staging and commit panes, live CDP streamed
 Chromium browser panes with persisted history, and verification scripts.
 
 ## Run
@@ -84,10 +84,16 @@ bun run verify
 
 ## Preview release and validation
 
-The first release is a local-only v0.1.0 preview; it provides the source and built web UI, not native installers or an internet-facing service. See [release notes](./RELEASE_NOTES.md) and the [readiness audit](./UX-AUDIT.md).
+The current release is a local-only v0.2.0 preview; it provides the source and built web UI, not native installers or an internet-facing service. See [release notes](./RELEASE_NOTES.md) and the [readiness audit](./UX-AUDIT.md).
 
 The verification workflow runs a real Chromium startup smoke and uploads `canvas-visual-smoke` artifacts with desktop and compact-viewport screenshots. These automated captures do not replace hands-on review of editor, browser, terminal, filesystem or mobile ergonomics.
 
 Canvas accepts privileged API requests only on loopback hosts, rejects external web origins and requires JSON POST for all `/api/*` actions. Do not reverse-proxy or expose Canvas publicly; no remote-user authentication system is implemented.
 
 The initial `v0.1.0` release workflow verifies the entire application after a merge to `main`, then publishes an immutable preview tag and source/web bundle. Later pushes skip this one-time workflow once that tag exists.
+
+## Canvas navigation and source control (v0.2.0)
+
+In Canvas view, drag empty background to pan, scroll to pan and hold Ctrl/Cmd while scrolling to zoom around the pointer. Use Reset view to return to origin. Pane dragging and resizing operate in world coordinates at any zoom level. The Git pane supports staging, unstaging and committing changes in local repositories. Browser JavaScript dialogs are surfaced in the pane; file choosers accept absolute local file paths, and downloads are written under `CANVAS_HOME/browser-profiles/downloads`.
+
+All of these capabilities run with the current user's local privileges. Keep the server loopback-only. Git commit uses the repository's configured identity and hooks; it is not an agent-approval workflow.
