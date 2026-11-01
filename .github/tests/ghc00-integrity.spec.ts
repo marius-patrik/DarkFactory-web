@@ -225,7 +225,16 @@ test("GHC-02 source-control: aborted commit never consumes staged data or acknow
     const commits = records("commits");
     const staged = records("staged");
     const committed = records("committed");
-    expect(commits.length > 0 || (committed.length === 0 && staged.length > 0)).toBe(true);
+    if (commits.length > 0) {
+      // A successful logical commit must have the matching committed projection,
+      // and must not leave its input staged in the frozen v2 data model.
+      expect(committed.length).toBeGreaterThan(0);
+      expect(staged).toHaveLength(0);
+    } else {
+      // An unsuccessful transition must not consume the original staged edit.
+      expect(committed).toHaveLength(0);
+      expect(staged.length).toBeGreaterThan(0);
+    }
   } else {
     // Do not encode an RFC's provisional v3 physical stores into acceptance.
     await surface(page, "primary").locator(".dv-tab").filter({ hasText: "Source Control" }).first().click();
