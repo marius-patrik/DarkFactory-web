@@ -53,6 +53,7 @@ import {
 import {
   clearLocalGitState,
   clearStaged,
+  commitStagedAtomic,
   loadBlob,
   loadCommittedFiles,
   loadLocalCommits,
@@ -62,13 +63,12 @@ import {
   loadWorkspace,
   rememberWorkspace,
   removeOverlay,
-  removeStaged,
+  removeRecords,
+  replacePath,
   saveBlob,
-  saveCommittedFile,
-  saveLocalCommit,
   saveOverlay,
-  saveStaged,
   saveWorkspace,
+  writeRecords,
 } from "./storage";
 import {
   createStoredZip,
@@ -130,21 +130,6 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 function overlayKey(id: string, path: string) {
   return `${id}:${path}`;
-}
-
-function sameWorkingFile(left: WorkingFile | StagedFile, right: WorkingFile | StagedFile) {
-  return (
-    left.path === right.path &&
-    left.status === right.status &&
-    left.content === right.content &&
-    left.baseSha === right.baseSha &&
-    left.renamedFrom === right.renamedFrom
-  );
-}
-
-function asWorkingFile(file: StagedFile): WorkingFile {
-  const { stagedAt: _stagedAt, ...working } = file;
-  return working;
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -632,49 +617,47 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         overlays.some((entry) => entry.path === target && entry.status !== "deleted") ||
         (!overlays.some((entry) => entry.path === target && entry.status === "deleted") &&
           baselineExists(target));
-      if (targetExists) throw new Error(`Path already exists: ${target}`);
-
+      if (targetExists) throw new Error("Path already exists: " + target);
+      const lease = capture();
       const content = await readFile(path);
+      assertCurrent(lease);
       const sourceWasAdded = !baselineExists(path);
       const remoteEntry = workspace.tree.find(
         (entry) => entry.path === path && entry.type === "blob",
       );
-
-      if (sourceWasAdded) {
-        await removeOverlay(workspace.id, path);
-        await saveOverlay({
-          key: overlayKey(workspace.id, target),
-          workspaceId: workspace.id,
-          path: target,
-          status: "added",
-          content,
-          updatedAt: Date.now(),
-        });
-        await refreshOverlays();
-        return;
-      }
-
-      await saveOverlay({
+      const now = Date.now();
+      const destination: WorkingFile = {
         key: overlayKey(workspace.id, target),
         workspaceId: workspace.id,
         path: target,
-        status: "renamed",
+        status: sourceWasAdded ? "added" : "renamed",
         content,
-        baseSha: remoteEntry?.sha,
-        renamedFrom: path,
-        updatedAt: Date.now(),
-      });
-      await saveOverlay({
+        baseSha: sourceWasAdded ? undefined : remoteEntry?.sha,
+        renamedFrom: sourceWasAdded ? undefined : path,
+        updatedAt: now,
+      };
+      const sourceDelete: WorkingFile = {
         key: overlayKey(workspace.id, path),
         workspaceId: workspace.id,
         path,
         status: "deleted",
         baseSha: remoteEntry?.sha,
-        updatedAt: Date.now(),
-      });
+        updatedAt: now,
+      };
+      await replacePath(
+        workspace.id,
+        sourceWasAdded ? [{ kind: "overlay", name: path }] : [],
+        sourceWasAdded
+          ? [{ kind: "overlay", name: target, value: destination }]
+          : [
+              { kind: "overlay", name: target, value: destination },
+              { kind: "overlay", name: path, value: sourceDelete },
+            ],
+      );
+      assertCurrent(lease);
       await refreshOverlays();
     },
-    [baselineExists, overlays, readFile, refreshOverlays, workspace],
+    [assertCurrent, baselineExists, capture, overlays, readFile, refreshOverlays, workspace],
   );
 
   const fileStatus = useCallback(
@@ -707,9 +690,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     async (path: string) => {
       if (!workspace) throw new Error("No workspace is open.");
       const lease = capture();
-      for (const file of stageGroupFor(path)) {
-        await saveStaged({ ...file, stagedAt: Date.now() });
-      }
+      const now = Date.now();
+      const files = stageGroupFor(path).map((file) => ({ ...file, stagedAt: now }));
+      if (files.length) await writeRecords(workspace.id, "staged", files);
       const next = await loadStaged(workspace.id);
       assertCurrent(lease);
       setStaged(next);
@@ -721,7 +704,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!workspace) throw new Error("No workspace is open.");
     const lease = capture();
     const now = Date.now();
-    for (const file of overlays) await saveStaged({ ...file, stagedAt: now });
+    if (overlays.length)
+      await writeRecords(workspace.id, "staged", overlays.map((file) => ({ ...file, stagedAt: now })));
     const next = await loadStaged(workspace.id);
     assertCurrent(lease);
     setStaged(next);
@@ -740,7 +724,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         );
         if (target) paths.add(target.path);
       }
-      for (const candidate of paths) await removeStaged(workspace.id, candidate);
+      await removeRecords(workspace.id, "staged", [...paths]);
       const next = await loadStaged(workspace.id);
       assertCurrent(lease);
       setStaged(next);
@@ -769,10 +753,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         );
         if (target) paths.add(target.path);
       }
-      for (const candidate of paths) {
-        await removeOverlay(workspace.id, candidate);
-        await removeStaged(workspace.id, candidate);
-      }
+      await replacePath(
+        workspace.id,
+        [...paths].flatMap((name) => [
+          { kind: "overlay" as const, name },
+          { kind: "staged" as const, name },
+        ]),
+        [],
+      );
       const nextStaged = await loadStaged(workspace.id);
       assertCurrent(lease);
       await refreshOverlays();
@@ -785,54 +773,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const commitStaged = useCallback(
     async (message: string) => {
       if (!workspace) throw new Error("No workspace is open.");
-      const normalizedMessage = message.trim();
-      if (!normalizedMessage) throw new Error("Commit message cannot be empty.");
-      if (!staged.length) throw new Error("There are no staged changes.");
       const lease = capture();
       assertCurrent(lease);
-
-      const now = Date.now();
-      const commit: LocalCommit = {
-        id: `${workspace.id}:local:${now}:${crypto.randomUUID()}`,
-        workspaceId: workspace.id,
-        message: normalizedMessage,
-        createdAt: now,
-        files: staged.map(asWorkingFile),
-      };
-
-      for (const file of staged) {
-        await saveCommittedFile({
-          key: overlayKey(workspace.id, file.path),
-          workspaceId: workspace.id,
-          path: file.path,
-          content: file.status === "deleted" ? undefined : file.content,
-          deleted: file.status === "deleted",
-          baseSha: file.baseSha,
-          updatedAt: now,
-        });
-        const current = overlays.find((entry) => entry.path === file.path);
-        if (current && sameWorkingFile(current, file)) {
-          await removeOverlay(workspace.id, file.path);
-        } else if (
-          current &&
-          file.status !== "deleted" &&
-          (current.status === "added" || current.status === "renamed")
-        ) {
-          await saveOverlay({
-            ...current,
-            status: "modified",
-            renamedFrom: undefined,
-            updatedAt: Date.now(),
-          });
-        }
-      }
+      const commit = await commitStagedAtomic(workspace.id, message);
       assertCurrent(lease);
-      await saveLocalCommit(commit);
-      await clearStaged(workspace.id);
       await loadLocalState(workspace.id, lease);
       return commit;
     },
-    [assertCurrent, capture, loadLocalState, overlays, staged, workspace],
+    [assertCurrent, capture, loadLocalState, workspace],
   );
 
   const createBranch = useCallback(
