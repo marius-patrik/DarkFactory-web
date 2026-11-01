@@ -377,6 +377,26 @@ export class CanvasStore {
     return { repoPath: repo, path: filePath, diff };
   }
 
+  async stageGitPath(repoPath: string, path: string): Promise<GitStatus> {
+    const repo = safeAbsolute(repoPath);
+    await runGit(repo, ["add", "--", checkedGitPath(path)]);
+    return this.getGitStatus(repo);
+  }
+
+  async unstageGitPath(repoPath: string, path: string): Promise<GitStatus> {
+    const repo = safeAbsolute(repoPath);
+    await runGit(repo, ["restore", "--staged", "--", checkedGitPath(path)]);
+    return this.getGitStatus(repo);
+  }
+
+  async commitGit(repoPath: string, message: string): Promise<GitStatus> {
+    const repo = safeAbsolute(repoPath);
+    const normalized = message.trim();
+    if (!normalized || normalized.length > 5000) throw new Error("commit message must be 1–5000 characters");
+    await runGit(repo, ["commit", "-m", normalized]);
+    return this.getGitStatus(repo);
+  }
+
   private workspacePath(id: string): string {
     return resolve(this.paths.workspacesDir, `${encodeURIComponent(id)}.json`);
   }
@@ -601,6 +621,13 @@ async function discoverGitRepositories(root: string, depth: number): Promise<str
   }
   await walk(root, depth);
   return out;
+}
+
+function checkedGitPath(path: string): string {
+  if (!path.trim() || path.startsWith("/") || path.includes("\\0") || path.split(/[\\/]/).includes("..")) {
+    throw new Error("Git file path must be repository-relative and cannot traverse parents");
+  }
+  return path;
 }
 
 async function runGit(repoPath: string, args: string[]): Promise<string> {

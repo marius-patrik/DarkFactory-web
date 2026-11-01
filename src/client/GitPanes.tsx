@@ -1,7 +1,8 @@
+import { makeClient } from "@/client/client";
 import type { GitDiff, GitRepository, GitStatus, PaneState, SourceControlPaneState, Workspace } from "@/shared/schema";
 import { cn } from "@/shared/utils";
 import { FolderGit2, GitBranch } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export function SourceControlPane({
   workspace,
@@ -24,6 +25,28 @@ export function SourceControlPane({
   const status = repoPath ? gitStatuses.get(repoPath) : null;
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diff, setDiff] = useState<string>("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const git = useMemo(() => makeClient(), []);
+
+  const mutate = async (action: () => Promise<unknown>) => {
+    if (!repoPath || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      await onRequestGitStatus(repoPath);
+      if (selectedFile) {
+        const next = await onRequestGitDiff(repoPath, selectedFile);
+        setDiff(next.diff);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (repoPath) void onRequestGitStatus(repoPath);
@@ -59,6 +82,33 @@ export function SourceControlPane({
           {!repositories.some((repo) => repo.rootPath === repoPath) ? <option value={repoPath}>{repoPath}</option> : null}
         </select>
       </div>
+      {error ? <div role="alert" className="border-b border-border px-3 py-2 text-xs text-red-400">{error}</div> : null}
+      <form
+        className="flex gap-2 border-b border-border p-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!message.trim()) return;
+          void mutate(async () => {
+            await git.git.commit({ repoPath, message });
+            setMessage("");
+          });
+        }}
+      >
+        <input
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          aria-label="Git commit message"
+          placeholder="Commit message"
+          className="min-w-0 flex-1 rounded border border-border bg-[var(--input-bg)] px-2 py-1 text-xs"
+        />
+        <button
+          type="submit"
+          disabled={busy || !message.trim() || !status?.files.some((file) => file.staged)}
+          className="rounded border border-border px-2 text-xs disabled:opacity-40"
+        >
+          Commit
+        </button>
+      </form>
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(180px,34%)_1fr]">
         <div className="min-h-0 overflow-auto border-r border-border">
           <div className="border-b border-border px-3 py-2 text-xs">
@@ -68,25 +118,38 @@ export function SourceControlPane({
             </div>
           </div>
           {(status?.files ?? []).map((file) => (
-            <button
-              type="button"
-              key={`${file.status}:${file.path}`}
-              onClick={() => {
-                setSelectedFile(file.path);
-                void onRequestGitDiff(repoPath, file.path).then((result) => setDiff(result.diff));
-              }}
-              className={cn(
-                "flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-[var(--surface-hover)]",
-                selectedFile === file.path && "bg-secondary text-foreground",
-              )}
-            >
-              <span className="w-8 shrink-0 font-mono text-[10px] text-muted-foreground">{file.status}</span>
-              <span className="truncate">{file.path}</span>
-            </button>
+            <div key={`${file.status}:${file.path}`} className="flex min-w-0 items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedFile(file.path);
+                  void onRequestGitDiff(repoPath, file.path).then((result) => setDiff(result.diff));
+                }}
+                className={cn(
+                  "flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-xs hover:bg-[var(--surface-hover)]",
+                  selectedFile === file.path && "bg-secondary text-foreground",
+                )}
+              >
+                <span className="w-8 shrink-0 font-mono text-[10px] text-muted-foreground">{file.status}</span>
+                <span className="truncate">{file.path}</span>
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                aria-label={`${file.staged ? "Unstage" : "Stage"} ${file.path}`}
+                title={file.staged ? "Unstage" : "Stage"}
+                onClick={() => void mutate(() => file.staged
+                  ? git.git.unstage({ repoPath, path: file.path })
+                  : git.git.stage({ repoPath, path: file.path }))}
+                className="shrink-0 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-[var(--surface-hover)] disabled:opacity-40"
+              >
+                {file.staged ? "−" : "+"}
+              </button>
+            </div>
           ))}
         </div>
         <pre className="min-h-0 overflow-auto p-3 text-[11px] leading-relaxed text-foreground">
-          {selectedFile ? diff || "No diff for selected file." : "Select a changed file to preview a readonly diff."}
+          {selectedFile ? diff || "No diff for selected file." : "Select a changed file to preview its diff."}
         </pre>
       </div>
     </div>
