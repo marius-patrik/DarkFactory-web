@@ -439,24 +439,24 @@ export class BrowserFrameService {
   private bindPageEvents(live: LiveBrowser): void {
     live.page.on("dialog", (dialog) => {
       if (live.subscribers.size === 0) {
-        void dialog.dismiss();
+        this.runBackground(dialog.dismiss(), "dialog dismissal");
         return;
       }
       live.pendingDialog = dialog;
-      void this.broadcast(live, {
+      this.runBackground(this.broadcast(live, {
         type: "dialog", kind: dialog.type(), message: dialog.message(), defaultValue: dialog.defaultValue(),
-      });
+      }), "dialog notification");
     });
     live.page.on("filechooser", (chooser) => {
       if (live.subscribers.size === 0) {
-        void chooser.setFiles([]);
+        this.runBackground(chooser.setFiles([]), "file chooser cancellation");
         return;
       }
       live.pendingFileChooser = chooser;
-      void this.broadcast(live, { type: "fileChooser", multiple: chooser.isMultiple() });
+      this.runBackground(this.broadcast(live, { type: "fileChooser", multiple: chooser.isMultiple() }), "file chooser notification");
     });
     live.page.on("download", (download) => {
-      void (async () => {
+      this.runBackground((async () => {
         try {
           const directory = join(this.profilesRoot, "downloads");
           await mkdir(directory, { recursive: true });
@@ -469,26 +469,32 @@ export class BrowserFrameService {
           }
           await this.broadcast(live, { type: "download", filename, path });
         } catch (error) {
-          await this.broadcast(live, { type: "error", message: `Download failed: ${errorMessage(error)}` });
+          // Do not forward Chromium's filesystem/OS exceptions over the stream.
+          try {
+            await this.log(`browser download failed: ${errorMessage(error)}`);
+          } catch {
+            // Reporting a download error must not prevent the safe client reply.
+          }
+          await this.broadcast(live, { type: "error", message: "Download failed. Check browser service logs." });
         }
-      })();
+      })(), "download handling");
     });
     live.page.on("request", (request) => {
       if (!request.isNavigationRequest() || request.frame() !== live.page.mainFrame()) return;
       live.loading = true;
-      void this.broadcastState(live);
+      this.runBackground(this.broadcastState(live), "navigation request notification");
     });
     live.page.on("domcontentloaded", () => {
       live.loading = false;
-      void this.updateTitle(live).finally(() => this.broadcastState(live));
+      this.runBackground(this.updateTitle(live).then(() => this.broadcastState(live)), "DOMContentLoaded notification");
     });
     live.page.on("load", () => {
       live.loading = false;
-      void this.updateTitle(live).finally(() => this.broadcastState(live));
+      this.runBackground(this.updateTitle(live).then(() => this.broadcastState(live)), "load notification");
     });
     live.page.on("framenavigated", (frame) => {
       if (!isMainFrame(live.page, frame)) return;
-      void this.handleNavigation(live);
+      this.runBackground(this.handleNavigation(live), "navigation persistence");
     });
     live.page.on("crash", () => {
       void this.broadcast(live, { type: "error", message: "Chromium page crashed." });
@@ -498,11 +504,18 @@ export class BrowserFrameService {
   private async startScreencast(live: LiveBrowser): Promise<void> {
     if (live.screencastStarted) return;
     live.screencastStarted = true;
-    await live.cdp.send("Page.enable");
-    live.cdp.on("Page.screencastFrame", (event) => {
-      void this.handleScreencastFrame(live, event as ScreencastEvent);
-    });
-    await live.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+    const onFrame = (event: unknown) => {
+      this.runBackground(this.handleScreencastFrame(live, event as ScreencastEvent), "screencast frame");
+    };
+    try {
+      await live.cdp.send("Page.enable");
+      live.cdp.on("Page.screencastFrame", onFrame);
+      await live.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+    } catch (error) {
+      live.cdp.off("Page.screencastFrame", onFrame);
+      live.screencastStarted = false;
+      throw error;
+    }
   }
 
   private async captureInitialFrame(live: LiveBrowser): Promise<void> {
@@ -760,6 +773,16 @@ export class BrowserFrameService {
 
   private async sendToSubscriber(subscriber: BrowserStreamSubscriber, message: BrowserServerMessage): Promise<void> {
     await subscriber.send(message);
+  }
+
+  private runBackground(promise: Promise<unknown>, activity: string): void {
+    void promise.catch(async (error) => {
+      try {
+        await this.log(`browser ${activity} failed: ${errorMessage(error)}`);
+      } catch {
+        // Detached event handlers must never create unhandled rejections.
+      }
+    });
   }
 
   private requireExecutablePath(): string {
