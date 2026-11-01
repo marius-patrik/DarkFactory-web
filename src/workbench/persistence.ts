@@ -9,7 +9,8 @@ import type {
 
 // Unattributed v1/v2 layouts can contain private tabs or editor text; preserve but never restore.
 const OWNED_LAYOUT_PREFIX = "ghcode-layout-owned-v1:";
-const keyFor = (principal: PrincipalKey) => `${OWNED_LAYOUT_PREFIX}${encodeURIComponent(principal)}`;
+const keyFor = (principal: PrincipalKey) =>
+  `${OWNED_LAYOUT_PREFIX}${encodeURIComponent(principal)}`;
 
 const DEFAULT_VISIBILITY: Record<WorkbenchSurface, boolean> = {
   primary: true,
@@ -86,8 +87,9 @@ function parsePersisted(raw: string | null, theme: AppearanceMode): PersistedWor
 }
 
 export function loadWorkbench(theme: AppearanceMode, principal: PrincipalKey): PersistedWorkbench {
-  return parsePersisted(localStorage.getItem(keyFor(principal)), theme) ??
-    emptyPersistedWorkbench(theme);
+  return (
+    parsePersisted(localStorage.getItem(keyFor(principal)), theme) ?? emptyPersistedWorkbench(theme)
+  );
 }
 
 export function saveWorkbench(state: PersistedWorkbench, principal: PrincipalKey) {
