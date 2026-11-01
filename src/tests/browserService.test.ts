@@ -194,6 +194,42 @@ test(
   20_000,
 );
 
+
+test(
+  "browser file chooser rejects malformed bytes and accepts valid host uploads",
+  async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "canvas-browser-upload-"));
+    const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined);
+    const session = browserSession(
+      "<title>upload</title><input id='upload' type='file' style='position:absolute;left:20px;top:20px;width:200px;height:40px' onchange='document.title=this.files[0]?.name ?? \"missing\"'>",
+    );
+    const messages: Array<{ type: string; title?: string }> = [];
+    try {
+      const handle = await service.stream(session, { send: (message) => { messages.push(message); } });
+      try {
+        await service.interact(session, { type: "viewport", width: 500, height: 320 });
+        await service.interact(session, { type: "mouse", event: "down", x: 60, y: 40, button: "left" });
+        await service.interact(session, { type: "mouse", event: "up", x: 60, y: 40, button: "left" });
+        await waitFor(() => messages.some((message) => message.type === "fileChooser"), "file picker event");
+        await expect(service.interact(session, {
+          type: "chooseFiles",
+          files: [{ name: "bad.txt", mimeType: "text/plain", data: "%%%%" }],
+        })).rejects.toThrow("file chooser rejected");
+        await service.interact(session, {
+          type: "chooseFiles",
+          files: [{ name: "fixture.txt", mimeType: "text/plain", data: Buffer.from("hello").toString("base64") }],
+        });
+        await waitFor(() => messages.some((message) => message.type === "state" && message.title === "fixture.txt"), "file chooser upload");
+      } finally {
+        handle.close();
+      }
+    } finally {
+      await service.close();
+    }
+  },
+  20_000,
+);
+
 function browserSession(html: string): BrowserSession {
   return {
     workspaceId: "workspace:test",
