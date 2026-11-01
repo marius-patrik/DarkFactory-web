@@ -29,6 +29,7 @@ const publicRepository = {
 };
 
 const user = {
+  id: 1001,
   login: "octocat",
   avatar_url: "https://avatars.example/octocat.png",
   html_url: "https://github.com/octocat",
