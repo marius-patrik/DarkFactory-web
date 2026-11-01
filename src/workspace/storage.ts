@@ -46,6 +46,7 @@ export const loadWorkspace = loadOwnedWorkspace;
 export {
   commitStagedAtomic,
   exportLegacyQuarantine,
+  forkWorkspaceAtomic,
   importLegacyQuarantine,
   listLegacyQuarantine,
   replacePath,
