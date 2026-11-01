@@ -1,5 +1,9 @@
 import type {
-  CommittedFile, LocalCommit, StagedFile, WorkspaceSnapshot, WorkingFile,
+  CommittedFile,
+  LocalCommit,
+  StagedFile,
+  WorkspaceSnapshot,
+  WorkingFile,
 } from "./model";
 import { isOwnedWorkspace, type PrincipalKey } from "./identity";
 import {
@@ -21,7 +25,14 @@ import {
   updatePushTarget,
   writeRecords,
 } from "./storage-v3";
-export { beginPushIntent, finishPushAtomic, pendingPushIntents, updatePushTarget, writeRecords, removeRecords } from "./storage-v3";
+export {
+  beginPushIntent,
+  finishPushAtomic,
+  pendingPushIntents,
+  updatePushTarget,
+  writeRecords,
+  removeRecords,
+} from "./storage-v3";
 
 const OWNED_RECENT_PREFIX = "ghcode-recent-owned-v1:";
 
@@ -32,7 +43,13 @@ function recentKey(owner: PrincipalKey) {
 /** Every production write now targets v3 stores. The v2 stores remain read-only. */
 export const saveWorkspace = persistWorkspace;
 export const loadWorkspace = loadOwnedWorkspace;
-export { commitStagedAtomic, exportLegacyQuarantine, importLegacyQuarantine, listLegacyQuarantine, replacePath };
+export {
+  commitStagedAtomic,
+  exportLegacyQuarantine,
+  importLegacyQuarantine,
+  listLegacyQuarantine,
+  replacePath,
+};
 
 export async function saveBlob(workspaceId: string, sha: string, content: string) {
   await writeRecords(workspaceId, "blob", [
@@ -94,7 +111,9 @@ export function loadRecentWorkspaces(owner: PrincipalKey): WorkspaceSnapshot[] {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(recentKey(owner)) || "[]");
     return Array.isArray(parsed)
-      ? parsed.filter((item): item is WorkspaceSnapshot => isOwnedWorkspace(item, owner)).slice(0, 12)
+      ? parsed
+          .filter((item): item is WorkspaceSnapshot => isOwnedWorkspace(item, owner))
+          .slice(0, 12)
       : [];
   } catch {
     return [];

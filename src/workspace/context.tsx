@@ -709,7 +709,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const lease = capture();
     const now = Date.now();
     if (overlays.length)
-      await writeRecords(workspace.id, "staged", overlays.map((file) => ({ ...file, stagedAt: now })));
+      await writeRecords(
+        workspace.id,
+        "staged",
+        overlays.map((file) => ({ ...file, stagedAt: now })),
+      );
     const next = await loadStaged(workspace.id);
     assertCurrent(lease);
     setStaged(next);
@@ -868,17 +872,36 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const pending = await pendingPushIntents(workspace.id);
       assertCurrent(lease);
       if (pending.length) {
-        const remote = await getGithubBranchRef(workspace.repository.fullName, workspace.ref, token);
+        const remote = await getGithubBranchRef(
+          workspace.repository.fullName,
+          workspace.ref,
+          token,
+        );
         assertCurrent(lease);
-        const recoverable = pending.find((op) => op.state === "target-ready" && op.targetSha === remote.object.sha);
+        const recoverable = pending.find(
+          (op) => op.state === "target-ready" && op.targetSha === remote.object.sha,
+        );
         if (!recoverable) {
-          throw new Error("A previous push has an unresolved outcome. Local commits are preserved; reconcile before retrying.");
+          throw new Error(
+            "A previous push has an unresolved outcome. Local commits are preserved; reconcile before retrying.",
+          );
         }
-        const actualCommit = await getGithubCommit(workspace.repository.fullName, remote.object.sha, token);
-        const actualTree = await getGithubTree(workspace.repository.fullName, actualCommit.commit.tree.sha, token);
+        const actualCommit = await getGithubCommit(
+          workspace.repository.fullName,
+          remote.object.sha,
+          token,
+        );
+        const actualTree = await getGithubTree(
+          workspace.repository.fullName,
+          actualCommit.commit.tree.sha,
+          token,
+        );
         const recoveredSnapshot: WorkspaceSnapshot = {
-          ...workspace, baseSha: remote.object.sha,
-          treeSha: actualTree.sha, tree: actualTree.tree, updatedAt: Date.now(),
+          ...workspace,
+          baseSha: remote.object.sha,
+          treeSha: actualTree.sha,
+          tree: actualTree.tree,
+          updatedAt: Date.now(),
         };
         await finishPushAtomic(recoveredSnapshot, overlays, recoverable.id);
         assertCurrent(lease);
