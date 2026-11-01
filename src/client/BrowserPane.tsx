@@ -51,7 +51,7 @@ export function BrowserPane({
   const [loading, setLoading] = useState(false);
   const [dialog, setDialog] = useState<{ kind: string; message: string; value: string } | null>(null);
   const [fileChooser, setFileChooser] = useState<{ multiple: boolean } | null>(null);
-  const [filePaths, setFilePaths] = useState("");
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const viewportRef = useRef<HTMLButtonElement | null>(null);
@@ -109,7 +109,7 @@ export function BrowserPane({
       }
       if (parsed.type === "fileChooser") {
         setFileChooser({ multiple: parsed.multiple === true });
-        setFilePaths("");
+        setUploadError(null);
       }
       if (parsed.type === "download" && parsed.path) {
         setDownloadNotice(`Saved ${parsed.filename ?? "download"} to ${parsed.path}`);
@@ -385,33 +385,45 @@ export function BrowserPane({
         </dialog>
       ) : null}
       {fileChooser ? (
-        <form
-          className="shrink-0 border-t border-border bg-[var(--panel-bg)] p-3 text-xs"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const paths = filePaths.split(/\r?\n/).map((path) => path.trim()).filter(Boolean);
-            sendBrowserMessage({ type: "chooseFiles", paths });
-            setFileChooser(null);
-          }}
-        >
-          <label htmlFor="canvas-browser-files" className="mb-1 block">
-            Absolute local file path{fileChooser.multiple ? "s (one per line)" : ""}
+        <div className="shrink-0 border-t border-border bg-[var(--panel-bg)] p-3 text-xs">
+          <label htmlFor="canvas-browser-files" className="mb-2 block">
+            Select {fileChooser.multiple ? "local files" : "a local file"} for the Chromium page
           </label>
-          <textarea
+          <input
             id="canvas-browser-files"
-            value={filePaths}
-            onChange={(event) => setFilePaths(event.target.value)}
-            rows={fileChooser.multiple ? 3 : 1}
-            className="w-full rounded border border-border bg-[var(--input-bg)] px-2 py-1"
+            type="file"
+            multiple={fileChooser.multiple}
+            className="block w-full min-w-0 text-xs"
+            onChange={(event) => {
+              const selected = Array.from(event.currentTarget.files ?? []);
+              if (selected.length === 0) return;
+              void (async () => {
+                try {
+                  if (selected.length > 20 || selected.reduce((total, file) => total + file.size, 0) > 8_000_000) {
+                    throw new Error("Choose at most 20 files totaling 8 MB.");
+                  }
+                  const files = await Promise.all(selected.map(async (file) => ({
+                    name: file.name,
+                    mimeType: file.type || "application/octet-stream",
+                    data: await fileBase64(file),
+                  })));
+                  sendBrowserMessage({ type: "chooseFiles", files });
+                  setUploadError(null);
+                  setFileChooser(null);
+                } catch (error) {
+                  setUploadError(error instanceof Error ? error.message : String(error));
+                }
+              })();
+            }}
           />
-          <div className="mt-2 flex justify-end gap-2">
+          {uploadError ? <p role="alert" className="mt-2 text-red-400">{uploadError}</p> : null}
+          <div className="mt-2 flex justify-end">
             <button type="button" className="rounded border border-border px-3 py-1"
               onClick={() => { sendBrowserMessage({ type: "chooseFiles", paths: [] }); setFileChooser(null); }}>
               Cancel
             </button>
-            <button type="submit" className="rounded border border-border px-3 py-1">Choose files</button>
           </div>
-        </form>
+        </div>
       ) : null}
       {downloadNotice ? (
         <output className="flex shrink-0 items-center gap-2 border-t border-border px-3 py-2 text-xs">
@@ -421,6 +433,18 @@ export function BrowserPane({
       ) : null}
     </div>
   );
+}
+
+function fileBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error("Unable to read selected file"));
+    reader.onload = () => {
+      const value = String(reader.result ?? "");
+      resolve(value.slice(value.indexOf(",") + 1));
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function ToolbarButton({

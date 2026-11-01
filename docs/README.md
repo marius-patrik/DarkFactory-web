@@ -69,7 +69,7 @@ If tmux is unavailable or disabled, terminal panes fall back to direct PTYs and 
 ## Known Limitations
 
 - Browser panes stream Chromium pixels over CDP; they are not native DOM embedding.
-- Browser dialogs are surfaced in the pane; file inputs accept absolute local file paths (not an OS file picker). Completed downloads are saved under the Canvas browser profile root in a downloads directory. These remain preview-grade workflows.
+- Browser dialogs are surfaced in the pane; file inputs use the host browser's native file picker for files up to 8 MB total. Completed downloads are saved under the Canvas browser profile root in a downloads directory. These remain preview-grade workflows.
 
 ## Verify
 
@@ -94,6 +94,6 @@ The initial `v0.1.0` release workflow verifies the entire application after a me
 
 ## Canvas navigation and source control (v0.2.0)
 
-In Canvas view, drag empty background to pan, scroll to pan and hold Ctrl/Cmd while scrolling to zoom around the pointer. Use Reset view to return to origin. Pane dragging and resizing operate in world coordinates at any zoom level. The Git pane supports staging, unstaging and committing changes in local repositories. Browser JavaScript dialogs are surfaced in the pane; file choosers accept absolute local file paths, and downloads are written under `CANVAS_HOME/browser-profiles/downloads`.
+In Canvas view, drag empty background to pan, scroll to pan and hold Ctrl/Cmd while scrolling to zoom around the pointer. Use Reset view to return to origin. Pane dragging and resizing operate in world coordinates at any zoom level. The Git pane supports staging, unstaging and committing changes in local repositories. Browser JavaScript dialogs are surfaced in the pane; file choosers use the host browser's file input, and downloads are written under `CANVAS_HOME/browser-profiles/downloads`.
 
 All of these capabilities run with the current user's local privileges. Keep the server loopback-only. Git commit uses the repository's configured identity and hooks; it is not an agent-approval workflow.

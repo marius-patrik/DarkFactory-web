@@ -6,7 +6,7 @@ This release builds on the v0.1.0 source/web preview without converting the loca
 
 - Interactive Canvas viewport with panning, anchored 25%–400% zoom, world-space dragging and resizing, and reset view.
 - Local Git stage, unstage and commit actions directly from Source Control, with path validation and regression tests.
-- Browser JavaScript dialog handling, local file chooser input, and downloaded-file persistence.
+- Browser JavaScript dialog handling, native host file selection (8 MB total), and downloaded-file persistence.
 - Deterministic initial PNG capture for Chromium pages that do not repaint.
 - Debounced Canvas viewport persistence and isolated Chromium tests for reliability.
 
@@ -29,4 +29,4 @@ Open `http://127.0.0.1:4567`.
 
 ## Limitations
 
-Local-only preview; no multi-user authentication or remote deployment. File choosers require local absolute paths rather than a native file-picker dialog. No signed native installers are included. Terminal persistence requires tmux. Review the UX audit and test on your target OS before critical work.
+Local-only preview; no multi-user authentication or remote deployment. The browser pane uses the host file picker with an 8 MB upload limit. No signed native installers are included. Terminal persistence requires tmux. Review the UX audit and test on your target OS before critical work.

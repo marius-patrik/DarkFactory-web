@@ -39,7 +39,7 @@ Development is split across two watched processes:
 ## Known Gaps
 
 - Browser panes stream Chromium pixels over CDP; they are not native DOM embedding.
-- Browser file selection uses absolute local paths rather than an OS-native file picker; downloads are kept in the local profile directory.
+- Browser file selection uses a host browser file picker with an 8 MB upload limit; downloads are kept in the local profile directory.
 - Browser file chooser, download, and dialog handling is basic.
 - Production-style `bun run start` is single-process and serves `dist/web`; frontend HMR is intentionally only in `bun run dev`.
 
