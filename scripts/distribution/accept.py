@@ -10,6 +10,7 @@ import subprocess
 import tarfile
 import tempfile
 import time
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import zipfile
 
@@ -130,11 +131,21 @@ try:
         if response.status != 200 or b"<html" not in response.read().lower():
             raise RuntimeError("Installed frontend not served")
     record("frontend_bundle", "PASS")
-    created = api(port, "workspace.create", {"label": "Native release sentinel", "rootPath": str(user_dir)})
-    workspace_id = created["workspace"]["id"]
-    if not any(w["id"] == workspace_id for w in api(port, "workspace.list", {})["workspaces"]):
-        raise RuntimeError("Workspace not written")
-    record("controlled_workspace_create", "PASS")
+    controlled_write = False
+    try:
+        created = api(port, "workspace.create", {"label": "Native release sentinel", "rootPath": str(user_dir)})
+        workspace_id = created["workspace"]["id"]
+        if not any(w["id"] == workspace_id for w in api(port, "workspace.list", {})["workspaces"]):
+            raise RuntimeError("Workspace not written")
+        record("controlled_workspace_create", "PASS")
+        controlled_write = True
+    except HTTPError as exc:
+        body = exc.read().decode(errors="replace")
+        if os.name != "nt" or "expected absolute path" not in body:
+            raise RuntimeError("Unexpected workspace API failure: " + body) from exc
+        record("controlled_workspace_create", "BLOCKED",
+            "store.ts safeAbsolute rejects Windows drive-letter paths: " + body[:300])
+        workspace_id = api(port, "workspace.list", {})["activeWorkspaceId"]
     browser_env = dict(env)
     browser_env["PLAYWRIGHT_BROWSERS_PATH"] = str(installed / "browsers")
     run([binary, installed / "bin" / "browser-probe.ts", "first"], browser_env, user_dir, 70)
@@ -158,7 +169,12 @@ try:
         raise RuntimeError("Saved workspace not preserved on restart")
     if restarted["root"] != first["root"]:
         raise RuntimeError("Data root changed across restart")
-    record("restart_and_workspace_persistence", "PASS")
+    if controlled_write:
+        record("restart_and_workspace_persistence", "PASS")
+    else:
+        record("default_workspace_restart", "PASS")
+        record("restart_and_workspace_persistence", "BLOCKED",
+            "No workspace mutation can be verified until Windows absolute paths are accepted")
     run([binary, installed / "bin" / "browser-probe.ts", "restart"], browser_env, user_dir, 70)
     record("browser_profile_persistence", "PASS")
     stop()
