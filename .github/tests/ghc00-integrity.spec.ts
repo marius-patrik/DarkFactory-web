@@ -79,6 +79,9 @@ test("GHC-00 private cached workspace is not exposed to an anonymous session aft
   await page.getByTitle("Sign out").click();
   await expect(page.getByTitle("Sign in with GitHub")).toBeVisible();
   await page.reload();
+  // Synthetic private blob remains visible to the anonymous browser.
+  await openReadme(page);
+  await expect(surface(page, "main").locator(".view-lines").last()).toContainText("Private repository");
   // Anonymous users must not be automatically mounted into Account A's private workspace.
   await expect(page.locator(".workspace-repository-button")).not.toContainText(MOCK_REPOSITORY);
 });
@@ -106,6 +109,9 @@ test("GHC-00 Account B cannot inherit Account A's cached private workspace when 
   });
   await page.reload();
   await expect(page.getByTitle("Sign out")).toContainText("account-b");
+  // Account B was refused by the mock API, but the private cached blob can still render.
+  await openReadme(page);
+  await expect(surface(page, "main").locator(".view-lines").last()).toContainText("Private repository");
   // A local snapshot is NOT an authorization grant to B, even when offline.
   await expect(page.locator(".workspace-repository-button")).not.toContainText(MOCK_REPOSITORY);
 });
@@ -248,4 +254,32 @@ test("GHC-00 storage quota failures must be reported rather than acknowledged as
   await editSyntheticReadme(page, "# SYNTHETIC_QUOTA_FAILURE");
   await expect(surface(page, "main").getByText("Synthetic storage quota exceeded")).toBeVisible();
   expect((await storeRecords(page, "overlays")).filter((item) => item.path === "README.md")).toHaveLength(0);
+});
+
+test("GHC-00 moving the editor between Dockview surfaces must retain pending contents", async ({ page }) => {
+  await installAccountA(page);
+  await openSyntheticPrivateRepo(page);
+  await openReadme(page);
+  await page.evaluate(() => {
+    const original = window.setTimeout.bind(window);
+    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
+      original(handler, timeout === 250 ? 60_000 : timeout, ...args)) as typeof window.setTimeout;
+  });
+  const contents = "# SYNTHETIC_MOVE_BEFORE_SAVE";
+  await editSyntheticReadme(page, contents);
+  const from = surface(page, "main").locator(".dv-tab").filter({ hasText: "README.md" }).first();
+  const to = page.locator('[data-workbench-surface="panel"]');
+  await expect(to).toBeVisible();
+  const box = await to.boundingBox();
+  if (!box) throw new Error("No panel drag geometry");
+  await from.dragTo(to, {
+    force: true,
+    targetPosition: {
+      x: Math.max(20, Math.min(box.width - 20, box.width / 2)),
+      y: Math.max(20, Math.min(box.height - 20, box.height / 2)),
+    },
+  });
+  await expect(to.locator(".dv-tab").filter({ hasText: "README.md" }).first()).toBeVisible();
+  const overlays = await storeRecords(page, "overlays");
+  expect(overlays.find((item) => item.path === "README.md")?.content).toBe(contents);
 });
