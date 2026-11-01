@@ -188,18 +188,27 @@ test(
     );
     const messages: Array<{ type: string; message?: string }> = [];
     try {
+      console.error("DIALOG_TIMER_TRACE before stream");
       const handle = await service.stream(session, { send: (message) => { messages.push(message); } });
+      console.error("DIALOG_TIMER_TRACE stream ready");
       try {
+        console.error("DIALOG_TIMER_TRACE waiting for dialog");
         await waitFor(() => messages.some((message) => message.type === "dialog"), "browser confirmation dialog");
+        console.error("DIALOG_TIMER_TRACE dialog received");
         expect(messages.some((message) => message.message === "Proceed?")).toBe(true);
         await service.interact(session, { type: "dialogResponse", accept: true });
+        console.error("DIALOG_TIMER_TRACE accepted");
         const state = await service.stateFor(session);
+        console.error("DIALOG_TIMER_TRACE state read");
         expect(state.title).toBe("confirmed");
       } finally {
+        console.error("DIALOG_TIMER_TRACE handle closing");
         handle.close();
       }
     } finally {
+      console.error("DIALOG_TIMER_TRACE service closing");
       await service.close();
+      console.error("DIALOG_TIMER_TRACE service closed");
     }
   },
   20_000,
