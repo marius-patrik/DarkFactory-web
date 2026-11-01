@@ -56,7 +56,9 @@ jobs:
       - name: Validate static output
         run: |
           test -s dist/index.html
-          test -d dist/assets
+          test -d dist/static
+          test -d dist/static/js
+          test -d dist/static/css
           if find dist -type l | grep -q .; then
             echo '::error::Published directory contains symbolic links'
             exit 1
