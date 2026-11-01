@@ -79,6 +79,28 @@ test("A private repository is not accessible to anonymous or denied account B", 
   await setup(page, { denyB: true });
   await authenticate(page, "token-a");
   await openRepository(page);
+  await page.locator('[data-workbench-surface="primary"] .dv-tab')
+    .filter({ hasText: "Explorer" }).click();
+  await page.locator('[data-workbench-surface="primary"]').getByTitle("README.md").click();
+  await expect.poll(async () => page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("darkfactory-workbench", 2);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    return await new Promise<boolean>((resolve, reject) => {
+      const tx = database.transaction("blobs", "readonly");
+      const request = tx.objectStore("blobs").getAll();
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        resolve(request.result.some((record) =>
+          record.content === "# Private repository\\n" &&
+          record.workspaceId.includes(encodeURIComponent("gh:github.com:1001")),
+        ));
+        database.close();
+      };
+    });
+  })).toBe(true);
   await page.getByTitle("Sign out").click();
   await expect(page.locator(".workspace-repository-button")).toContainText("Open Repository");
   await expect(page.getByTitle("Sign in with GitHub")).toBeVisible();
