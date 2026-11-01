@@ -191,10 +191,11 @@ test(
       const handle = await service.stream(session, { send: (message) => { messages.push(message); } });
       try {
         await service.interact(session, { type: "mouse", event: "down", x: 40, y: 35, button: "left" });
-        await service.interact(session, { type: "mouse", event: "up", x: 40, y: 35, button: "left" });
+        const click = service.interact(session, { type: "mouse", event: "up", x: 40, y: 35, button: "left" });
         await waitFor(() => messages.some((message) => message.type === "dialog"), "browser confirmation dialog");
         expect(messages.some((message) => message.message === "Proceed?")).toBe(true);
         await service.interact(session, { type: "dialogResponse", accept: true });
+        await click;
       } finally {
         handle.close();
       }

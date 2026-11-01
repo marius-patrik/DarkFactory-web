@@ -159,6 +159,14 @@ export class BrowserFrameService {
     return {
       close: () => {
         live.subscribers.delete(subscriberId);
+        if (live.subscribers.size === 0) {
+          const dialog = live.pendingDialog;
+          live.pendingDialog = null;
+          if (dialog) void dialog.dismiss().catch(() => undefined);
+          const chooser = live.pendingFileChooser;
+          live.pendingFileChooser = null;
+          if (chooser) void chooser.setFiles([]).catch(() => undefined);
+        }
         if (live.persistSubscriberId === subscriberId) {
           live.persistSubscriberId = null;
           for (const [id, candidate] of live.subscribers) {
@@ -222,16 +230,18 @@ export class BrowserFrameService {
       if (dialog) {
         if (message.accept) await dialog.accept(message.promptText);
         else await dialog.dismiss();
+        await this.updateTitle(live);
+        await this.broadcastState(live);
       }
       return;
     }
     if (message.type === "chooseFiles") {
-      const chooser = live.pendingFileChooser;
-      live.pendingFileChooser = null;
       if (message.paths.length > 20 ||
         message.paths.some((path) => !isAbsolute(path) || path.includes(String.fromCharCode(0)))) {
         throw new Error("file chooser accepts up to 20 absolute local file paths");
       }
+      const chooser = live.pendingFileChooser;
+      live.pendingFileChooser = null;
       if (chooser) await chooser.setFiles(message.paths);
       return;
     }
@@ -268,6 +278,8 @@ export class BrowserFrameService {
       await this.dispatchPaste(live, message.text);
     }
 
+    // Reading the page title while a JavaScript dialog is open can block indefinitely.
+    if (live.pendingDialog) return;
     await live.page.waitForLoadState("domcontentloaded", { timeout: 1_000 }).catch(() => undefined);
     await this.updateTitle(live);
     await this.broadcastState(live);
