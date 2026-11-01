@@ -905,22 +905,26 @@ export function finishPushAtomic(
   });
 }
 
-
 /** Only genuine unattributed v2 workspaces are proposed for manual attribution. */
 export async function listUnattributedWorkspaces(): Promise<WorkspaceSnapshot[]> {
   const legacy = await listLegacyQuarantine();
-  return legacy.filter((record) => record.source === "idb:workspaces")
+  return legacy
+    .filter((record) => record.source === "idb:workspaces")
     .map((record) => record.value)
     .filter((value): value is WorkspaceSnapshot => {
       if (!value || typeof value !== "object") return false;
       const candidate = value as Partial<WorkspaceSnapshot>;
-      return candidate.version === 2 && !candidate.ownership &&
+      return (
+        candidate.version === 2 &&
+        !candidate.ownership &&
         typeof candidate.id === "string" &&
         typeof candidate.repository?.id === "number" &&
         typeof candidate.repository?.fullName === "string" &&
         typeof candidate.baseSha === "string" &&
         typeof candidate.treeSha === "string" &&
-        Array.isArray(candidate.tree) && typeof candidate.ref === "string";
+        Array.isArray(candidate.tree) &&
+        typeof candidate.ref === "string"
+      );
     });
 }
 
@@ -929,74 +933,127 @@ export async function listUnattributedWorkspaces(): Promise<WorkspaceSnapshot[]>
  * remotely authorized the target repository session. No name-only auto-attribution.
  */
 export async function attributeUnattributedV2(
-  legacyId: string, target: WorkspaceSnapshot, confirmed: boolean,
+  legacyId: string,
+  target: WorkspaceSnapshot,
+  confirmed: boolean,
 ): Promise<WorkspaceSnapshot> {
   if (!confirmed) throw new Error("Explicit legacy ownership confirmation required.");
   validateSession(target);
   const source = await dbOperation((db) => get<WorkspaceSnapshot>(db, "workspaces", legacyId));
-  if (!source || source.ownership || source.version !== 2 ||
-      !Array.isArray(source.tree) || !source.repository ||
-      source.repository.id !== target.repository.id || source.ref !== target.ref)
+  if (
+    !source ||
+    source.ownership ||
+    source.version !== 2 ||
+    !Array.isArray(source.tree) ||
+    !source.repository ||
+    source.repository.id !== target.repository.id ||
+    source.ref !== target.ref
+  )
     throw new StorageConflictError("Legacy state does not match the verified repository and ref.");
-  const rows = await dbOperation(async (db) => Promise.all(
-    (["blobs", "overlays", "staged", "committed", "commits"] as const).map(async (name) => ({
-      name,
-      values: (await all<{workspaceId?: string;key?: string;path?: string;sha?: string;id?: string}>(db, name))
-        .filter((record) => record.workspaceId === legacyId),
-    })),
-  ));
+  const rows = await dbOperation(async (db) =>
+    Promise.all(
+      (["blobs", "overlays", "staged", "committed", "commits"] as const).map(async (name) => ({
+        name,
+        values: (
+          await all<{
+            workspaceId?: string;
+            key?: string;
+            path?: string;
+            sha?: string;
+            id?: string;
+          }>(db, name)
+        ).filter((record) => record.workspaceId === legacyId),
+      })),
+    ),
+  );
   const snapshot: WorkspaceSnapshot = {
-    ...target, baseSha: source.baseSha, treeSha: source.treeSha,
-    tree: structuredClone(source.tree), updatedAt: Date.now(),
+    ...target,
+    baseSha: source.baseSha,
+    treeSha: source.treeSha,
+    tree: structuredClone(source.tree),
+    updatedAt: Date.now(),
   };
   return mutate<WorkspaceSnapshot>(target.id, (tx, session, done, fail) => {
-    if (session.principalKey !== target.ownership.principalKey ||
-        session.snapshot.repository.id !== source.repository.id ||
-        session.snapshot.ref !== source.ref) {
-      fail(new StorageConflictError("Target ownership was invalidated.")); return;
+    if (
+      session.principalKey !== target.ownership.principalKey ||
+      session.snapshot.repository.id !== source.repository.id ||
+      session.snapshot.ref !== source.ref
+    ) {
+      fail(new StorageConflictError("Target ownership was invalidated."));
+      return;
     }
     const records = tx.objectStore("v3_records");
     const lookup = records.index("byPrincipal").getAll(session.principalKey);
     lookup.onsuccess = () => {
       if ((lookup.result as PersistedRecord[]).some((row) => row.sessionId === target.id)) {
-        fail(new StorageConflictError("Target has existing local state; export it before importing."));
+        fail(
+          new StorageConflictError("Target has existing local state; export it before importing."),
+        );
         return;
       }
       const manifest = tx.objectStore("v3_manifests");
       const key = "explicit-adoption:" + JSON.stringify([legacyId, target.id]);
       const check = manifest.get(key);
       check.onsuccess = () => {
-        if (check.result) { fail(new StorageConflictError("Legacy data was already attributed.")); return; }
+        if (check.result) {
+          fail(new StorageConflictError("Legacy data was already attributed."));
+          return;
+        }
         try {
-          for (const group of rows) for (const oldRow of group.values) {
-            const kind: RecordKind = group.name === "blobs" ? "blob" :
-              group.name === "commits" ? "commit" : group.name === "overlays" ? "overlay" :
-              group.name === "staged" ? "staged" : "committed";
-            const value = structuredClone(oldRow) as Record<string, unknown>;
-            value.workspaceId = target.id;
-            if (kind !== "commit") value.key = target.id + ":" + String(kind === "blob" ? oldRow.sha : oldRow.path);
-            if (kind === "commit") {
-              value.id = target.id + ":local:" + String(value.createdAt) + ":" + crypto.randomUUID();
-              value.files = (Array.isArray(value.files) ? value.files : []).map((file) => ({
-                ...file, workspaceId: target.id, key: target.id + ":" + String(file.path),
-              }));
+          for (const group of rows)
+            for (const oldRow of group.values) {
+              const kind: RecordKind =
+                group.name === "blobs"
+                  ? "blob"
+                  : group.name === "commits"
+                    ? "commit"
+                    : group.name === "overlays"
+                      ? "overlay"
+                      : group.name === "staged"
+                        ? "staged"
+                        : "committed";
+              const value = structuredClone(oldRow) as Record<string, unknown>;
+              value.workspaceId = target.id;
+              if (kind !== "commit")
+                value.key = target.id + ":" + String(kind === "blob" ? oldRow.sha : oldRow.path);
+              if (kind === "commit") {
+                value.id =
+                  target.id + ":local:" + String(value.createdAt) + ":" + crypto.randomUUID();
+                value.files = (Array.isArray(value.files) ? value.files : []).map((file) => ({
+                  ...file,
+                  workspaceId: target.id,
+                  key: target.id + ":" + String(file.path),
+                }));
+              }
+              const name =
+                kind === "commit"
+                  ? String(value.id)
+                  : kind === "blob"
+                    ? String(oldRow.sha)
+                    : String(oldRow.path);
+              const revisionId = kind === "staged" ? crypto.randomUUID() : undefined;
+              putRecord(tx, session, kind, name, value, revisionId, crypto.randomUUID());
+              if (revisionId)
+                tx.objectStore("v3_revisions").add({
+                  id: revisionId,
+                  sessionId: target.id,
+                  principalKey: session.principalKey,
+                  kind,
+                  value: structuredClone(value),
+                });
             }
-            const name = kind === "commit" ? String(value.id) :
-              kind === "blob" ? String(oldRow.sha) : String(oldRow.path);
-            const revisionId = kind === "staged" ? crypto.randomUUID() : undefined;
-            putRecord(tx, session, kind, name, value, revisionId, crypto.randomUUID());
-            if (revisionId) tx.objectStore("v3_revisions").add({
-              id: revisionId, sessionId: target.id,
-              principalKey: session.principalKey, kind, value: structuredClone(value),
-            });
-          }
           manifest.add({
-            id: key, state: "complete", source: legacyId,
-            principalKey: session.principalKey, destination: target.id,
+            id: key,
+            state: "complete",
+            source: legacyId,
+            principalKey: session.principalKey,
+            destination: target.id,
             counts: rows.map((group) => [group.name, group.values.length]),
           });
           done({ session: { ...session, snapshot }, value: snapshot });
-        } catch (reason) { fail(reason); }
+        } catch (reason) {
+          fail(reason);
+        }
       };
     };
   });
