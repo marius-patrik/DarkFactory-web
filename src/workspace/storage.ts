@@ -13,10 +13,13 @@ const VERSION = 2;
 const OWNED_RECENT_PREFIX = "ghcode-recent-owned-v1:";
 
 function requireOwned(id: string) {
-  if (!isOwnedWorkspaceId(id)) throw new Error("Legacy v2 cache is quarantined until explicit migration.");
+  if (!isOwnedWorkspaceId(id))
+    throw new Error("Legacy v2 cache is quarantined until explicit migration.");
 }
 
-function recentKey(owner: PrincipalKey) { return `${OWNED_RECENT_PREFIX}${encodeURIComponent(owner)}`; }
+function recentKey(owner: PrincipalKey) {
+  return `${OWNED_RECENT_PREFIX}${encodeURIComponent(owner)}`;
+}
 
 type BlobRecord = {
   key: string;
@@ -220,7 +223,9 @@ export function loadRecentWorkspaces(owner: PrincipalKey): WorkspaceSnapshot[] {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(recentKey(owner)) || "[]");
     return Array.isArray(parsed)
-      ? parsed.filter((item): item is WorkspaceSnapshot => isOwnedWorkspace(item, owner)).slice(0, 12)
+      ? parsed
+          .filter((item): item is WorkspaceSnapshot => isOwnedWorkspace(item, owner))
+          .slice(0, 12)
       : [];
   } catch {
     return [];
