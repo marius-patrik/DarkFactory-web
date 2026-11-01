@@ -135,7 +135,9 @@ try:
     if not any(w["id"] == workspace_id for w in api(port, "workspace.list", {})["workspaces"]):
         raise RuntimeError("Workspace not written")
     record("controlled_workspace_create", "PASS")
-    run([binary, installed / "bin" / "browser-probe.ts", "first"], env, user_dir, 70)
+    browser_env = dict(env)
+    browser_env["PLAYWRIGHT_BROWSERS_PATH"] = str(installed / "browsers")
+    run([binary, installed / "bin" / "browser-probe.ts", "first"], browser_env, user_dir, 70)
     record("bundled_chromium_and_first_browser_profile", "PASS")
     if os.name == "nt":
         record("terminal_pty", "BLOCKED", "Existing terminal implementation launches /bin/bash on Windows")
@@ -157,7 +159,7 @@ try:
     if restarted["root"] != first["root"]:
         raise RuntimeError("Data root changed across restart")
     record("restart_and_workspace_persistence", "PASS")
-    run([binary, installed / "bin" / "browser-probe.ts", "restart"], env, user_dir, 70)
+    run([binary, installed / "bin" / "browser-probe.ts", "restart"], browser_env, user_dir, 70)
     record("browser_profile_persistence", "PASS")
     stop()
     record("shutdown_and_port_reuse", "PASS" if os.name != "nt" else "BLOCKED",
