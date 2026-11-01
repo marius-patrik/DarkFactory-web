@@ -21,7 +21,7 @@ jobs:
         run: |
           git config user.name "ghcode-format-bot"
           git config user.email "69584331+marius-patrik@users.noreply.github.com"
-          git add -- src/workspace/storage.ts src/workspace/storage-v3.ts src/workspace/context.tsx
+          git add -- src/workspace/storage.ts src/workspace/storage-v3.ts src/workspace/context.tsx src/workspace/repository-dialog.tsx
           if ! git diff --cached --quiet; then
             git commit -m "style(storage): apply canonical Biome formatting"
             git push origin HEAD:refs/heads/agent/ghc-02-transactional-v3
