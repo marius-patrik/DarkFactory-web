@@ -13,6 +13,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.11
+      - name: Verify pinned DarkFactory installation receipt
+        run: python3 .github/scripts/verify-managed-installation.py
       - run: bun install --frozen-lockfile
       - run: bun run verify
       - name: Preserve visual smoke evidence
