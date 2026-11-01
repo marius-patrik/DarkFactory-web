@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -30,7 +31,6 @@ import { clearGithubToken, getGithubToken, setGithubToken } from "@/github/auth"
 import {
   parseRepositoryInput,
   repositoryFromGithub,
-  workspaceId,
   type CommittedFile,
   type LocalCommit,
   type StagedFile,
@@ -38,6 +38,18 @@ import {
   type WorkingFile,
   type WorkingFileStatus,
 } from "./model";
+import {
+  anonymousPrincipal,
+  canonicalGitRef,
+  createOwnedWorkspaceIdentity,
+  githubPrincipal,
+  isOwnedWorkspace,
+  ownedWorkspaceId,
+  repositoryIdentity,
+  sameOwnership,
+  type OwnershipGeneration,
+  type Principal,
+} from "./identity";
 import {
   clearLocalGitState,
   clearStaged,
@@ -71,6 +83,9 @@ export type PatchExportScope = "all" | "working" | "staged" | "commits" | "commi
 type WorkspaceContextValue = {
   token: string | null;
   user: GithubUser | null;
+  principal: Principal;
+  authPhase: "signed-out" | "anonymous" | "resolving" | "authenticated" | "failed" | "invalidated";
+  ownershipGeneration: number;
   repositories: GithubRepository[];
   workspace: WorkspaceSnapshot | null;
   refs: Awaited<ReturnType<typeof listGithubRefs>>;
@@ -133,7 +148,15 @@ function asWorkingFile(file: StagedFile): WorkingFile {
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => getGithubToken());
+  const [anonymous] = useState(anonymousPrincipal);
+  const [principal, setPrincipal] = useState<Principal>(anonymous);
+  const [authPhase, setAuthPhase] = useState<WorkspaceContextValue["authPhase"]>(
+    () => getGithubToken() ? "resolving" : "anonymous",
+  );
+  const [ownershipGeneration, setOwnershipGeneration] = useState(0);
+  const authority = useRef<OwnershipGeneration>({ principalKey: anonymous.key, generation: 0 });
+  const channel = useRef<BroadcastChannel | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<GithubUser | null>(null);
   const [repositories, setRepositories] = useState<GithubRepository[]>([]);
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
@@ -142,132 +165,152 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [staged, setStaged] = useState<StagedFile[]>([]);
   const [committedFiles, setCommittedFiles] = useState<CommittedFile[]>([]);
   const [commits, setCommits] = useState<LocalCommit[]>([]);
-  const [recent, setRecent] = useState<WorkspaceSnapshot[]>(() => loadRecentWorkspaces());
+  const [recent, setRecent] = useState<WorkspaceSnapshot[]>(() => loadRecentWorkspaces(anonymous.key));
   const [remoteHeadSha, setRemoteHeadSha] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const loadLocalState = useCallback(async (id: string) => {
+  const capture = useCallback((): OwnershipGeneration => ({ ...authority.current }), []);
+  const isCurrent = useCallback((lease: OwnershipGeneration) => sameOwnership(authority.current, lease), []);
+  const assertCurrent = useCallback((lease: OwnershipGeneration) => {
+    if (!sameOwnership(authority.current, lease))
+      throw new Error("Repository session invalidated by an identity transition.");
+  }, []);
+  const transition = useCallback((next: Principal, phase: WorkspaceContextValue["authPhase"]) => {
+    const generation = authority.current.generation + 1;
+    authority.current = { principalKey: next.key, generation };
+    setOwnershipGeneration(generation);
+    setPrincipal(next);
+    setAuthPhase(phase);
+    setToken(null);
+    setUser(null);
+    setRepositories([]);
+    setWorkspace(null);
+    setRefs([]);
+    setOverlays([]);
+    setStaged([]);
+    setCommittedFiles([]);
+    setCommits([]);
+    setRemoteHeadSha(null);
+    setRecent(phase === "resolving" ? [] : loadRecentWorkspaces(next.key));
+    setError(null);
+    setLoading(false);
+    return { ...authority.current };
+  }, []);
+
+  const loadLocalState = useCallback(async (id: string, lease: OwnershipGeneration) => {
+    assertCurrent(lease);
     const [nextOverlays, nextStaged, nextCommitted, nextCommits] = await Promise.all([
       loadOverlays(id),
       loadStaged(id),
       loadCommittedFiles(id),
       loadLocalCommits(id),
     ]);
+    assertCurrent(lease);
     setOverlays(nextOverlays);
     setStaged(nextStaged);
     setCommittedFiles(nextCommitted);
     setCommits(nextCommits);
     return {
-      overlays: nextOverlays,
-      staged: nextStaged,
-      committedFiles: nextCommitted,
-      commits: nextCommits,
+      overlays: nextOverlays, staged: nextStaged,
+      committedFiles: nextCommitted, commits: nextCommits,
     };
-  }, []);
-
-  useEffect(() => {
-    let disposed = false;
-    if (!token) {
-      setUser(null);
-      setRepositories([]);
-      return;
-    }
-    void Promise.all([getGithubUser(token), listGithubRepositories(token)])
-      .then(([nextUser, nextRepositories]) => {
-        if (disposed) return;
-        setUser(nextUser);
-        setRepositories(nextRepositories);
-      })
-      .catch((reason) => {
-        if (disposed) return;
-        setError(reason instanceof Error ? reason.message : String(reason));
-      });
-    return () => {
-      disposed = true;
-    };
-  }, [token]);
-
-  useEffect(() => {
-    const latest = recent[0];
-    if (!latest || workspace) return;
-    let disposed = false;
-    void loadWorkspace(latest.id).then(async (cached) => {
-      if (!cached || disposed) return;
-      setWorkspace(cached);
-      setRemoteHeadSha(cached.baseSha);
-      await loadLocalState(cached.id);
-      try {
-        const [nextRefs, remoteCommit] = await Promise.all([
-          listGithubRefs(cached.repository.fullName, token),
-          getGithubCommit(cached.repository.fullName, cached.ref, token),
-        ]);
-        if (disposed) return;
-        setRefs(nextRefs);
-        setRemoteHeadSha(remoteCommit.sha);
-      } catch {
-        if (!disposed) setRefs([]);
-      }
-    });
-    return () => {
-      disposed = true;
-    };
-  }, [loadLocalState, recent, token, workspace]);
+  }, [assertCurrent]);
 
   const connectToken = useCallback(async (candidate: string) => {
     const value = candidate.trim();
     if (!value) throw new Error("GitHub token cannot be empty.");
+    const lease = transition(anonymous, "resolving");
     setLoading(true);
-    setError(null);
     try {
-      const [nextUser, nextRepositories] = await Promise.all([
-        getGithubUser(value),
-        listGithubRepositories(value),
-      ]);
+      // /user is authoritative. A token and mutable login never establish a principal.
+      const nextUser = await getGithubUser(value);
+      assertCurrent(lease);
+      const nextRepositories = await listGithubRepositories(value);
+      assertCurrent(lease);
+      const verified = githubPrincipal(nextUser.id);
       setGithubToken(value);
+      transition(verified, "authenticated");
       setToken(value);
       setUser(nextUser);
       setRepositories(nextRepositories);
+      setRecent(loadRecentWorkspaces(verified.key));
+      channel.current?.postMessage({ type: "invalidate" });
     } catch (reason) {
-      clearGithubToken();
-      setToken(null);
-      setUser(null);
-      setRepositories([]);
+      if (isCurrent(lease)) {
+        clearGithubToken();
+        transition(anonymous, "failed");
+        setError(reason instanceof Error ? reason.message : String(reason));
+      }
       throw reason;
     } finally {
-      setLoading(false);
+      if (isCurrent(lease)) setLoading(false);
     }
-  }, []);
+  }, [anonymous, assertCurrent, isCurrent, transition]);
 
   const signOut = useCallback(() => {
     clearGithubToken();
-    setToken(null);
-    setUser(null);
-    setRepositories([]);
-  }, []);
+    transition(anonymous, "anonymous");
+    channel.current?.postMessage({ type: "invalidate" });
+  }, [anonymous, transition]);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const next = new BroadcastChannel("ghcode-identity-invalidation-v1");
+    next.onmessage = (event: MessageEvent) => {
+      if (event.data?.type !== "invalidate") return;
+      clearGithubToken();
+      transition(anonymous, "invalidated");
+      setError("Account changed in another tab. Sign in again to access private repositories.");
+    };
+    channel.current = next;
+    return () => {
+      if (channel.current === next) channel.current = null;
+      next.close();
+    };
+  }, [anonymous, transition]);
+
+  useEffect(() => {
+    const existing = getGithubToken();
+    if (existing) {
+      void connectToken(existing).catch(() => {});
+    }
+    // The stored token is an unverified credential; never restore private content on mount.
+  }, [connectToken]);
 
   const openRepository = useCallback(
     async (input: string, requestedRef?: string) => {
+      if (authPhase === "resolving" || authPhase === "failed" || authPhase === "invalidated")
+        throw new Error("Resolve your GitHub identity or continue anonymously before opening a repository.");
+      const lease = capture();
+      const fullName = parseRepositoryInput(input);
       setLoading(true);
       setError(null);
-      const fullName = parseRepositoryInput(input);
       try {
+        // Remote authorization MUST precede any local storage lookup.
         const repository = await getGithubRepository(fullName, token);
+        assertCurrent(lease);
+        if (!token && repository.private) throw new Error("Sign in to open a private repository.");
+        const repositoryKey = repositoryIdentity(repository);
         const ref = requestedRef || repository.default_branch;
-        const id = workspaceId(repository.full_name, ref);
-        const cached = await loadWorkspace(id);
+        const nextRefs = await listGithubRefs(repository.full_name, token).catch(() => []);
+        assertCurrent(lease);
+        const fullRef = canonicalGitRef(ref, nextRefs);
+        const matching = recent.find((item) =>
+          isOwnedWorkspace(item, lease.principalKey, repositoryKey, fullRef),
+        );
+        const cached = matching ? await loadWorkspace(matching.id, lease.principalKey) : undefined;
+        assertCurrent(lease);
         const remoteCommit = await getGithubCommit(repository.full_name, ref, token);
+        assertCurrent(lease);
+        const id = cached?.id ?? ownedWorkspaceId(createOwnedWorkspaceIdentity(principal, repositoryKey, fullRef));
         const localState: [WorkingFile[], StagedFile[], CommittedFile[], LocalCommit[]] = cached
           ? await Promise.all([
-              loadOverlays(id),
-              loadStaged(id),
-              loadCommittedFiles(id),
-              loadLocalCommits(id),
-            ])
-          : [[], [], [], []];
+              loadOverlays(id), loadStaged(id), loadCommittedFiles(id), loadLocalCommits(id),
+            ]) : [[], [], [], []];
+        assertCurrent(lease);
         const hasLocalState = localState.some((items) => items.length > 0);
-
         if (cached && hasLocalState && cached.baseSha !== remoteCommit.sha) {
           setWorkspace(cached);
           setOverlays(localState[0]);
@@ -276,52 +319,42 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           setCommits(localState[3]);
           setRemoteHeadSha(remoteCommit.sha);
           setRecent(rememberWorkspace(cached));
-          setRefs(await listGithubRefs(repository.full_name, token).catch(() => []));
-          setError(
-            "Remote ref changed. Local work remains pinned to its original base until you sync explicitly.",
-          );
+          setRefs(nextRefs);
+          setError("Remote ref changed. Local work is pinned to its original base until sync.");
           setDialogOpen(false);
           return;
         }
-
         const tree = await getGithubTree(repository.full_name, remoteCommit.commit.tree.sha, token);
+        assertCurrent(lease);
+        const ownership = cached?.ownership ?? createOwnedWorkspaceIdentity(principal, repositoryKey, fullRef);
         const snapshot: WorkspaceSnapshot = {
           version: 2,
-          id,
+          id: cached?.id ?? ownedWorkspaceId(ownership),
+          ownership,
           repository: repositoryFromGithub(repository),
-          ref,
-          baseSha: remoteCommit.sha,
-          treeSha: tree.sha,
-          tree: tree.tree,
+          ref, baseSha: remoteCommit.sha, treeSha: tree.sha, tree: tree.tree,
           updatedAt: Date.now(),
         };
+        // Writes use only newly attributed v2 keys. Old anonymous records remain untouched.
         await saveWorkspace(snapshot);
+        assertCurrent(lease);
         setWorkspace(snapshot);
         setRemoteHeadSha(remoteCommit.sha);
-        await loadLocalState(snapshot.id);
+        await loadLocalState(snapshot.id, lease);
+        assertCurrent(lease);
         setRecent(rememberWorkspace(snapshot));
-        setRefs(await listGithubRefs(repository.full_name, token).catch(() => []));
+        setRefs(nextRefs);
         setDialogOpen(false);
       } catch (reason) {
-        const matching = recent.find(
-          (item) =>
-            item.repository.fullName === fullName && (!requestedRef || item.ref === requestedRef),
-        );
-        const cached = matching ? await loadWorkspace(matching.id) : undefined;
-        if (cached) {
-          setWorkspace(cached);
-          setRemoteHeadSha(cached.baseSha);
-          await loadLocalState(cached.id);
-          setError("GitHub is unavailable; using the cached workspace snapshot.");
-          setDialogOpen(false);
-        } else {
-          throw reason;
-        }
+        if (!isCurrent(lease)) throw new Error("Repository session invalidated.");
+        setError(reason instanceof Error ? reason.message : String(reason));
+        // No 401/403/404 fallback. A failed remote request does not authorize cached content.
+        throw reason;
       } finally {
-        setLoading(false);
+        if (isCurrent(lease)) setLoading(false);
       }
     },
-    [loadLocalState, recent, token],
+    [authPhase, capture, assertCurrent, isCurrent, loadLocalState, principal, recent, token],
   );
 
   const switchRef = useCallback(
