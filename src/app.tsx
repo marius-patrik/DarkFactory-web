@@ -1,16 +1,23 @@
 import { GithubAuthController } from "./github/auth-controller";
 import { FactoryProvider } from "./factory/context";
 import { RepositoryDialog } from "./workspace/repository-dialog";
-import { WorkspaceProvider } from "./workspace/context";
+import { WorkspaceProvider, useWorkspace } from "./workspace/context";
 import { WorkbenchShell } from "./workbench/shell";
+
+function IdentityBoundWorkbench() {
+  const { principal, ownershipGeneration } = useWorkspace();
+  return (
+    <FactoryProvider key={`${principal.key}:${ownershipGeneration}`}>
+      <WorkbenchShell />
+    </FactoryProvider>
+  );
+}
 
 export function WorkbenchApp() {
   return (
     <WorkspaceProvider>
       <GithubAuthController />
-      <FactoryProvider>
-        <WorkbenchShell />
-      </FactoryProvider>
+      <IdentityBoundWorkbench />
       <RepositoryDialog />
     </WorkspaceProvider>
   );
