@@ -13,6 +13,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "migrate" / "manifest.json"
 ALLOWED_NEW_PREFIXES = ("migrate/", "docs/migrations/")
+EXPECTED_BUNFIG = """# Source reconciliation adds inert nested applications under migrate/.
+# Preserve root Bun test discovery without executing their independent suites.
+[test]
+pathIgnorePatterns = ["migrate/**"]
+"""
 MIN_FILES = {"rscode": 50, "ghcode": 90, "canvas": 45}
 
 
@@ -39,8 +44,10 @@ def main() -> int:
             "first parent is unchanged main, additional parent is history checkpoint", errors)
 
     changes = git("diff", "--name-only", root_baseline, "HEAD").stdout.splitlines()
-    require(bool(changes) and all(p.startswith(ALLOWED_NEW_PREFIXES) for p in changes),
+    require(bool(changes) and all(p.startswith(ALLOWED_NEW_PREFIXES) or p == "bunfig.toml" for p in changes),
             "source-only diff; no active src/, root config or root workflows modified", errors)
+    require((ROOT / "bunfig.toml").read_text(encoding="utf-8") == EXPECTED_BUNFIG,
+            "only permitted root config change isolates migrated tests", errors)
     require(not any(p.startswith(".github/workflows/") for p in changes),
             "no active top-level Actions workflow changed", errors)
 

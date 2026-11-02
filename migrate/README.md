@@ -2,7 +2,7 @@
 
 **Scope:** source reference preservation only. This is **not** a completed application integration, executable release, or security acceptance.
 
-The canonical root `src/`, `package.json`, `bun.lock`, runtime and GitHub workflows are retained from DarkFactory-web `main@39341ce5f8459b834c8e20b5227c25980078a87e`. The source-only merge commit has the history checkpoint `53a2e71f1771179139724dadde6f675fea0713b8` as a second parent; historical original Git SHAs remain exact, but historical reachability is **not** functional acceptance.
+The canonical root `src/`, `package.json`, `bun.lock`, runtime and existing GitHub workflows are retained from DarkFactory-web `main@39341ce5f8459b834c8e20b5227c25980078a87e`. The single intentional root addition is `bunfig.toml`, excluding `migrate/**` from **root-only** Bun test autodiscovery: otherwise `bun test` erroneously runs historical GHCode and nested RSCode suites with wrong dependencies and mismatched dev-server origins (first exact-head Verify run 41509068173 failed). This configuration does not disable any existing root `src` tests. The source-only merge commit has the history checkpoint `53a2e71f1771179139724dadde6f675fea0713b8` as a second parent; historical original Git SHAs remain exact, but historical reachability is **not** functional acceptance.
 
 ## Layout
 
@@ -10,7 +10,7 @@ The canonical root `src/`, `package.json`, `bun.lock`, runtime and GitHub workfl
 - `ghcode/`: original full `development@7801784` source with GHC-01 identity isolation; `evidence/ghc00-historical-tests/` holds the separate original regression suite. **GHC-02 unsafe v3 is explicitly excluded; GHC-03 durability is not implemented.** Historical rejected source is still reachable in the retained Git DAG.
 - `canvas/`: source and app-specific tests from Canvas PR #41. The original relative structure `.github/app/` and `.github/tests/` is deliberately retained so the generator/test harness resolves source paths. `.agents/` and `repo.dfconfig` are **reference content fixtures**, not active governance for DarkFactory-web. No Canvas workflow or site publishing is imported.
 
-GitHub Actions only discovers workflow files from the repository's top-level `.github/workflows/`. The nested historical workflows within `migrate/rscode/` and `migrate/ghcode/` cannot be selected as root workflows. No migration source is imported from the active root runtime.
+GitHub Actions only discovers workflow files from the repository's top-level `.github/workflows/`. The nested historical workflows within `migrate/rscode/` and `migrate/ghcode/` cannot be selected as root workflows. GHCode's historical `.darkfactory` gitlink and `.gitmodules` are retained only in the original immutable Git DAG, not copied as an unresolvable nested submodule. No migration source is imported from the active root runtime.
 
 ## Reproducible review commands
 

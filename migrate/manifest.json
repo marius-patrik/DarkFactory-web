@@ -8,7 +8,7 @@
   "rootBaseline": {
     "commit": "39341ce5f8459b834c8e20b5227c25980078a87e",
     "tree": "8ab3458d865cfb6813a4a95ba1615f6cf968865b",
-    "policy": "Unchanged root source/config/workflows on proposed merge"
+    "policy": "Root runtime, src, package/lock, scripts and workflows unchanged. Explicit new bunfig.toml config excludes migrate/** only from bare root Bun test discovery."
   },
   "historyOnlyMergeParent": "53a2e71f1771179139724dadde6f675fea0713b8",
   "sourceSnapshots": {
@@ -47,7 +47,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "68b18a1702080197496598dd49b63bb524650639",
+      "snapshotTreeSHA": "3a858527d247f15924fd22e471abf5fe0edf54bc",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -62,7 +62,7 @@
         "GHC-03 durable DocumentService and guarded tab/workspace lifecycle not implemented",
         "GHCode v3 principal-bound storage and push-queue repairs not implemented",
         "GHC-00 behavioral acceptance tests not reconciled to new source",
-        "original .darkfactory submodule gitlink remains historical and is not fetched as migration dependency"
+        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source-only snapshot (still in original Git DAG), to make checkout self-contained"
       ],
       "license": "GPL-3.0",
       "testCommands": [
@@ -649,11 +649,12 @@
     "currentWave": {
       "gitObjectPresence": "PARTIAL_API_VERIFIED",
       "gitBundleRestoration": "NOT_RUN_NETWORK_ISOLATED",
-      "rootFullBun": "NOT_RUN_BUN_UNAVAILABLE",
+      "rootFullBun": "INITIAL_FAIL_DUE_NESTED_DISCOVERY_REPAIR_IN_PROGRESS",
       "chromium": "NOT_RUN",
       "Windows": "NOT_RUN",
       "canvasBrowser": "NOT_RUN",
-      "ghcodeBrowser": "NOT_RUN"
+      "ghcodeBrowser": "NOT_RUN",
+      "sourceIsolationCI": "Initial Verify run 41509068173 FAIL because bare bun test discovered nested suites, including cross-source dev server; fixed by explicit Bun pathIgnorePatterns to be verified at next exact-head CI"
     },
     "priorExternalEvidence": [
       {
@@ -680,5 +681,5 @@
     }
   },
   "distributionGate": "BLOCKED_T014_GPL_AND_SBOM",
-  "sourceIsolation": "Snapshots are nested under migrate and not imported by root application or GitHub workflow discovery"
+  "sourceIsolation": "Nested snapshots are inert; an explicit root bunfig.toml test-only ignore prevents bare bun test from auto-running their tests."
 }
