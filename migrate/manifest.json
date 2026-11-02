@@ -655,7 +655,11 @@
       "canvasBrowser": "NOT_RUN",
       "ghcodeBrowser": "NOT_RUN",
       "sourceIsolationCI": "Initial Verify run 41509068173 FAIL because bare bun test discovered nested suites, including cross-source dev server; fixed by explicit Bun pathIgnorePatterns to be verified at next exact-head CI",
-      "sourceTrackCI": "PENDING dedicated PR-only source verification workflow; never treat as PASS until exact-head results"
+      "sourceTrackCI": "PENDING dedicated PR-only source verification workflow; never treat as PASS until exact-head results",
+      "historyAndIsolation": "CI_41510178576_PARTIAL_PASS: 77 original tip records ancestors, exact subtree SHAs PASS; verifier was blocked by bootstrap assumption and metadata-note crash, now repaired pending rerun",
+      "ghcode": "CI_41510178576_FAIL: pinned Bun 1.3.11 cannot parse original lockfileVersion 2; GH job changed to Bun 1.4.0 to preserve frozen-install discipline; awaiting rerun",
+      "rscode": "CI_41510178576_PASS on fa5ab4c2 source job",
+      "canvas": "CI_41510178576_PASS on fa5ab4c2 source job"
     },
     "priorExternalEvidence": [
       {
@@ -688,5 +692,6 @@
     }
   },
   "distributionGate": "BLOCKED_T014_GPL_AND_SBOM",
-  "sourceIsolation": "Snapshots inert; exact Bun pathIgnorePatterns excludes migrated test suites from root. Dedicated PR-only read-only source-verification workflow exercises isolated snapshots without main/release/Pages triggers."
+  "sourceIsolation": "Snapshots inert; exact Bun pathIgnorePatterns excludes migrated test suites from root. Dedicated PR-only read-only source-verification workflow exercises isolated snapshots without main/release/Pages triggers.",
+  "historyOnlyImportCommit": "27def47a6cc528ca3679b1e1dfd51ae1b4bb820b"
 }

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "migrate" / "manifest.json"
 ALLOWED_NEW_PREFIXES = ("migrate/", "docs/migrations/")
 ALLOWED_ADDITIONS = ("bunfig.toml", ".github/workflows/migration-source-verification.yml")
-EXPECTED_WORKFLOW_BLOB = "7023286a839802afdda390b78eeade97de1cc549"
+EXPECTED_WORKFLOW_BLOB = "568857f13d25ded6c170dccb426f0f5bd7f4af0c"
 EXPECTED_BUNFIG = """# Source reconciliation adds inert nested applications under migrate/.
 # Preserve root Bun test discovery without executing their independent suites.
 [test]
@@ -41,9 +41,11 @@ def main() -> int:
     m = json.loads(MANIFEST.read_text(encoding="utf-8"))
     root_baseline = m["rootBaseline"]["commit"]
     history_parent = m["historyOnlyMergeParent"]
-    parents = git("rev-list", "--parents", "-n", "1", "HEAD").stdout.strip().split()
-    require(len(parents) >= 3 and parents[1] == root_baseline and history_parent in parents[2:],
-            "first parent is unchanged main, additional parent is history checkpoint", errors)
+    bootstrap = m["historyOnlyImportCommit"]
+    parents = git("rev-list", "--parents", "-n", "1", bootstrap).stdout.strip().split()
+    bootstrap_is_ancestor = git("merge-base", "--is-ancestor", bootstrap, "HEAD", check=False).returncode == 0
+    require(bootstrap_is_ancestor and parents == [bootstrap, root_baseline, history_parent],
+            "preservation bootstrap has exact main+history parents and is an ancestor of HEAD", errors)
 
     changes = git("diff", "--name-only", root_baseline, "HEAD").stdout.splitlines()
     require(bool(changes) and all(p.startswith(ALLOWED_NEW_PREFIXES) or p in ALLOWED_ADDITIONS for p in changes),
@@ -65,6 +67,8 @@ def main() -> int:
         require(len(paths) >= minimum, f"{base} full-tree file floor {minimum} (actual {len(paths)})", errors)
 
     for source, info in m["sourceHistory"].items():
+        if not isinstance(info, dict) or "refs" not in info:
+            continue
         refs = info["refs"]
         require(len(refs) == info["counts"]["refs"],
                 f"{source} original branch/PR/tag mapping count", errors)
