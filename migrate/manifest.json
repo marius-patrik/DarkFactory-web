@@ -8,7 +8,7 @@
   "rootBaseline": {
     "commit": "39341ce5f8459b834c8e20b5227c25980078a87e",
     "tree": "8ab3458d865cfb6813a4a95ba1615f6cf968865b",
-    "policy": "Root runtime, src, package/lock, scripts and workflows unchanged. Explicit new bunfig.toml config excludes migrate/** only from bare root Bun test discovery."
+    "policy": "Root src, scripts, package/lock, configs, existing workflows unchanged. Intentional bunfig.toml test exclusion and PR-only read-only migration verification workflow are the only root additions."
   },
   "historyOnlyMergeParent": "53a2e71f1771179139724dadde6f675fea0713b8",
   "sourceSnapshots": {
@@ -649,12 +649,13 @@
     "currentWave": {
       "gitObjectPresence": "PARTIAL_API_VERIFIED",
       "gitBundleRestoration": "NOT_RUN_NETWORK_ISOLATED",
-      "rootFullBun": "INITIAL_FAIL_DUE_NESTED_DISCOVERY_REPAIR_IN_PROGRESS",
+      "rootFullBun": "PASS c77bbc4f5670f3dc0d760dd39004e4a8d011771c CI 41509648055 after test-only migration exclusion",
       "chromium": "NOT_RUN",
       "Windows": "NOT_RUN",
       "canvasBrowser": "NOT_RUN",
       "ghcodeBrowser": "NOT_RUN",
-      "sourceIsolationCI": "Initial Verify run 41509068173 FAIL because bare bun test discovered nested suites, including cross-source dev server; fixed by explicit Bun pathIgnorePatterns to be verified at next exact-head CI"
+      "sourceIsolationCI": "Initial Verify run 41509068173 FAIL because bare bun test discovered nested suites, including cross-source dev server; fixed by explicit Bun pathIgnorePatterns to be verified at next exact-head CI",
+      "sourceTrackCI": "PENDING dedicated PR-only source verification workflow; never treat as PASS until exact-head results"
     },
     "priorExternalEvidence": [
       {
@@ -667,6 +668,12 @@
         "component": "prior git-bundle restoration",
         "run": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41363832152",
         "result": "PASS_PRE_DELETION_ONLY"
+      },
+      {
+        "component": "root baseline W01 test-only repair",
+        "sha": "c77bbc4f5670f3dc0d760dd39004e4a8d011771c",
+        "run": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41509648055",
+        "result": "PASS_ROOT_VERIFY (does not test nested sources)"
       }
     ]
   },
@@ -681,5 +688,5 @@
     }
   },
   "distributionGate": "BLOCKED_T014_GPL_AND_SBOM",
-  "sourceIsolation": "Nested snapshots are inert; an explicit root bunfig.toml test-only ignore prevents bare bun test from auto-running their tests."
+  "sourceIsolation": "Snapshots inert; exact Bun pathIgnorePatterns excludes migrated test suites from root. Dedicated PR-only read-only source-verification workflow exercises isolated snapshots without main/release/Pages triggers."
 }

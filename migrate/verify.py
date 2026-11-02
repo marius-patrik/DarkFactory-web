@@ -13,6 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "migrate" / "manifest.json"
 ALLOWED_NEW_PREFIXES = ("migrate/", "docs/migrations/")
+ALLOWED_ADDITIONS = ("bunfig.toml", ".github/workflows/migration-source-verification.yml")
+EXPECTED_WORKFLOW_BLOB = "7023286a839802afdda390b78eeade97de1cc549"
 EXPECTED_BUNFIG = """# Source reconciliation adds inert nested applications under migrate/.
 # Preserve root Bun test discovery without executing their independent suites.
 [test]
@@ -44,12 +46,15 @@ def main() -> int:
             "first parent is unchanged main, additional parent is history checkpoint", errors)
 
     changes = git("diff", "--name-only", root_baseline, "HEAD").stdout.splitlines()
-    require(bool(changes) and all(p.startswith(ALLOWED_NEW_PREFIXES) or p == "bunfig.toml" for p in changes),
+    require(bool(changes) and all(p.startswith(ALLOWED_NEW_PREFIXES) or p in ALLOWED_ADDITIONS for p in changes),
             "source-only diff; no active src/, root config or root workflows modified", errors)
     require((ROOT / "bunfig.toml").read_text(encoding="utf-8") == EXPECTED_BUNFIG,
             "only permitted root config change isolates migrated tests", errors)
-    require(not any(p.startswith(".github/workflows/") for p in changes),
-            "no active top-level Actions workflow changed", errors)
+    workflow_sha = git("rev-parse", "HEAD:.github/workflows/migration-source-verification.yml").stdout.strip()
+    require(workflow_sha == EXPECTED_WORKFLOW_BLOB,
+            "only new root workflow is exact PR-only read-only migration source verifier", errors)
+    require(not any(p.startswith(".github/workflows/") and p not in ALLOWED_ADDITIONS for p in changes),
+            "existing top-level Actions workflows unchanged", errors)
 
     for name, minimum in MIN_FILES.items():
         base = "migrate/" + name
