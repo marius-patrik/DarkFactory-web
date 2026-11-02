@@ -8,7 +8,7 @@
   "rootBaseline": {
     "commit": "39341ce5f8459b834c8e20b5227c25980078a87e",
     "tree": "8ab3458d865cfb6813a4a95ba1615f6cf968865b",
-    "policy": "Root src, scripts, package/lock, configs, existing workflows unchanged. Intentional bunfig.toml test exclusion and PR-only read-only migration verification workflow are the only root additions."
+    "policy": "Active src, scripts, package/lock, application configs unchanged. Explicit root bunfig/Biome excludes migration subtree, root DarkFactory quality matrix filters nested-only jobs, PR-only read-only source verification executes all migrated source tests; no release or deploy changes."
   },
   "historyOnlyMergeParent": "53a2e71f1771179139724dadde6f675fea0713b8",
   "sourceSnapshots": {
@@ -656,10 +656,11 @@
       "ghcodeBrowser": "NOT_RUN",
       "sourceIsolationCI": "Initial Verify run 41509068173 FAIL because bare bun test discovered nested suites, including cross-source dev server; fixed by explicit Bun pathIgnorePatterns to be verified at next exact-head CI",
       "sourceTrackCI": "PENDING dedicated PR-only source verification workflow; never treat as PASS until exact-head results",
-      "historyAndIsolation": "CI_41510178576_PARTIAL_PASS: 77 original tip records ancestors, exact subtree SHAs PASS; verifier was blocked by bootstrap assumption and metadata-note crash, now repaired pending rerun",
-      "ghcode": "CI_41510178576_FAIL: pinned Bun 1.3.11 cannot parse original lockfileVersion 2; GH job changed to Bun 1.4.0 to preserve frozen-install discipline; awaiting rerun",
-      "rscode": "CI_41510178576_PASS on fa5ab4c2 source job",
-      "canvas": "CI_41510178576_PASS on fa5ab4c2 source job"
+      "historyAndIsolation": "PASS 34140810d74218661666a646eb67c9a4db270dff CI 41510751170: immutable trees and 30 GHCode + 47 Canvas ref objects and ancestry",
+      "ghcode": "PASS 34140810d74218661666a646eb67c9a4db270dff CI 41510751170: Bun 1.4 frozen install, check, Chromium and Playwright acceptance",
+      "rscode": "PASS 34140810d74218661666a646eb67c9a4db270dff CI 41510751170: Bun frozen install, TS, Biome and src test",
+      "canvas": "PASS 34140810d74218661666a646eb67c9a4db270dff CI 41510751170: install, check, Chromium, persistence and UI smoke",
+      "managedDarkFactory": "FAIL 34140810d74218661666a646eb67c9a4db270dff due incidental nested matrix and root global formatting, root/test-only filter introduced to be verified on next commit"
     },
     "priorExternalEvidence": [
       {
@@ -678,6 +679,12 @@
         "sha": "c77bbc4f5670f3dc0d760dd39004e4a8d011771c",
         "run": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41509648055",
         "result": "PASS_ROOT_VERIFY (does not test nested sources)"
+      },
+      {
+        "component": "full source run",
+        "sha": "34140810d74218661666a646eb67c9a4db270dff",
+        "run": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41510751170",
+        "result": "PASS_ALL_FOUR_ISOLATED_JOBS"
       }
     ]
   },
@@ -692,6 +699,6 @@
     }
   },
   "distributionGate": "BLOCKED_T014_GPL_AND_SBOM",
-  "sourceIsolation": "Snapshots inert; exact Bun pathIgnorePatterns excludes migrated test suites from root. Dedicated PR-only read-only source-verification workflow exercises isolated snapshots without main/release/Pages triggers.",
+  "sourceIsolation": "Root Bun and Biome ignore migrate/** for root verification; managed df ci matrix excludes migration-only jobs (without dropping root quality) while standalone PR-only CI exercises all source tracks.",
   "historyOnlyImportCommit": "27def47a6cc528ca3679b1e1dfd51ae1b4bb820b"
 }

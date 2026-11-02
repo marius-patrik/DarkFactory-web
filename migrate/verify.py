@@ -13,7 +13,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "migrate" / "manifest.json"
 ALLOWED_NEW_PREFIXES = ("migrate/", "docs/migrations/")
-ALLOWED_ADDITIONS = ("bunfig.toml", ".github/workflows/migration-source-verification.yml")
+ALLOWED_ADDITIONS = (
+    "bunfig.toml", ".github/workflows/migration-source-verification.yml",
+    "biome.json", ".github/workflows/darkfactory-control.yml",
+)
+EXPECTED_BIOME_BLOB = "d55c587aabb0b3a3f9155c93631d0b7b6da71e50"
+EXPECTED_MANAGED_WORKFLOW_BLOB = "c32497c5a8c1a40a7e1ece28f7f1ec61cb30a29a"
 EXPECTED_WORKFLOW_BLOB = "568857f13d25ded6c170dccb426f0f5bd7f4af0c"
 EXPECTED_BUNFIG = """# Source reconciliation adds inert nested applications under migrate/.
 # Preserve root Bun test discovery without executing their independent suites.
@@ -55,8 +60,13 @@ def main() -> int:
     workflow_sha = git("rev-parse", "HEAD:.github/workflows/migration-source-verification.yml").stdout.strip()
     require(workflow_sha == EXPECTED_WORKFLOW_BLOB,
             "only new root workflow is exact PR-only read-only migration source verifier", errors)
+    require(git("rev-parse", "HEAD:biome.json").stdout.strip() == EXPECTED_BIOME_BLOB,
+            "root Biome config exclusively ignores inert migrate directory", errors)
+    require(git("rev-parse", "HEAD:.github/workflows/darkfactory-control.yml").stdout.strip()
+            == EXPECTED_MANAGED_WORKFLOW_BLOB,
+            "managed root CI retains root jobs; migratory nested matrix dispatch excluded", errors)
     require(not any(p.startswith(".github/workflows/") and p not in ALLOWED_ADDITIONS for p in changes),
-            "existing top-level Actions workflows unchanged", errors)
+            "no root workflow changes beyond exact-pinned migration isolation", errors)
 
     for name, minimum in MIN_FILES.items():
         base = "migrate/" + name
