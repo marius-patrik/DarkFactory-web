@@ -28,6 +28,17 @@
 - **Template PR #42 merged into development:** production Pages release still requires separate security verification and eventual retirement.
 - **Neither GitHub source repository has been deleted**, and no user browser state has been silently migrated.
 
+## Additional operational blocker: pinned DarkFactory agent workflows
+
+**Observed on production main (not caused by the integration branch):** `DarkFactory Runtime` issue-comment run `41364986240` is **FAILURE**, even though the isolated integration `Verify` workflow is green.
+
+- `governed / approvals / on-approval`: failed **Install the pipeline runtime** because the pinned DarkFactory `9ec623964a4d441097bbc85fe8366a9447b82b93` dependency's `bun.lock` has `lockfileVersion: 2` but the reusable workflow installs Bun `1.3.11`; the frozen install reports `UnknownLockfileVersion`.
+- `governed / agent / run-agent`: failed **Delegate to Central DarkFactory** with GitHub API `HTTP 403 Resource not accessible by integration`, using a repository token without central repo `repository_dispatch` permission. Logs also show `HAS_APP_KEY: false`. Do not claim issue-label dispatches executed or agents completed anything.
+- Repeated issue comments can create additional failing Actions runs. Agent `Request` labels were removed from bounded issue #34/#35/#36 after manual work; #34/#35 are closed, #36 remains a licensing blocker.
+- Corrective owner: upstream DarkFactory release/toolchain compatibility, central dispatch credential/installation permissions and the existing project governance issue #32. Do not weaken GitHub token boundaries, use broad PATs, or silently bump a pinned pipeline revision without verifying its controls.
+
+**P0 release implication:** Direct repository integration and source-historical preservation are verified. **Automated DarkFactory agent dispatch and approval jobs are currently NOT OPERATIONAL**, and that operational defect remains explicitly open until its owner fixes and verifies the latest pinned workflow. This is independent of `T014` licensing blocker.
+
 ## Remaining Phase 0 exit blockers / ownership
 
 1. **T014:** decide target license/redistribution terms for combining the two GPL-3.0 source projects, audit final dependency closure and required attribution. Technical assessment exists; no false legal green-light.
