@@ -19,7 +19,7 @@ Original W01 source baseline: `d091a26eaa7ab7b814056e2c48ddc922ecebb3ac`. W02 re
 | Source | Original immutable source SHA | Reconciled candidate subtree Git SHA |
 | --- | --- | --- |
 | RSCode | `39341ce5f8459b834c8e20b5227c25980078a87e` | `d3588b5ea1f3c4184728f6036a40da3b174dbd09` |
-| GHCode | `7801784b5bb596dcc720a48b7085443fc8f9ca3f` | `dc3a6c0b95d4f179d902d40038d546f520acd94b` |
+| GHCode | `7801784b5bb596dcc720a48b7085443fc8f9ca3f` | `d5438d3751cd6dbb5c7920d7f635ca3557a74078` |
 | Canvas | `5f462ea6e73c570e483149d6846dcc9190c09d51` | `1e99bf067ace6d0af37cf447662b822137a5f481` |
 
 These are Git *tree* SHA-1 values, not SHA-256 hashes of ZIPs. The old originals, imported original PR branch refs and tags are kept in the merge ancestry.
@@ -45,3 +45,7 @@ These are Git *tree* SHA-1 values, not SHA-256 hashes of ZIPs. The old originals
 7. Create a source-backed SPDX/SBOM/license and asset notice inventory, obtain owner licensing authorization before distribution. Template website retirement remains gated; **do not delete DarkFactory-template**.
 
 This progress checkpoint reports implementation and evidence, not a fully accepted release.
+
+### 483fd508 real-UI regression and accessibility correction
+
+[Migration source run 41630037042](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41630037042) confirmed **PASS** for history/77 ref preservation, Canvas, and RSCode, and **FAIL** for the GHCode browser job. GHCode had **30/31 Playwright cases passing**; the new real save-failure test reached the retry state, but the Monaco minimap overlaid its button because an additional alert had broken the grid's two-row layout. Commit \`3895da4e\` moves notices and the Monaco body into one bounded flex/grid content cell so the control is actually clickable, rather than bypassing interaction in the test. That correction awaits independent CI. No release acceptance is inferred.

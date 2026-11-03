@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "dc3a6c0b95d4f179d902d40038d546f520acd94b",
+      "snapshotTreeSHA": "d5438d3751cd6dbb5c7920d7f635ca3557a74078",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -85,7 +85,8 @@
         "GHC-03 browser integration, Dockview group/move lifecycle and conflict recovery are not independently accepted; additional native paths require guarding.",
         "Legacy ambiguous-data non-destructive migration, secure import/export, quota recovery under real capacity pressure and comprehensive cross-tab release acceptance remain incomplete.",
         "Push ref-update API is non-force, but remote update is not atomic compare-and-swap; uncertain external concurrency requires reconciliation.",
-        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source snapshot (retained in original Git DAG)."
+        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source snapshot (retained in original Git DAG).",
+        "Real Chromium GHC-03 failure alert initially obscured by Monaco grid; new resource-content flex layout fixes accessibility; needs exact-head acceptance."
       ],
       "license": "GPL-3.0",
       "testCommands": [
@@ -110,7 +111,7 @@
           "Playwright Chromium 30 tests (26 existing + 4 real IDB)"
         ],
         "platform": "GitHub-hosted Ubuntu + Chromium",
-        "limitation": "W02-R DocumentService + browser lifecycle at latest candidate differs; last new UI test at 05016825 failed due ambiguous alert selector and was corrected at 11f260e6; pending exact-head rerun."
+        "limitation": "30/31 Chromium tests passed at 483fd508 (run 41630037042); the new real save-failure test exposed Monaco covering retry button. UI grid correction at 3895da4e; exact-head acceptance pending."
       }
     },
     "canvas": {
@@ -713,9 +714,9 @@
       "chromium": "PASS_W01_GHCODE_AND_CANVAS_UBUNTU_CHROMIUM; W02_RETEST_PENDING",
       "Windows": "NOT_RUN",
       "canvasBrowser": "PASS 050168252a4eb9c5b95aa93ac4ade10b782bde09 CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332020",
-      "ghcodeBrowser": "PASS 5b07d9d687ecf76ea2eef8d538a2491d7dfd091e (30 Chromium cases) CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41626641160; new GHC03 UI test corrected and pending",
+      "ghcodeBrowser": "30/31 Chromium tests PASS at 483fd508 source run 41630037042; one failed because Monaco overlaid the Retry save control. Corrected 3895da4e, pending exact-head rerun.",
       "sourceIsolationCI": "PASS 3d4eecfb W02 CI 41596969230; current W02-R source hash manifest updated and pending exact-head repeat",
-      "sourceTrackCI": "PARTIAL 050168: sources Canvas/RSCode PASS; GHCode new UI selector FAIL; manifest mismatch FAIL. Corrective commits applied; retest required.",
+      "sourceTrackCI": "PARTIAL 483fd508: history/isolation, Canvas, RSCode PASS; GHCode 30/31 PASS with a real UI accessibility error, corrected 3895da4e. Exact-head pending.",
       "historyAndIsolation": "PASS 3d4eecfb W02 CI 41596969230; new candidate tree hashes updated and pending exact-head repeat; no --bundle.",
       "ghcode": "PASS selected prior push-journal snapshot 5b07d9 (30 Playwright); GHC03 new UI fixture test at 050168 failed and is retesting.",
       "rscode": "PASS 050168 source suite; intermittent root browser-frame flake still unresolved",
@@ -732,8 +733,8 @@
         "note": "Prior non-frozen run 41596024800 produced different SHA256 caa2634b..., showing version drift."
       },
       "W02RCandidate": {
-        "candidateBaseSHA": "11f260e61254f9c0b893669653b74c587bc21420",
-        "ghcodeTree": "dc3a6c0b95d4f179d902d40038d546f520acd94b",
+        "candidateBaseSHA": "3895da4e30819525993202a9da6424fa48e46f28",
+        "ghcodeTree": "d5438d3751cd6dbb5c7920d7f635ca3557a74078",
         "canvasTree": "1e99bf067ace6d0af37cf447662b822137a5f481",
         "rscodeTree": "d3588b5ea1f3c4184728f6036a40da3b174dbd09",
         "lastVerifiedRoot": "050168252a4eb9c5b95aa93ac4ade10b782bde09",
