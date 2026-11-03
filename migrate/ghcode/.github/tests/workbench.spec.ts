@@ -338,7 +338,7 @@ test("Monaco save failures guard Dockview close and account transition until ack
     };
   });
   await editActiveMonaco(page, "# Unacknowledged important draft\\n");
-  await expect(surface(page, "main").getByRole("alert")).toContainText(
+  await expect(surface(page, "main").locator(".resource-generated-notice[role=\"alert\"]")).toContainText(
     "Document save not acknowledged",
   );
 
@@ -352,7 +352,7 @@ test("Monaco save failures guard Dockview close and account transition until ack
     (window as Window & { restoreOverlayStore?: () => void }).restoreOverlayStore?.();
   });
   await surface(page, "main").getByRole("button", { name: "Retry save" }).click();
-  await expect(surface(page, "main").getByRole("alert")).toHaveCount(0);
+  await expect(surface(page, "main").locator(".resource-generated-notice[role=\"alert\"]")).toHaveCount(0);
   await tab(page, "main", "README.md").getByTitle("Close").click();
   await expect(tab(page, "main", "README.md")).toHaveCount(0);
   await page.reload();
