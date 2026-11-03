@@ -8,7 +8,7 @@ import { useCanvasConfig, POSITIONS, type CanvasPreferences } from "./config";
 import { useProfiles } from "./profiles";
 import { notify } from "./notifications";
 import { VIEWS, type CanvasView, viewLabel } from "./views";
-import context from "./generated/context.json";
+import { context } from "./repository-context";
 
 /** Right click moves a surface; ordinary clicks keep its primary action. */
 export function SurfaceMenu({

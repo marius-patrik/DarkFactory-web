@@ -6,7 +6,7 @@ import { useLocation } from "wouter";
 import { AnimatedIcon } from "./components/AnimatedIcon";
 import { useCanvasConfig } from "./config";
 import { notify } from "./notifications";
-import context from "./generated/context.json";
+import { context } from "./repository-context";
 
 type Document = (typeof context.documents)[number];
 type Perspective = "overview" | "artifacts" | "projects" | "agents" | "roadmap" | "context";
@@ -15,7 +15,6 @@ type Category = "Guidance" | "Planning" | "Architecture" | "Operations" | "Other
 const documents: Document[] = context.documents;
 const byPath = new Map(documents.map((document) => [document.path, document]));
 const allPaths = [...new Set([...documents.map((d) => d.path), ...context.paths])];
-const knownPaths = new Set(allPaths);
 const categories: Category[] = ["Guidance", "Planning", "Architecture", "Operations", "Other"];
 const panes: { id: Perspective; label: string; icon: string }[] = [
   { id: "overview", label: "Overview", icon: "overview" },
@@ -52,23 +51,7 @@ const extractSummary = (text: string, max = 245) => {
   const summary = human(content);
   return summary.length > max ? summary.slice(0, max).replace(/\s+\S*$/, "") + "…" : summary;
 };
-function sourceLinks(): Array<readonly [string, string]> {
-  return documents.flatMap((document) =>
-    [...document.content.matchAll(/\]\(([^)#]+)(?:#[^)]*)?\)/g)]
-      .map((match) => {
-        try {
-          if (/^[a-z]+:/i.test(match[1])) return null;
-          const url = new URL(match[1], new URL(document.path, "https://canvas.invalid/"));
-          const target = decodeURIComponent(url.pathname.replace(/^\//, ""));
-          return knownPaths.has(target) ? ([document.path, target] as const) : null;
-        } catch {
-          return null;
-        }
-      })
-      .filter((pair): pair is readonly [string, string] => pair !== null),
-  );
-}
-const edgesOfDocuments = sourceLinks();
+const edgesOfDocuments = context.graphEdges;
 const groupCounts = categories.map((name) => ({
   name,
   count: allPaths.filter((path) => categoryOf(path) === name).length,

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useCanvasConfig } from "./config";
 import { AnimatedIcon } from "./components/AnimatedIcon";
 import { VIEWS, type CanvasView } from "./views";
-import context from "./generated/context.json";
+import { context } from "./repository-context";
 
 type Placement = "up" | "down";
 export default function Omnibar({

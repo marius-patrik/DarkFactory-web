@@ -17,7 +17,7 @@ import DockCanvas from "./DockCanvas";
 import { useProfiles } from "./profiles";
 import { NotificationCenter, Notifications } from "./notifications";
 import { viewFromRoute } from "./views";
-import context from "./generated/context.json";
+import { context } from "./repository-context";
 import { version as appVersion } from "../package.json";
 
 type Alignment = "left" | "center" | "right";
