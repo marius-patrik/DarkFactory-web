@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "createdUTC": "2026-11-02",
   "purpose": "Isolated reference source snapshots, not an integrated application or production executable",
   "acceptance": "CANDIDATE_REQUIRES_INDEPENDENT_REVIEW",
@@ -8,7 +8,7 @@
   "rootBaseline": {
     "commit": "39341ce5f8459b834c8e20b5227c25980078a87e",
     "tree": "8ab3458d865cfb6813a4a95ba1615f6cf968865b",
-    "policy": "Active src, scripts, package/lock, application configs unchanged. Explicit root bunfig/Biome excludes migration subtree, root DarkFactory quality matrix filters nested-only jobs, PR-only read-only source verification executes all migrated source tests; no release or deploy changes."
+    "policy": "Original active runtime and build files remain unchanged. Dedicated migration PR workflow tests nested source; W02 adds a constrained main release push path filter to block source-only releases."
   },
   "historyOnlyMergeParent": "53a2e71f1771179139724dadde6f675fea0713b8",
   "sourceSnapshots": {
@@ -40,14 +40,32 @@
         "bun run test:browser",
         "bun run test:ui"
       ],
-      "testResults": "NOT_RUN_THIS_WAVE"
+      "testResults": "W01_PASS_EXACT_HEAD",
+      "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
+      "originalSourceRevision": "39341ce5f8459b834c8e20b5227c25980078a87e",
+      "reconciliationRevision": "0e797adca5315e859d61e216d8a763f2920c39fc",
+      "sourceTestEvidence": {
+        "testedHeadSHA": "d091a26eaa7ab7b814056e2c48ddc922ecebb3ac",
+        "testedSnapshotTreeSHA": "d3588b5ea1f3c4184728f6036a40da3b174dbd09",
+        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+        "job": "rscode",
+        "result": "PASS",
+        "executed": [
+          "bun install --frozen-lockfile",
+          "bun run typecheck",
+          "bun run lint",
+          "bun test src"
+        ],
+        "platform": "GitHub-hosted Ubuntu + Chromium where exercised",
+        "limitation": "Native archives and Windows not exercised"
+      }
     },
     "ghcode": {
       "repository": "marius-patrik/GHCode (deleted)",
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "3a858527d247f15924fd22e471abf5fe0edf54bc",
+      "snapshotTreeSHA": "33612a003405647a115ff1c76f49194cd4ed4fde",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -70,7 +88,24 @@
         "bun run check",
         "bun run acceptance"
       ],
-      "testResults": "NOT_RUN_THIS_WAVE"
+      "testResults": "W01_PASS; W02_MODIFIED_PENDING_RETEST",
+      "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
+      "originalSourceRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
+      "reconciliationRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
+      "sourceTestEvidence": {
+        "testedHeadSHA": "d091a26eaa7ab7b814056e2c48ddc922ecebb3ac",
+        "testedSnapshotTreeSHA": "3a858527d247f15924fd22e471abf5fe0edf54bc",
+        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+        "job": "ghcode",
+        "result": "PASS",
+        "executed": [
+          "bun install --frozen-lockfile",
+          "bun run check",
+          "Playwright Chromium acceptance"
+        ],
+        "platform": "GitHub-hosted Ubuntu + Chromium where exercised",
+        "limitation": "W02 storage patch has not yet run at exact head; full GHC-02/GHC-03 incomplete"
+      }
     },
     "canvas": {
       "repository": "marius-patrik/DarkFactory-template",
@@ -100,7 +135,25 @@
         "node migrate/canvas/.github/tests/persistence/canvas-persistence.mjs",
         "node migrate/canvas/.github/tests/smoke_canvas.mjs migrate/canvas/.canvas-dist/index.html"
       ],
-      "testResults": "NOT_RUN_THIS_WAVE"
+      "testResults": "W01_PASS_EXACT_HEAD",
+      "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
+      "originalSourceRevision": "5f462ea6e73c570e483149d6846dcc9190c09d51",
+      "reconciliationRevision": "bf17d45c8068a3bda8de5d4786a829bb4c511a86",
+      "sourceTestEvidence": {
+        "testedHeadSHA": "d091a26eaa7ab7b814056e2c48ddc922ecebb3ac",
+        "testedSnapshotTreeSHA": "85e473f97f494ae2f97e05290bd017f73cdec0f7",
+        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+        "job": "canvas",
+        "result": "PASS",
+        "executed": [
+          "bun install (non-frozen)",
+          "bun run check",
+          "Chromium IndexedDB persistence",
+          "Canvas UI smoke"
+        ],
+        "platform": "GitHub-hosted Ubuntu + Chromium where exercised",
+        "limitation": "Non-frozen dependencies and repository-context boundary unresolved"
+      }
     }
   },
   "sourceHistory": {
@@ -647,20 +700,21 @@
   ],
   "testEvidence": {
     "currentWave": {
-      "gitObjectPresence": "PARTIAL_API_VERIFIED",
-      "gitBundleRestoration": "NOT_RUN_NETWORK_ISOLATED",
-      "rootFullBun": "PASS c77bbc4f5670f3dc0d760dd39004e4a8d011771c CI 41509648055 after test-only migration exclusion",
-      "chromium": "NOT_RUN",
+      "gitObjectPresence": "PASS_W01_EXACT_HEAD_77_REF_RECORDS",
+      "gitBundleRestoration": "NOT_RUN_IN_CURRENT_W02_ENVIRONMENT",
+      "rootFullBun": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237736",
+      "chromium": "PASS_W01_GHCODE_AND_CANVAS_UBUNTU_CHROMIUM; W02_RETEST_PENDING",
       "Windows": "NOT_RUN",
-      "canvasBrowser": "NOT_RUN",
-      "ghcodeBrowser": "NOT_RUN",
-      "sourceIsolationCI": "Initial Verify run 41509068173 FAIL because bare bun test discovered nested suites, including cross-source dev server; fixed by explicit Bun pathIgnorePatterns to be verified at next exact-head CI",
-      "sourceTrackCI": "PENDING dedicated PR-only source verification workflow; never treat as PASS until exact-head results",
-      "historyAndIsolation": "PASS 34140810d74218661666a646eb67c9a4db270dff CI 41510751170: immutable trees and 30 GHCode + 47 Canvas ref objects and ancestry",
-      "ghcode": "PASS 34140810d74218661666a646eb67c9a4db270dff CI 41510751170: Bun 1.4 frozen install, check, Chromium and Playwright acceptance",
-      "rscode": "PASS 34140810d74218661666a646eb67c9a4db270dff CI 41510751170: Bun frozen install, TS, Biome and src test",
-      "canvas": "PASS 34140810d74218661666a646eb67c9a4db270dff CI 41510751170: install, check, Chromium, persistence and UI smoke",
-      "managedDarkFactory": "FAIL 34140810d74218661666a646eb67c9a4db270dff due incidental nested matrix and root global formatting, root/test-only filter introduced to be verified on next commit"
+      "canvasBrowser": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804 (previous unchanged Canvas tree)",
+      "ghcodeBrowser": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804 (previous GHCode tree); W02 patch pending",
+      "sourceIsolationCI": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+      "sourceTrackCI": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804; W02 pending",
+      "historyAndIsolation": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804 (no --bundle)",
+      "ghcode": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804; W02 modified snapshot requires rerun",
+      "rscode": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+      "canvas": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+      "managedDarkFactory": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511238882 (agent and approvals SKIPPED)",
+      "W02ChangesPending": "GHCode storage transaction-completion acknowledgment, current-principal data-boundary fencing, and targeted Bun regression tests. Not accepted until exact-head CI."
     },
     "priorExternalEvidence": [
       {
@@ -686,16 +740,39 @@
         "run": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41510751170",
         "result": "PASS_ALL_FOUR_ISOLATED_JOBS"
       }
-    ]
+    ],
+    "exactHeadW01": {
+      "revision": "d091a26eaa7ab7b814056e2c48ddc922ecebb3ac",
+      "rootVerify": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237736",
+      "managedQuality": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511238882",
+      "isolatedSource": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+      "sourceJobs": [
+        "history-and-isolation",
+        "rscode",
+        "ghcode",
+        "canvas"
+      ],
+      "allPassed": true,
+      "limits": [
+        "no bundle restoration in this run",
+        "no Windows/macOS/Linux native archives",
+        "no GHC-03",
+        "Canvas nonfrozen dependency graph"
+      ]
+    }
   },
   "backups": {
     "sourceBundle": {
       "sha256": "e81c2d09601111b63432309751234fe9a96161a8c6834a48c79ef1ecf9d8b8f3",
-      "status": "PRIOR_VERIFIED_NOT_REDOWNLOADED_THIS_WAVE"
+      "status": "W01_PR_REPORT_SAYS_VERIFIED_NOT_RECHECKED_W02"
     },
     "hostedMetadata": {
       "sha256": "8d8e84844bb6f43a0c60890190cd2fb4dea4068e1a6e0a873ec7acf8d9d2e29a",
-      "status": "PRIOR_VERIFIED_NOT_REDOWNLOADED_THIS_WAVE"
+      "status": "W01_PR_REPORT_SAYS_VERIFIED_NOT_RECHECKED_W02"
+    },
+    "embeddedGitBundle": {
+      "sha256": "a315d67f07af523b7ba3540c2d18457df8d11c252e776fb6fb5c7c18f1f8de45",
+      "status": "W01_PR_REPORT_ONLY_NOT_INDEPENDENTLY_RECHECKED_W02"
     }
   },
   "distributionGate": "BLOCKED_T014_GPL_AND_SBOM",

@@ -11,10 +11,21 @@ const DATABASE = "darkfactory-workbench";
 const VERSION = 2;
 // The original workbench-recent-workspaces-v1 is unattributed legacy and stays untouched.
 const OWNED_RECENT_PREFIX = "ghcode-recent-owned-v1:";
+const OWNED_PREFIX = "ghcode-owned-v2:";
+
+// Updated synchronously before any React identity transition. Never infer authorization
+// from the workspace ID supplied by a caller, an old closure, or an IDB record itself.
+let activePrincipal: PrincipalKey | null = null;
+
+export function bindStoragePrincipal(principal: PrincipalKey): void {
+  activePrincipal = principal;
+}
 
 function requireOwned(id: string) {
-  if (!isOwnedWorkspaceId(id))
-    throw new Error("Legacy v2 cache is quarantined until explicit migration.");
+  if (!activePrincipal || !isOwnedWorkspaceId(id) ||
+      !id.startsWith(`${OWNED_PREFIX}${encodeURIComponent(activePrincipal)}:`)) {
+    throw new Error("Workspace does not belong to the currently verified principal; legacy data remains quarantined.");
+  }
 }
 
 function recentKey(owner: PrincipalKey) {
@@ -54,8 +65,13 @@ function openDatabase() {
         database.createObjectStore("commits", { keyPath: "id" });
       }
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
     request.onerror = () => reject(request.error ?? new Error("IndexedDB open failed"));
+    request.onblocked = () => reject(new Error("IndexedDB upgrade blocked by another tab."));
   });
 }
 
@@ -74,7 +90,31 @@ async function withStore<T>(
   const database = await openDatabase();
   try {
     const transaction = database.transaction(name, mode);
-    return await requestResult(action(transaction.objectStore(name)));
+    // A successful IDBRequest is not proof that the transaction committed.
+    // A later failure (including quota or explicit abort) must reject the API.
+    const committed = new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed"));
+      transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
+    });
+    // Attach a handler now: an abort may precede the request's error event.
+    void committed.catch(() => {});
+    let result: IDBRequest<T>;
+    try {
+      result = action(transaction.objectStore(name));
+    } catch (error) {
+      try { transaction.abort(); } catch { /* Already inactive. */ }
+      throw error;
+    }
+    let value: T;
+    try {
+      value = await requestResult(result);
+    } catch (error) {
+      try { transaction.abort(); } catch { /* Already aborted. */ }
+      throw error;
+    }
+    await committed;
+    return value;
   } finally {
     database.close();
   }
@@ -90,13 +130,15 @@ async function allForWorkspace<T extends { workspaceId: string }>(
 }
 
 export function saveWorkspace(snapshot: WorkspaceSnapshot) {
-  if (!snapshot.ownership || !isOwnedWorkspace(snapshot, snapshot.ownership.principalKey))
+  requireOwned(snapshot.id);
+  if (!snapshot.ownership || !activePrincipal || !isOwnedWorkspace(snapshot, activePrincipal))
     throw new Error("Refusing to overwrite unattributed legacy v2 workspace.");
   return withStore("workspaces", "readwrite", (store) => store.put(snapshot));
 }
 
 export async function loadWorkspace(id: string, owner: PrincipalKey) {
   requireOwned(id);
+  if (owner !== activePrincipal) throw new Error("Storage principal changed during workspace read.");
   const snapshot = await withStore<WorkspaceSnapshot | undefined>(
     "workspaces",
     "readonly",
@@ -220,6 +262,7 @@ export async function clearLocalGitState(workspaceId: string) {
 }
 
 export function loadRecentWorkspaces(owner: PrincipalKey): WorkspaceSnapshot[] {
+  if (!activePrincipal || owner !== activePrincipal) return [];
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(recentKey(owner)) || "[]");
     return Array.isArray(parsed)
@@ -234,7 +277,7 @@ export function loadRecentWorkspaces(owner: PrincipalKey): WorkspaceSnapshot[] {
 
 export function rememberWorkspace(snapshot: WorkspaceSnapshot): WorkspaceSnapshot[] {
   const owner = snapshot.ownership?.principalKey;
-  if (!owner || !isOwnedWorkspace(snapshot, owner))
+  if (!owner || owner !== activePrincipal || !isOwnedWorkspace(snapshot, owner))
     throw new Error("Unattributed legacy workspace must not be added to owned recent history.");
   const recent = loadRecentWorkspaces(owner).filter((item) => item.id !== snapshot.id);
   recent.unshift(snapshot);

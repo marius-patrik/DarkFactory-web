@@ -51,6 +51,7 @@ import {
   type Principal,
 } from "./identity";
 import {
+  bindStoragePrincipal,
   clearLocalGitState,
   clearStaged,
   loadBlob,
@@ -148,7 +149,11 @@ function asWorkingFile(file: StagedFile): WorkingFile {
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [anonymous] = useState(anonymousPrincipal);
+  const [anonymous] = useState(() => {
+    const identity = anonymousPrincipal();
+    bindStoragePrincipal(identity.key);
+    return identity;
+  });
   const [principal, setPrincipal] = useState<Principal>(anonymous);
   const [authPhase, setAuthPhase] = useState<WorkspaceContextValue["authPhase"]>(() =>
     getGithubToken() ? "resolving" : "anonymous",
@@ -183,6 +188,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       throw new Error("Repository session invalidated by an identity transition.");
   }, []);
   const transition = useCallback((next: Principal, phase: WorkspaceContextValue["authPhase"]) => {
+    bindStoragePrincipal(next.key);
     const generation = authority.current.generation + 1;
     authority.current = { principalKey: next.key, generation };
     setOwnershipGeneration(generation);

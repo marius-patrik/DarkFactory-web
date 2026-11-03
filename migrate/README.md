@@ -16,7 +16,9 @@ GitHub Actions only discovers workflow files from the repository's top-level `.g
 
 Run `python3 migrate/verify.py` on the proposed PR checkout with Git history. This checks strict subtree Git hashes, historical-tip reachability, root source isolation, suspicious paths and protected source trees. For independent backup restoration, add `--bundle /path/to/verified.bundle` once the off-GitHub backup is available.
 
-The following **source execution acceptance remains outstanding**:
+The W01 candidate was **actually exercised** at exact head `d091a26eaa7ab7b814056e2c48ddc922ecebb3ac`: [source verification](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804) passed the history/isolation, RSCode, GHCode, and Canvas jobs; [root Verify](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237736) and [managed quality](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511238882) also passed. This evidence applies to the original W01 snapshot, **not automatically to revised W02 code**. Native distribution and offline bundle restoration were not exercised by those jobs.
+
+Run these commands to reproduce and independently reaccept **the current W02 candidates**:
 
 ```sh
 cd migrate/rscode
@@ -26,6 +28,7 @@ bun run verify
 cd ../ghcode
 bun install --frozen-lockfile
 bun run check
+bun test .github/tests/storage-unit.test.ts
 bun run acceptance
 
 cd ../canvas/.github/app
@@ -34,6 +37,8 @@ bun run check
 cd ../../..
 node migrate/canvas/.github/tests/persistence/canvas-persistence.mjs
 ```
+
+**W02 release safety:** `.github/workflows/release.yml` now requires an active root application path on `main` pushes; the source-only baseline, provenance documentation, and verifier changes alone do not match this filter. Existing manual dispatch behavior and version-tag checks are unchanged. The verifier checks the exact allowed release modification against the original `main` copy. The existing release has `contents: write`; do not merge until GitHub confirms the path filter and exact-head CI.
 
 **Caveats:** the copied Canvas app has no source-pinned `bun.lock`; Canvas's generator is source-repository-document-oriented; native packaging needs real OS runners and real Chromium; archived GHCode historical tests are not yet behaviorally reconciled. An environment unable to run these tests must report **NOT RUN**, never PASS.
 
@@ -47,6 +52,6 @@ Both GHCode and Canvas derive from GPL-3.0 sources. DarkFactory-web has no chose
 
 Do **not** merge until the source tests, provenance verification, security failures, Windows distribution issues, Canvas build, and upstream template-retirement preconditions have been independently dispositioned. Do not delete DarkFactory-template; retire its standalone website in a separate gated PR only after the snapshot is accepted.
 
-### Source-verification run evidence
+### Historical W01 source-verification run evidence
 
 PR-only exact-head source verification [run 41510751170](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41510751170) at commit `34140810d74218661666a646eb67c9a4db270dff` passed all four jobs: immutable Git ancestry & 77 refs, RSCode, GHCode (Bun 1.4.0 required for historical v2 bun.lock), Canvas. This proves source tests only; does not certify Windows or post-deletion offline bundle restore. Prior root Verification [41510178278](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41510178278) passed on `fa5ab4c2`. Managed DarkFactory quality detection at that head failed because it incorrectly discovered nested reference apps; the managed quality matrix is now restricted to active root jobs while dedicated migration suite covers all nested apps. Retest the final head before merging.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -15,11 +16,11 @@ MANIFEST = ROOT / "migrate" / "manifest.json"
 ALLOWED_NEW_PREFIXES = ("migrate/", "docs/migrations/")
 ALLOWED_ADDITIONS = (
     "bunfig.toml", ".github/workflows/migration-source-verification.yml",
+    ".github/workflows/release.yml",
     "biome.json", ".github/workflows/darkfactory-control.yml",
 )
 EXPECTED_BIOME_BLOB = "d55c587aabb0b3a3f9155c93631d0b7b6da71e50"
 EXPECTED_MANAGED_WORKFLOW_BLOB = "c32497c5a8c1a40a7e1ece28f7f1ec61cb30a29a"
-EXPECTED_WORKFLOW_BLOB = "568857f13d25ded6c170dccb426f0f5bd7f4af0c"
 EXPECTED_BUNFIG = """# Source reconciliation adds inert nested applications under migrate/.
 # Preserve root Bun test discovery without executing their independent suites.
 [test]
@@ -41,7 +42,10 @@ def require(condition: bool, label: str, errors: list[str]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bundle", type=Path, help="Optional independent Git bundle for offline restoration")
+    parser.add_argument("--bundle-sha256", help="Expected SHA-256 of the supplied private Git bundle")
     args = parser.parse_args()
+    if args.bundle_sha256 and not args.bundle:
+        parser.error("--bundle-sha256 requires --bundle")
     errors: list[str] = []
     m = json.loads(MANIFEST.read_text(encoding="utf-8"))
     root_baseline = m["rootBaseline"]["commit"]
@@ -54,19 +58,31 @@ def main() -> int:
 
     changes = git("diff", "--name-only", root_baseline, "HEAD").stdout.splitlines()
     require(bool(changes) and all(p.startswith(ALLOWED_NEW_PREFIXES) or p in ALLOWED_ADDITIONS for p in changes),
-            "source-only diff; no active src/, root config or root workflows modified", errors)
+            "migration source and explicit release-safety-only diff; root runtime unchanged", errors)
     require((ROOT / "bunfig.toml").read_text(encoding="utf-8") == EXPECTED_BUNFIG,
             "only permitted root config change isolates migrated tests", errors)
-    workflow_sha = git("rev-parse", "HEAD:.github/workflows/migration-source-verification.yml").stdout.strip()
-    require(workflow_sha == EXPECTED_WORKFLOW_BLOB,
-            "only new root workflow is exact PR-only read-only migration source verifier", errors)
+    migration_workflow = (ROOT / ".github/workflows/migration-source-verification.yml").read_text(encoding="utf-8")
+    require("pull_request:" in migration_workflow and "permissions:\n  contents: read" in migration_workflow
+            and not re.search(r"(?m)^\s*(?:push|workflow_dispatch|pages|id-token):\s*", migration_workflow)
+            and all(f"  {job}:" in migration_workflow
+                    for job in ("history-and-isolation", "rscode", "ghcode", "canvas")),
+            "source verifier is PR-only, read-only and covers all three sources", errors)
+    original_release = git("show", f"{root_baseline}:.github/workflows/release.yml").stdout
+    expected_release = original_release.replace(
+        "  push:\n    branches: [main]\n",
+        '  push:\n    branches: [main]\n    # Inert migrate/ and provenance-only merges MUST NOT publish application releases.\n'
+        '    paths:\n      - "src/**"\n      - "scripts/**"\n      - "package.json"\n'
+        '      - "bun.lock"\n      - "rsbuild.config.ts"\n      - "tsconfig.json"\n'
+        '      - "docs/RELEASE_NOTES.md"\n', 1)
+    require((ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8") == expected_release,
+            "main release workflow changes only to active-app path-gated pushes", errors)
     require(git("rev-parse", "HEAD:biome.json").stdout.strip() == EXPECTED_BIOME_BLOB,
             "root Biome config exclusively ignores inert migrate directory", errors)
     require(git("rev-parse", "HEAD:.github/workflows/darkfactory-control.yml").stdout.strip()
             == EXPECTED_MANAGED_WORKFLOW_BLOB,
             "managed root CI retains root jobs; migratory nested matrix dispatch excluded", errors)
     require(not any(p.startswith(".github/workflows/") and p not in ALLOWED_ADDITIONS for p in changes),
-            "no root workflow changes beyond exact-pinned migration isolation", errors)
+            "no root workflow changes beyond source verification and release push guard", errors)
 
     for name, minimum in MIN_FILES.items():
         base = "migrate/" + name
@@ -123,13 +139,21 @@ def main() -> int:
         bundle = args.bundle.expanduser().resolve()
         require(bundle.is_file(), f"backup bundle exists {bundle}", errors)
         if bundle.is_file():
+            if args.bundle_sha256:
+                digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
+                require(digest == args.bundle_sha256.lower(), f"backup Git bundle SHA-256 matches {digest}", errors)
+            check_bundle = subprocess.run(["git", "bundle", "verify", str(bundle)],
+                                          cwd=ROOT, text=True, capture_output=True)
+            require(check_bundle.returncode == 0,
+                    f"git bundle verify: {check_bundle.stderr[:200]}", errors)
             with tempfile.TemporaryDirectory(prefix="tri-source-restore-") as temp:
                 # Cloning the bundle creates an isolated object database; no remote network is required.
                 restored = Path(temp) / "restore"
                 clone = git("clone", "--no-checkout", str(bundle), str(restored), check=False)
                 require(clone.returncode == 0, f"offline bundle clone: {clone.stderr[:240]}", errors)
                 if clone.returncode == 0:
-                    tips = {r["commit"] for s in m["sourceHistory"].values() for r in s["refs"]}
+                    tips = {r["commit"] for source in m["sourceHistory"].values()
+                            if isinstance(source, dict) and "refs" in source for r in source["refs"]}
                     absent = [sha for sha in sorted(tips)
                               if git("cat-file", "-e", f"{sha}^{{commit}}",
                                      cwd=restored, check=False).returncode != 0]
@@ -140,7 +164,8 @@ def main() -> int:
         print("NOT RUN offline Git bundle restoration (pass --bundle /path/to/backup.bundle)")
     print(json.dumps({"status": "FAIL" if errors else "PASS", "errors": errors,
                       "productionChanged": False if not errors else None,
-                      "sourceExecution": "NOT RUN (requires Bun/Chromium/OS runners)"}, indent=2))
+                      "sourceExecution": "NOT RUN BY PYTHON VERIFIER (see CI per-track evidence)",
+                      "independentBackupRestore": "TESTED" if args.bundle else "NOT_RUN"}, indent=2))
     return 1 if errors else 0
 
 

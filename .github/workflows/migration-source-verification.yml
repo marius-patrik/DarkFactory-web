@@ -7,6 +7,7 @@ on:
       - "migrate/**"
       - "docs/migrations/**"
       - "bunfig.toml"
+      - ".github/workflows/release.yml"
       - ".github/workflows/migration-source-verification.yml"
 
 permissions:
@@ -64,6 +65,8 @@ jobs:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
       - run: bun run check
+      - name: W02 transactional write and principal-fence regression tests
+        run: bun test .github/tests/storage-unit.test.ts
       - run: bunx playwright install --with-deps chromium
       - run: bun run acceptance
         env:
