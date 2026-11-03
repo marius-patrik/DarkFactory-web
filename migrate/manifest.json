@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "33612a003405647a115ff1c76f49194cd4ed4fde",
+      "snapshotTreeSHA": "f74902de4052871d57192c74c11795f0ac804db5",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -104,7 +104,7 @@
           "Playwright Chromium acceptance"
         ],
         "platform": "GitHub-hosted Ubuntu + Chromium where exercised",
-        "limitation": "W02 storage patch has not yet run at exact head; full GHC-02/GHC-03 incomplete"
+        "limitation": "W02 GHCode v2 transactional patch and unit acceptance pending exact-head repeat; versioned v3, CAS and DocumentService remain incomplete"
       }
     },
     "canvas": {
