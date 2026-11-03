@@ -8,7 +8,7 @@ import type {
 import { isOwnedWorkspace, isOwnedWorkspaceId, type PrincipalKey } from "./identity";
 
 const DATABASE = "darkfactory-workbench";
-const VERSION = 2;
+const VERSION = 3;
 // The original workbench-recent-workspaces-v1 is unattributed legacy and stays untouched.
 const OWNED_RECENT_PREFIX = "ghcode-recent-owned-v1:";
 const OWNED_PREFIX = "ghcode-owned-v2:";
@@ -39,7 +39,7 @@ type BlobRecord = {
   content: string;
   updatedAt: number;
 };
-type StoreName = "workspaces" | "blobs" | "overlays" | "staged" | "committed" | "commits";
+type StoreName = "workspaces" | "blobs" | "overlays" | "staged" | "committed" | "commits" | "pushOperations";
 
 function openDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -63,6 +63,9 @@ function openDatabase() {
       }
       if (!database.objectStoreNames.contains("commits")) {
         database.createObjectStore("commits", { keyPath: "id" });
+      }
+      if (!database.objectStoreNames.contains("pushOperations")) {
+        database.createObjectStore("pushOperations", { keyPath: "id" });
       }
     };
     request.onsuccess = () => {
@@ -399,6 +402,286 @@ export async function clearLocalGitState(workspaceId: string) {
   } finally {
     db.close();
   }
+}
+
+
+/**
+ * Durable, principal-scoped remote-push journal. A GitHub ref update and an
+ * IndexedDB commit cannot be atomic: persist "ready" with the exact proposed
+ * commit SHA BEFORE attempting the network ref update, then reconcile by
+ * reading the remote ref after any uncertain outcome.
+ *
+ * An interrupted operation never authorizes deleting unpublished local commits.
+ */
+export type PushOperation = {
+  id: string;
+  workspaceId: string;
+  principalKey: PrincipalKey;
+  repositoryId: number;
+  ref: string;
+  expectedRemoteSha: string;
+  commitIds: string[];
+  phase: "prepared" | "ready" | "remote-confirmed" | "completed";
+  targetSha?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+function assertPushOwner(operation: PushOperation, workspace: WorkspaceSnapshot) {
+  requireOwned(operation.workspaceId);
+  if (!activePrincipal || operation.principalKey !== activePrincipal ||
+      operation.workspaceId !== workspace.id || operation.repositoryId !== workspace.repository.id ||
+      operation.ref !== workspace.ref || !isOwnedWorkspace(workspace, activePrincipal)) {
+    throw new Error("Push journal identity does not match the authorized workspace.");
+  }
+}
+
+function shaIsValid(sha: string) {
+  return /^[a-f0-9]{40}$/i.test(sha);
+}
+
+function sameCommitSet(actual: LocalCommit[], expected: string[]) {
+  const ids = actual.map((item) => item.id);
+  return ids.length === expected.length &&
+    new Set(ids).size === ids.length &&
+    expected.every((id) => ids.includes(id));
+}
+
+/** Establish an immutable push intent atomically with validation of local commit IDs. */
+export async function beginPushOperation(
+  workspace: WorkspaceSnapshot,
+  expectedCommitIds: string[],
+): Promise<PushOperation> {
+  requireOwned(workspace.id);
+  if (!activePrincipal || !isOwnedWorkspace(workspace, activePrincipal) ||
+      !shaIsValid(workspace.baseSha) || !expectedCommitIds.length ||
+      new Set(expectedCommitIds).size !== expectedCommitIds.length ||
+      expectedCommitIds.some((id) => !id.startsWith(`${workspace.id}:local:`))) {
+    throw new Error("Invalid push identity, base SHA or commit snapshot.");
+  }
+  const owner = activePrincipal;
+  const db = await openDatabase();
+  try {
+    requireOwned(workspace.id);
+    return await new Promise<PushOperation>((resolve, reject) => {
+      const tx = db.transaction(["commits", "pushOperations"], "readwrite");
+      const commitsRequest = tx.objectStore("commits").getAll();
+      const operationsRequest = tx.objectStore("pushOperations").getAll();
+      let commits: LocalCommit[] | undefined;
+      let operations: PushOperation[] | undefined;
+      let result: PushOperation | undefined;
+      let reason: Error | undefined;
+      const abortWith = (error: Error) => {
+        reason = error;
+        try { tx.abort(); } catch { reject(error); }
+      };
+      tx.oncomplete = () => {
+        if (result) resolve(result);
+        else reject(new Error("Push intent transaction produced no record."));
+      };
+      tx.onabort = () => reject(reason ?? tx.error ?? new Error("Push intent aborted"));
+      tx.onerror = () => reject(reason ?? tx.error ?? new Error("Push intent failed"));
+      const apply = () => {
+        if (!commits || !operations) return;
+        try {
+          requireOwned(workspace.id);
+          if (activePrincipal !== owner) throw new Error("Account switched during push preparation.");
+          const existing = operations.filter((op) => op.workspaceId === workspace.id &&
+            op.phase !== "completed");
+          if (existing.length > 1) throw new Error("Multiple unresolved push operations.");
+          if (existing.length === 1) {
+            assertPushOwner(existing[0], workspace);
+            result = existing[0];
+            return;
+          }
+          const local = commits.filter((item) => item.workspaceId === workspace.id);
+          if (!sameCommitSet(local, expectedCommitIds))
+            throw new Error("Local commits changed while preparing push; reload and retry.");
+          result = {
+            id: `${workspace.id}:push:${crypto.randomUUID()}`,
+            workspaceId: workspace.id, principalKey: owner,
+            repositoryId: workspace.repository.id, ref: workspace.ref,
+            expectedRemoteSha: workspace.baseSha, commitIds: [...expectedCommitIds],
+            phase: "prepared", createdAt: Date.now(), updatedAt: Date.now(),
+          };
+          tx.objectStore("pushOperations").add(result);
+        } catch (error) {
+          abortWith(error instanceof Error ? error : new Error(String(error)));
+        }
+      };
+      commitsRequest.onsuccess = () => {
+        commits = commitsRequest.result as LocalCommit[];
+        apply();
+      };
+      operationsRequest.onsuccess = () => {
+        operations = operationsRequest.result as PushOperation[];
+        apply();
+      };
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function loadPendingPushOperation(
+  workspace: WorkspaceSnapshot,
+): Promise<PushOperation | null> {
+  requireOwned(workspace.id);
+  const all = await withStore<PushOperation[]>("pushOperations", "readonly", (store) => store.getAll());
+  requireOwned(workspace.id);
+  const pending = all.filter((item) => item.workspaceId === workspace.id && item.phase !== "completed");
+  if (pending.length > 1) throw new Error("Multiple unresolved push operations.");
+  if (!pending.length) return null;
+  assertPushOwner(pending[0], workspace);
+  return pending[0];
+}
+
+/** CAS phase transition; never overwrite a different tab's publication target. */
+export async function advancePushOperation(
+  workspace: WorkspaceSnapshot,
+  id: string,
+  from: PushOperation["phase"],
+  to: "ready" | "remote-confirmed",
+  targetSha?: string,
+): Promise<PushOperation> {
+  requireOwned(workspace.id);
+  const db = await openDatabase();
+  try {
+    requireOwned(workspace.id);
+    return await new Promise<PushOperation>((resolve, reject) => {
+      const tx = db.transaction("pushOperations", "readwrite");
+      let result: PushOperation | undefined;
+      let reason: Error | undefined;
+      const abortWith = (err: Error) => {
+        reason = err;
+        try { tx.abort(); } catch { reject(err); }
+      };
+      tx.oncomplete = () => result
+        ? resolve(result)
+        : reject(new Error("Push journal was not updated."));
+      tx.onerror = () => reject(reason ?? tx.error ?? new Error("Push transition failed"));
+      tx.onabort = () => reject(reason ?? tx.error ?? new Error("Push transition aborted"));
+      const req = tx.objectStore("pushOperations").get(id);
+      req.onsuccess = () => {
+        try {
+          const current = req.result as PushOperation | undefined;
+          if (!current) throw new Error("Push operation not found.");
+          assertPushOwner(current, workspace);
+          if (current.phase !== from) throw new Error("Concurrent push phase change; reload and reconcile.");
+          if ((from === "prepared" && to !== "ready") ||
+              (from === "ready" && to !== "remote-confirmed") ||
+              (from !== "prepared" && from !== "ready")) {
+            throw new Error("Invalid push journal transition.");
+          }
+          if (to === "ready" && (!targetSha || !shaIsValid(targetSha)))
+            throw new Error("Push target SHA must be a real Git commit hash.");
+          if (to === "remote-confirmed" && (!current.targetSha || targetSha &&
+              current.targetSha !== targetSha)) throw new Error("Unverified remote target.");
+          result = { ...current, phase: to,
+            targetSha: to === "ready" ? targetSha : current.targetSha,
+            updatedAt: Date.now() };
+          tx.objectStore("pushOperations").put(result);
+        } catch (error) {
+          abortWith(error instanceof Error ? error : new Error(String(error)));
+        }
+      };
+    });
+  } finally { db.close(); }
+}
+
+/**
+ * Confirmed remote ref is already at the journaled target. Complete local
+ * cleanup + workspace advancement in ONE transaction. Refuse cleanup if a
+ * second tab has committed more data since preparation; retain the journal
+ * and all local objects for explicit reconciliation.
+ */
+export async function finalizeConfirmedPush(
+  previous: WorkspaceSnapshot,
+  next: WorkspaceSnapshot,
+  operation: PushOperation,
+): Promise<void> {
+  requireOwned(previous.id);
+  assertPushOwner(operation, previous);
+  if (operation.phase !== "remote-confirmed" || !operation.targetSha ||
+      next.baseSha !== operation.targetSha || next.id !== previous.id ||
+      next.repository.id !== previous.repository.id || next.ref !== previous.ref ||
+      !activePrincipal || !isOwnedWorkspace(next, activePrincipal)) {
+    throw new Error("Cannot finalize a push without the confirmed ref and owned workspace.");
+  }
+  const db = await openDatabase();
+  try {
+    requireOwned(previous.id);
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(
+        ["workspaces", "commits", "committed", "overlays", "pushOperations"], "readwrite",
+      );
+      let reason: Error | undefined;
+      const abortWith = (error: Error) => {
+        reason = error;
+        try { tx.abort(); } catch { reject(error); }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(reason ?? tx.error ?? new Error("Push cleanup aborted"));
+      tx.onerror = () => reject(reason ?? tx.error ?? new Error("Push cleanup failed"));
+      const reqs = {
+        previous: tx.objectStore("workspaces").get(previous.id),
+        commits: tx.objectStore("commits").getAll(),
+        committed: tx.objectStore("committed").getAll(),
+        overlays: tx.objectStore("overlays").getAll(),
+        journal: tx.objectStore("pushOperations").get(operation.id),
+      };
+      let count = 0;
+      const apply = () => {
+        if (++count !== 5) return;
+        try {
+          requireOwned(previous.id);
+          const storedWorkspace = reqs.previous.result as WorkspaceSnapshot | undefined;
+          const currentJournal = reqs.journal.result as PushOperation | undefined;
+          if (!storedWorkspace || !activePrincipal ||
+              !isOwnedWorkspace(storedWorkspace, activePrincipal) ||
+              storedWorkspace.baseSha !== operation.expectedRemoteSha ||
+              storedWorkspace.treeSha !== previous.treeSha ||
+              !currentJournal || currentJournal.phase !== "remote-confirmed" ||
+              currentJournal.targetSha !== operation.targetSha) {
+            throw new Error("Push cleanup conflicts with local workspace or journal.");
+          }
+          assertPushOwner(currentJournal, previous);
+          const local = (reqs.commits.result as LocalCommit[])
+            .filter((item) => item.workspaceId === previous.id);
+          if (!sameCommitSet(local, operation.commitIds))
+            throw new Error("New local commits exist; confirmed remote push needs reconciliation.");
+          const committedStore = tx.objectStore("committed");
+          for (const file of reqs.committed.result as CommittedFile[]) {
+            if (file.workspaceId !== previous.id) continue;
+            if (file.key !== `${previous.id}:${file.path}`)
+              throw new Error("Corrupt committed-file key; cleanup aborted.");
+            committedStore.delete(file.key);
+          }
+          const commitStore = tx.objectStore("commits");
+          for (const commit of local) commitStore.delete(commit.id);
+          const overlayStore = tx.objectStore("overlays");
+          for (const overlay of reqs.overlays.result as WorkingFile[]) {
+            if (overlay.workspaceId !== previous.id) continue;
+            if (overlay.key !== `${previous.id}:${overlay.path}`)
+              throw new Error("Corrupt overlay key; cleanup aborted.");
+            const remote = next.tree.find((item) => item.type === "blob" &&
+              item.path === overlay.path);
+            if (overlay.status === "deleted" && !remote) overlayStore.delete(overlay.key);
+            else if (remote && (overlay.status === "added" || overlay.status === "renamed"))
+              overlayStore.put({ ...overlay, status: "modified", renamedFrom: undefined,
+                baseSha: remote.sha, updatedAt: Date.now() } satisfies WorkingFile);
+          }
+          tx.objectStore("workspaces").put(next);
+          tx.objectStore("pushOperations").put({
+            ...currentJournal, phase: "completed", updatedAt: Date.now(),
+          } satisfies PushOperation);
+        } catch (error) {
+          abortWith(error instanceof Error ? error : new Error(String(error)));
+        }
+      };
+      for (const request of Object.values(reqs)) request.onsuccess = apply;
+    });
+  } finally { db.close(); }
 }
 
 export function loadRecentWorkspaces(owner: PrincipalKey): WorkspaceSnapshot[] {

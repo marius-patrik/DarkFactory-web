@@ -52,7 +52,10 @@ import {
 } from "./identity";
 import {
   bindStoragePrincipal,
-  clearLocalGitState,
+  beginPushOperation,
+  advancePushOperation,
+  finalizeConfirmedPush,
+  loadPendingPushOperation,
   clearStaged,
   commitLocalChanges,
   loadBlob,
@@ -919,125 +922,144 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const pushLocalCommits = useCallback(async () => {
     if (!workspace) throw new Error("No workspace is open.");
     if (!token) throw new Error("Sign in with GitHub before pushing.");
-    if (!commits.length) throw new Error("There are no local commits to push.");
     const branch = refs.find(
       (candidate) => candidate.kind === "branch" && candidate.name === workspace.ref,
     );
     if (!branch)
       throw new Error("Push requires a branch workspace. Tags and detached refs are read-only.");
 
+    const lease = capture();
     setLoading(true);
     setError(null);
     try {
-      const lease = capture();
+      let operation = await loadPendingPushOperation(workspace);
+      assertCurrent(lease);
+      if (!operation) {
+        if (!commits.length) throw new Error("There are no local commits to push.");
+        operation = await beginPushOperation(workspace, commits.map((item) => item.id));
+      }
+      assertCurrent(lease);
+      if (operation.expectedRemoteSha !== workspace.baseSha ||
+          operation.commitIds.length !== commits.length ||
+          operation.commitIds.some((id) => !commits.some((item) => item.id === id))) {
+        throw new Error("Pending push differs from current local commits. Reconcile before retrying.");
+      }
       const liveRef = await getGithubBranchRef(workspace.repository.fullName, workspace.ref, token);
       assertCurrent(lease);
-      if (liveRef.object.sha !== workspace.baseSha) {
-        setRemoteHeadSha(liveRef.object.sha);
-        throw new Error(
-          `Remote branch moved from ${workspace.baseSha.slice(0, 7)} to ${liveRef.object.sha.slice(0, 7)}. Fetch/sync before pushing.`,
-        );
-      }
-
-      let parentSha = workspace.baseSha;
-      let treeSha = workspace.treeSha;
-
-      for (const localCommit of commits) {
-        const mutations = [];
-        for (const file of localCommit.files) {
-          const sourcePath = file.renamedFrom || file.path;
-          const existing = workspace.tree.find(
-            (entry) =>
-              entry.type === "blob" && (entry.path === file.path || entry.path === sourcePath),
-          );
-          const mode =
-            existing?.mode && ["100644", "100755", "120000"].includes(existing.mode)
-              ? existing.mode
-              : "100644";
-
-          if (file.status === "deleted") {
-            mutations.push({ path: file.path, mode, type: "blob" as const, sha: null });
-            continue;
-          }
-
-          const blob = await createGithubBlob(
-            workspace.repository.fullName,
-            file.content ?? "",
-            token,
-          );
-          mutations.push({ path: file.path, mode, type: "blob" as const, sha: blob.sha });
+      // A remote update can succeed while its response or local acknowledgment fails.
+      // The journaled target permits idempotent reconciliation without discarding commits.
+      if (operation.phase === "prepared") {
+        if (liveRef.object.sha !== operation.expectedRemoteSha) {
+          setRemoteHeadSha(liveRef.object.sha);
+          throw new Error("Remote ref changed during an unprepared push. Reconcile manually.");
         }
-
-        const tree = await createGithubTree(
-          workspace.repository.fullName,
-          treeSha,
-          mutations,
-          token,
+        let parentSha = operation.expectedRemoteSha;
+        let treeSha = workspace.treeSha;
+        for (const localCommit of commits) {
+          const mutations = [];
+          for (const file of localCommit.files) {
+            const sourcePath = file.renamedFrom || file.path;
+            const existing = workspace.tree.find(
+              (entry) => entry.type === "blob" &&
+                (entry.path === file.path || entry.path === sourcePath),
+            );
+            const mode =
+              existing?.mode && ["100644", "100755", "120000"].includes(existing.mode)
+                ? existing.mode
+                : "100644";
+            if (file.status === "deleted") {
+              mutations.push({ path: file.path, mode, type: "blob" as const, sha: null });
+              continue;
+            }
+            const blob = await createGithubBlob(
+              workspace.repository.fullName, file.content ?? "", token,
+            );
+            assertCurrent(lease);
+            mutations.push({ path: file.path, mode, type: "blob" as const, sha: blob.sha });
+          }
+          const tree = await createGithubTree(
+            workspace.repository.fullName, treeSha, mutations, token,
+          );
+          assertCurrent(lease);
+          const commit = await createGithubCommit(
+            workspace.repository.fullName, localCommit.message, tree.sha, [parentSha], token,
+          );
+          assertCurrent(lease);
+          parentSha = commit.sha;
+          treeSha = tree.sha;
+        }
+        // Persist the target BEFORE mutating the GitHub ref.
+        operation = await advancePushOperation(
+          workspace, operation.id, "prepared", "ready", parentSha,
         );
-        const commit = await createGithubCommit(
-          workspace.repository.fullName,
-          localCommit.message,
-          tree.sha,
-          [parentSha],
-          token,
-        );
-        parentSha = commit.sha;
-        treeSha = tree.sha;
+        assertCurrent(lease);
       }
 
-      assertCurrent(lease);
-      await updateGithubBranchRef(workspace.repository.fullName, workspace.ref, parentSha, token);
-      assertCurrent(lease);
+      if (!operation.targetSha) throw new Error("Push target was not recorded.");
+      if (operation.phase === "ready") {
+        if (liveRef.object.sha === operation.expectedRemoteSha) {
+          // Re-read immediately before patch. A non-force update rejects
+          // divergent branch advancement; no unexpected remote ref is overwritten.
+          const beforePatch = await getGithubBranchRef(
+            workspace.repository.fullName, workspace.ref, token,
+          );
+          assertCurrent(lease);
+          if (beforePatch.object.sha !== operation.expectedRemoteSha)
+            throw new Error("Remote branch changed before push; reconcile without force.");
+          await updateGithubBranchRef(
+            workspace.repository.fullName, workspace.ref, operation.targetSha, token,
+          );
+          assertCurrent(lease);
+        } else if (liveRef.object.sha !== operation.targetSha) {
+          setRemoteHeadSha(liveRef.object.sha);
+          throw new Error("Remote branch conflicts with pending push; manual reconciliation required.");
+        }
+        const confirmed = await getGithubBranchRef(workspace.repository.fullName, workspace.ref, token);
+        assertCurrent(lease);
+        if (confirmed.object.sha !== operation.targetSha)
+          throw new Error("GitHub did not confirm the journaled target; local commits preserved.");
+        operation = await advancePushOperation(
+          workspace, operation.id, "ready", "remote-confirmed", operation.targetSha,
+        );
+        assertCurrent(lease);
+      }
 
-      const remoteCommit = await getGithubCommit(workspace.repository.fullName, parentSha, token);
-      const remoteTree = await getGithubTree(
-        workspace.repository.fullName,
-        remoteCommit.commit.tree.sha,
-        token,
+      if (operation.phase !== "remote-confirmed")
+        throw new Error("Pending push has an unsupported phase; local commits preserved.");
+      const confirmedRef = await getGithubBranchRef(
+        workspace.repository.fullName, workspace.ref, token,
       );
+      assertCurrent(lease);
+      if (confirmedRef.object.sha !== operation.targetSha) {
+        setRemoteHeadSha(confirmedRef.object.sha);
+        throw new Error("Published ref changed after push. Local cleanup requires reconciliation.");
+      }
+      const remoteCommit = await getGithubCommit(
+        workspace.repository.fullName, operation.targetSha, token,
+      );
+      assertCurrent(lease);
+      const remoteTree = await getGithubTree(
+        workspace.repository.fullName, remoteCommit.commit.tree.sha, token,
+      );
+      assertCurrent(lease);
       const snapshot: WorkspaceSnapshot = {
         ...workspace,
-        baseSha: parentSha,
+        baseSha: operation.targetSha,
         treeSha: remoteTree.sha,
         tree: remoteTree.tree,
         updatedAt: Date.now(),
       };
-      assertCurrent(lease);
-      await saveWorkspace(snapshot);
-      assertCurrent(lease);
-      await clearLocalGitState(workspace.id);
-
-      for (const overlay of overlays) {
-        const remoteEntry = remoteTree.tree.find(
-          (entry) => entry.type === "blob" && entry.path === overlay.path,
-        );
-        if (overlay.status === "deleted" && !remoteEntry) {
-          await removeOverlay(workspace.id, overlay.path);
-          continue;
-        }
-        if (overlay.status === "added" || overlay.status === "renamed") {
-          if (remoteEntry) {
-            await saveOverlay({
-              ...overlay,
-              status: "modified",
-              baseSha: remoteEntry.sha,
-              renamedFrom: undefined,
-              updatedAt: Date.now(),
-            });
-          }
-        }
-      }
-
+      await finalizeConfirmedPush(workspace, snapshot, operation);
       assertCurrent(lease);
       setWorkspace(snapshot);
-      setRemoteHeadSha(parentSha);
+      setRemoteHeadSha(operation.targetSha);
       setRecent(rememberWorkspace(snapshot));
       await loadLocalState(workspace.id, lease);
-      return parentSha;
+      return operation.targetSha;
     } finally {
-      setLoading(false);
+      if (isCurrent(lease)) setLoading(false);
     }
-  }, [assertCurrent, capture, commits, loadLocalState, overlays, refs, token, workspace]);
+  }, [assertCurrent, capture, commits, isCurrent, loadLocalState, refs, token, workspace]);
 
   const exportPatch = useCallback(
     async (scope: PatchExportScope = "all", commitId?: string) => {
