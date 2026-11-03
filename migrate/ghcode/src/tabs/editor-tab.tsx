@@ -8,6 +8,7 @@ import { useFactory } from "@/factory/context";
 import { useWorkbenchRuntime } from "@/workbench/runtime";
 import { isGeneratedDocument } from "@/workspace/governance";
 import { languageForPath } from "@/workspace/languages";
+import { documentService } from "@/workspace/document-service";
 import type { WorkbenchTab } from "@/workbench/model";
 import {
   RenderedResource,
@@ -42,6 +43,13 @@ export function EditorTab({
   const path = typeof tab.state.path === "string" ? tab.state.path : "Untitled";
   const repositoryFile = path !== "Untitled" && Boolean(workspace.workspace);
   const generated = repositoryFile && isGeneratedDocument(path);
+  const documentId = repositoryFile && workspace.workspace
+    ? `${workspace.workspace.id}:${path}`
+    : tab.id;
+  const writeRef = useRef(workspace.writeFile);
+  writeRef.current = workspace.writeFile;
+  const readRef = useRef(workspace.readFile);
+  readRef.current = workspace.readFile;
   const language =
     typeof tab.state.language === "string" ? tab.state.language : languageForPath(path);
   const renderer: ResourceRenderer = tab.state.renderer === "browser" ? "browser" : "editor";
@@ -55,7 +63,6 @@ export function EditorTab({
     typeof tab.state.value === "string" ? tab.state.value : "",
   );
   const [loadedPath, setLoadedPath] = useState(repositoryFile ? "" : path);
-  const [edited, setEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const viewStateTimer = useRef<number | null>(null);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
@@ -73,6 +80,7 @@ export function EditorTab({
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
+    if (repositoryFile) documentService.attachModel(documentId, editor.getModel());
     for (const disposable of editorDisposables.current) disposable.dispose();
     editorDisposables.current = [];
 
@@ -114,18 +122,27 @@ export function EditorTab({
     if (!repositoryFile) {
       setValue(typeof tab.state.value === "string" ? tab.state.value : "");
       setLoadedPath(path);
-      setEdited(false);
       return;
     }
     let disposed = false;
+    let acquired = false;
+    let unsubscribe = () => {};
     setLoadedPath("");
     setError(null);
-    setEdited(false);
-    void workspace
-      .readFile(path)
+    void readRef.current(path)
       .then((content) => {
         if (disposed) return;
-        setValue(content);
+        const session = documentService.acquire(
+          documentId, workspace.principal.key, content,
+          async (next) => writeRef.current(path, next),
+        );
+        acquired = true;
+        unsubscribe = documentService.subscribe(documentId, (snapshot) => {
+          if (disposed) return;
+          setValue(snapshot.content);
+          setError(snapshot.error);
+        });
+        setValue(session.content);
         setLoadedPath(path);
       })
       .catch((reason) => {
@@ -133,18 +150,10 @@ export function EditorTab({
       });
     return () => {
       disposed = true;
+      unsubscribe();
+      if (acquired) documentService.release(documentId);
     };
-  }, [path, repositoryFile, tab.state.value, workspace.readFile]);
-
-  useEffect(() => {
-    if (!repositoryFile || generated || !edited || loadedPath !== path) return;
-    const timer = window.setTimeout(() => {
-      void workspace.writeFile(path, value).catch((reason) => {
-        setError(reason instanceof Error ? reason.message : String(reason));
-      });
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [edited, generated, loadedPath, path, repositoryFile, value, workspace.writeFile]);
+  }, [documentId, path, repositoryFile, tab.state.value, workspace.principal.key]);
 
   const liveCurrent = useMemo(() => {
     if (!resource.current || loadedPath !== path || resource.current.content === null)
@@ -156,7 +165,7 @@ export function EditorTab({
     };
   }, [loadedPath, path, resource.current, value]);
 
-  if (error) {
+  if (error && loadedPath !== path) {
     return (
       <div className="tab-empty">
         <strong>Could not open {path}</strong>
@@ -230,6 +239,7 @@ export function EditorTab({
         height="100%"
         beforeMount={registerCapabilityLanguages}
         onMount={handleEditorMount}
+        keepCurrentModel
         path={workspace.workspace ? `${workspace.workspace.id}/${path}` : tab.id}
         language={language}
         value={value}
@@ -238,8 +248,11 @@ export function EditorTab({
           if (generated) return;
           const content = next ?? "";
           setValue(content);
-          if (repositoryFile) setEdited(true);
-          else updateState({ value: content });
+          if (repositoryFile) {
+            void documentService.edit(documentId, content).catch((reason) => {
+              setError(reason instanceof Error ? reason.message : String(reason));
+            });
+          } else updateState({ value: content });
         }}
         options={{
           automaticLayout: true,
@@ -290,6 +303,19 @@ export function EditorTab({
         target={compareTarget}
         onChange={updateState}
       />
+      {error && loadedPath === path && (
+        <div className="resource-generated-notice" role="alert">
+          <strong>Document save not acknowledged: {error}</strong>
+          <button
+            type="button"
+            onClick={() => void documentService.flush(documentId).catch((reason) => {
+              setError(reason instanceof Error ? reason.message : String(reason));
+            })}
+          >
+            Retry save
+          </button>
+        </div>
+      )}
       {generated && (
         <div className="resource-generated-notice" role="note">
           <span>

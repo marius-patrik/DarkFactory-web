@@ -50,6 +50,7 @@ import {
   type OwnershipGeneration,
   type Principal,
 } from "./identity";
+import { documentService } from "./document-service";
 import {
   bindStoragePrincipal,
   beginPushOperation,
@@ -156,6 +157,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [anonymous] = useState(() => {
     const identity = anonymousPrincipal();
     bindStoragePrincipal(identity.key);
+    documentService.bindPrincipal(identity.key);
     return identity;
   });
   const [principal, setPrincipal] = useState<Principal>(anonymous);
@@ -193,6 +195,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
   const transition = useCallback((next: Principal, phase: WorkspaceContextValue["authPhase"]) => {
     bindStoragePrincipal(next.key);
+    documentService.bindPrincipal(next.key);
     const generation = authority.current.generation + 1;
     authority.current = { principalKey: next.key, generation };
     setOwnershipGeneration(generation);
@@ -242,6 +245,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     async (candidate: string) => {
       const value = candidate.trim();
       if (!value) throw new Error("GitHub token cannot be empty.");
+      documentService.assertSafeToNavigate();
       const lease = transition(anonymous, "resolving");
       setLoading(true);
       try {
@@ -273,6 +277,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(() => {
+    try {
+      documentService.assertSafeToNavigate();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+      return;
+    }
     clearGithubToken();
     transition(anonymous, "anonymous");
     channel.current?.postMessage({ type: "invalidate" });
@@ -304,6 +314,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const openRepository = useCallback(
     async (input: string, requestedRef?: string) => {
+      documentService.assertSafeToNavigate();
       if (authPhase === "resolving" || authPhase === "failed" || authPhase === "invalidated")
         throw new Error(
           "Resolve your GitHub identity or continue anonymously before opening a repository.",

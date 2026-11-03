@@ -180,11 +180,23 @@ export function WorkbenchSurfaceView({
       workbenchTab: (props: any) => {
         const tab = props.params as WorkbenchTab;
         return (
-          <DockviewDefaultTab
-            {...props}
-            data-workbench-tab-id={tab?.id}
-            hideClose={Boolean(tab?.pinned)}
-          />
+          <div className="workbench-guarded-tab" data-workbench-tab-id={tab?.id}>
+            <DockviewDefaultTab {...props} hideClose />
+            {!tab?.pinned && (
+              <button
+                type="button"
+                title="Close"
+                aria-label={`Close ${tab?.title ?? "tab"}`}
+                className="workbench-guarded-close"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  runtimeRef.current.closeTab(tab.id);
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
         );
       },
     }),
@@ -268,7 +280,14 @@ export function WorkbenchSurfaceView({
     items.push("separator");
 
     if (!hasProtectedPeer) {
-      items.push("closeOthers", "closeRight");
+      items.push({
+        label: "Close Others",
+        action: () => {
+          for (const peer of groupPanels) {
+            if (peer.id !== tab.id) runtimeRef.current.closeTab(peer.id);
+          }
+        },
+      });
     }
 
     items.push(

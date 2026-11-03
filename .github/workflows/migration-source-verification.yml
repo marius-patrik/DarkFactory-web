@@ -66,7 +66,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run check
       - name: W02 transactional write and principal-fence regression tests
-        run: bun test ./.github/unit/storage-unit.test.ts
+        run: bun test ./.github/unit/storage-unit.test.ts ./.github/unit/document-service.test.ts
       - run: bunx playwright install --with-deps chromium
       - run: bun run acceptance
         env:
