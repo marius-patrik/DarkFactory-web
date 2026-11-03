@@ -17,7 +17,7 @@ The W02 acceptance wave is **in progress and not approved for M007**.
 - GHC-02 versioned v3 schema/CAS/atomic multi-store operations/secure import-export, GHC-03 DocumentService and guarded Monaco/Dockview lifecycle, and durable push queue remain unimplemented.
 - Original off-GitHub ZIPs and embedded bundle were not accessible for W02 rehash or fresh restoration.
 - RSCode native Windows/macOS/Linux artifact acceptance and PTY stress tests were not run in this environment.
-- Canvas frozen lockfile and repository-context boundary remain unresolved.
+- Canvas now has a CI-generated Bun 1.3.11 lockfile (SHA-256 `842a1d59da1c5f5b23303193545d3dd6e139f23251269132c7bdc7955e8e3d80`) and frozen-install workflow; exact-head verification pending. Repository-context boundary remains unresolved.
 - SBOM/T014 rights and template web retirement remain open.
 - This branch is not the unified application. Root production app remains unchanged, and PR #39 must remain draft.
 

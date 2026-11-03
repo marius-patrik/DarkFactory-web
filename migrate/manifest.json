@@ -114,25 +114,24 @@
       "originalBranch": "development",
       "originalSHA": "5f462ea6e73c570e483149d6846dcc9190c09d51",
       "reconciliationSourceSHA": "bf17d45c8068a3bda8de5d4786a829bb4c511a86",
-      "snapshotTreeSHA": "85e473f97f494ae2f97e05290bd017f73cdec0f7",
-      "appSubtreeSHA": "ea6b4958e227d1dcded477ce5b3392d15379d0c5",
+      "snapshotTreeSHA": "652332788e685944020c5d63d00de244cdf63d99",
+      "appSubtreeSHA": "caab348dd084548760ae77338133afe849d07ff1",
       "expectedOwner": "DarkFactory-web unified app UI layer",
       "acceptedChanges": [
         "Canvas PR #41 complete standalone app, original persistence source, and app-specific browser/persistence tests preserved; no active runtime import"
       ],
       "provisionalChanges": [
-        "IndexedDB adapter is not imported by Canvas App; do not activate alongside GHCode v3 store"
+        "IndexedDB adapter is not imported by Canvas App; do not activate alongside GHCode v3 store",
+        "W02 generated real Bun 1.3.11 lockfile on GitHub Actions Ubuntu and enforced frozen-install CI"
       ],
       "knownUnresolved": [
         "App remains repository-document fixture-driven via .agents and repo.dfconfig",
-        "Missing pinned bun.lock in original Canvas app",
         "Browser/typecheck/persistence acceptance not rerun here",
-        "PR #42's workflow security stays upstream; no nested workflow copied",
-        "No pinned bun.lock in original standalone app"
+        "PR #42's workflow security stays upstream; no nested workflow copied"
       ],
       "license": "GPL-3.0",
       "testCommands": [
-        "cd migrate/canvas/.github/app && bun install",
+        "cd migrate/canvas/.github/app && bun install --frozen-lockfile",
         "cd migrate/canvas/.github/app && bun run check",
         "node migrate/canvas/.github/tests/persistence/canvas-persistence.mjs",
         "node migrate/canvas/.github/tests/smoke_canvas.mjs migrate/canvas/.canvas-dist/index.html"
@@ -154,7 +153,7 @@
           "Canvas UI smoke"
         ],
         "platform": "GitHub-hosted Ubuntu + Chromium where exercised",
-        "limitation": "Non-frozen dependencies and repository-context boundary unresolved"
+        "limitation": "W02 lock-generated candidate requires exact-head frozen install, Chromium and application acceptance; source context still fixture-coupled"
       }
     }
   },
@@ -716,7 +715,16 @@
       "rscode": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
       "canvas": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
       "managedDarkFactory": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511238882 (agent and approvals SKIPPED)",
-      "W02ChangesPending": "GHCode storage transaction-completion acknowledgment, current-principal data-boundary fencing, and targeted Bun regression tests. Not accepted until exact-head CI."
+      "W02ChangesPending": "GHCode storage transaction-completion acknowledgment, current-principal data-boundary fencing, and targeted Bun regression tests. Not accepted until exact-head CI.",
+      "W02CanvasLock": {
+        "generationRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41596379238",
+        "job": 125784599781,
+        "bun": "1.3.11",
+        "sha256": "842a1d59da1c5f5b23303193545d3dd6e139f23251269132c7bdc7955e8e3d80",
+        "gitBlob": "368d67603a2be43176d5052f618e3196c650155b",
+        "status": "GENERATED_AND_COMMITTED_NEEDS_FROZEN_CI",
+        "note": "Prior non-frozen run 41596024800 produced different SHA256 caa2634b..., showing version drift."
+      }
     },
     "priorExternalEvidence": [
       {

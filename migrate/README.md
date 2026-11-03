@@ -32,7 +32,7 @@ bun test .github/tests/storage-unit.test.ts
 bun run acceptance
 
 cd ../canvas/.github/app
-bun install
+bun install --frozen-lockfile
 bun run check
 cd ../../..
 node migrate/canvas/.github/tests/persistence/canvas-persistence.mjs
@@ -40,7 +40,7 @@ node migrate/canvas/.github/tests/persistence/canvas-persistence.mjs
 
 **W02 release safety:** `.github/workflows/release.yml` now requires an active root application path on `main` pushes; the source-only baseline, provenance documentation, and verifier changes alone do not match this filter. Existing manual dispatch behavior and version-tag checks are unchanged. The verifier checks the exact allowed release modification against the original `main` copy. The existing release has `contents: write`; do not merge until GitHub confirms the path filter and exact-head CI.
 
-**Caveats:** the copied Canvas app has no source-pinned `bun.lock`; Canvas's generator is source-repository-document-oriented; native packaging needs real OS runners and real Chromium; archived GHCode historical tests are not yet behaviorally reconciled. An environment unable to run these tests must report **NOT RUN**, never PASS.
+**Caveats:** the Canvas app now has a generated Bun 1.3.11 `bun.lock` awaiting frozen exact-head acceptance; Canvas's generator is source-repository-document-oriented; native packaging needs real OS runners and real Chromium; archived GHCode historical tests are not yet behaviorally reconciled. An environment unable to run these tests must report **NOT RUN**, never PASS.
 
 ## Provenance and licensing
 

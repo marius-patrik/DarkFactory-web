@@ -87,19 +87,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.11
-      - run: bun install
-      - name: Emit exact Canvas Bun lockfile as verified CI text
-        run: |
-          echo W02_CANVAS_LOCK_BEGIN
-          cat bun.lock
-          echo W02_CANVAS_LOCK_END
-          sha256sum bun.lock
-      - name: Capture reproducible Canvas lockfile candidate
-        uses: actions/upload-artifact@v4
-        with:
-          name: w02-canvas-lockfile
-          path: migrate/canvas/.github/app/bun.lock
-          if-no-files-found: error
+      - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bunx playwright install --with-deps chromium
       - name: Verify native Chromium IndexedDB acceptance
