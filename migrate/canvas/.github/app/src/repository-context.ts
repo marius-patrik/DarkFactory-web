@@ -57,10 +57,14 @@ function text(value: unknown, label: string, max = 256): string {
 
 function sourcePath(value: unknown): string {
   const path = text(value, "source path", 1024);
-  if (path.startsWith("/") || path.includes("\\") || path.includes("//") ||
-      /^[A-Za-z][A-Za-z0-9+.-]*:/.test(path) ||
-      /%(?:2e|2f|5c)/i.test(path) ||
-      path.split("/").some((part) => part === "." || part === ".." || !part)) {
+  if (
+    path.startsWith("/") ||
+    path.includes("\\") ||
+    path.includes("//") ||
+    /^[A-Za-z][A-Za-z0-9+.-]*:/.test(path) ||
+    /%(?:2e|2f|5c)/i.test(path) ||
+    path.split("/").some((part) => part === "." || part === ".." || !part)
+  ) {
     throw new Error("Invalid or unsafe source path.");
   }
   return path;
@@ -82,8 +86,8 @@ function sourceEdges(
     for (const match of matches) {
       if (++inspected > 200 || edges.length >= MAX_EDGES) break;
       const candidate = match[1];
-      if (!candidate || /^[a-z][a-z0-9+.-]*:/i.test(candidate) ||
-          candidate.startsWith("//")) continue;
+      if (!candidate || /^[a-z][a-z0-9+.-]*:/i.test(candidate) || candidate.startsWith("//"))
+        continue;
       try {
         const url = new URL(candidate, source);
         if (url.origin !== source.origin) continue;
@@ -116,29 +120,38 @@ export function parseRepositoryContext(input: unknown): RepositoryContext {
   const name = text(raw.name, "display name");
   const branch = text(raw.branch, "branch");
   const revision = text(raw.revision, "revision");
-  const goal = typeof raw.goal === "string" && raw.goal.length <= MAX_BYTES
-    ? raw.goal
-    : "No goal document available.";
-  const publication = typeof raw.publication === "string" &&
-    raw.publication.length <= 512 ? raw.publication : "Read-only source context.";
-  if (!Array.isArray(raw.documents) || raw.documents.length > MAX_DOCUMENTS ||
-      !Array.isArray(raw.paths) || raw.paths.length > MAX_PATHS) {
+  const goal =
+    typeof raw.goal === "string" && raw.goal.length <= MAX_BYTES
+      ? raw.goal
+      : "No goal document available.";
+  const publication =
+    typeof raw.publication === "string" && raw.publication.length <= 512
+      ? raw.publication
+      : "Read-only source context.";
+  if (
+    !Array.isArray(raw.documents) ||
+    raw.documents.length > MAX_DOCUMENTS ||
+    !Array.isArray(raw.paths) ||
+    raw.paths.length > MAX_PATHS
+  ) {
     throw new Error("Repository context exceeds allowed source limits.");
   }
   const paths = raw.paths.map(sourcePath);
   if (new Set(paths).size !== paths.length)
     throw new Error("Duplicate source paths in repository context.");
-  const documents = raw.documents.map((candidate) => {
-    const document = object(candidate);
-    const path = sourcePath(document.path);
-    if (typeof document.content !== "string" || document.content.length > MAX_BYTES)
-      throw new Error(`Invalid or oversized document: ${path}`);
-    const sourceId = document.sourceId === undefined ? undefined
-      : text(document.sourceId, "source ID");
-    const sourceRevision = document.revision === undefined ? undefined
-      : text(document.revision, "document revision");
-    return { path, content: document.content, sourceId, revision: sourceRevision };
-  }).sort((a, b) => alphabetical(a.path, b.path));
+  const documents = raw.documents
+    .map((candidate) => {
+      const document = object(candidate);
+      const path = sourcePath(document.path);
+      if (typeof document.content !== "string" || document.content.length > MAX_BYTES)
+        throw new Error(`Invalid or oversized document: ${path}`);
+      const sourceId =
+        document.sourceId === undefined ? undefined : text(document.sourceId, "source ID");
+      const sourceRevision =
+        document.revision === undefined ? undefined : text(document.revision, "document revision");
+      return { path, content: document.content, sourceId, revision: sourceRevision };
+    })
+    .sort((a, b) => alphabetical(a.path, b.path));
   if (new Set(documents.map((doc) => doc.path)).size !== documents.length)
     throw new Error("Duplicate repository document identity.");
   let repositoryIdentity: RepositoryIdentity | null = null;
@@ -155,8 +168,15 @@ export function parseRepositoryContext(input: unknown): RepositoryContext {
     }
   }
   return {
-    schema: raw.schema, repository, name, branch, revision, goal, publication,
-    documents, paths: [...paths].sort(alphabetical),
+    schema: raw.schema,
+    repository,
+    name,
+    branch,
+    revision,
+    goal,
+    publication,
+    documents,
+    paths: [...paths].sort(alphabetical),
     graphEdges: sourceEdges(documents, paths),
     repositoryIdentity,
     partial: raw.partial === true || repositoryIdentity === null,
@@ -167,12 +187,17 @@ export function parseRepositoryContext(input: unknown): RepositoryContext {
 export const context = parseRepositoryContext(generated);
 
 export function searchRepositoryContext(
-  data: RepositoryContext, query: string, limit = 25,
+  data: RepositoryContext,
+  query: string,
+  limit = 25,
 ): SourceDocument[] {
   const needle = query.trim().toLocaleLowerCase();
   const safeLimit = Number.isSafeInteger(limit) ? Math.min(Math.max(limit, 0), 100) : 25;
-  return data.documents.filter(
-    (doc) => doc.path.toLocaleLowerCase().includes(needle) ||
-      doc.content.toLocaleLowerCase().includes(needle),
-  ).slice(0, safeLimit);
+  return data.documents
+    .filter(
+      (doc) =>
+        doc.path.toLocaleLowerCase().includes(needle) ||
+        doc.content.toLocaleLowerCase().includes(needle),
+    )
+    .slice(0, safeLimit);
 }

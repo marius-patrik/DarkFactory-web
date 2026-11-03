@@ -48,20 +48,19 @@ const snapshot = {
   publication: "Curated repository-authored documentation. No live backend.",
   // A mutable owner/repository name is not an immutable GitHub identity.
   // Only trust a numeric GitHub repository ID explicitly supplied in config.
-  repositoryIdentity: Number.isSafeInteger(identity.repository_id) &&
-    identity.repository_id > 0
-    ? {
-        provider: "github",
-        id: String(identity.repository_id),
-        ref: process.env.GITHUB_REF_NAME || "local",
-        revision: execFileSync("git", ["rev-parse", "--short=12", "HEAD"], {
-          cwd: root,
-          encoding: "utf8",
-        }).trim(),
-      }
-    : null,
+  repositoryIdentity:
+    Number.isSafeInteger(identity.repository_id) && identity.repository_id > 0
+      ? {
+          provider: "github",
+          id: String(identity.repository_id),
+          ref: process.env.GITHUB_REF_NAME || "local",
+          revision: execFileSync("git", ["rev-parse", "--short=12", "HEAD"], {
+            cwd: root,
+            encoding: "utf8",
+          }).trim(),
+        }
+      : null,
   partial: docs.length === 0 || !Number.isSafeInteger(identity.repository_id),
-
 };
 const dest = join(root, ".github/app/src/generated/context.json");
 mkdirSync(dirname(dest), { recursive: true });
