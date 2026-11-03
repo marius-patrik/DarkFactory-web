@@ -7,6 +7,7 @@ The W02 acceptance wave is **in progress and not approved for M007**.
 - GHCode v2 storage does not resolve a write from a request success before its IndexedDB transaction commits. A late transaction abort rejects the write.
 - IDB storage operations fence against the currently verified principal at the storage boundary, including stale asynchronous account-switch closures. Unattributed legacy records remain quarantined.
 - Targeted Bun tests simulate request success followed by transaction abort, delayed transaction completion, and cross-account access.
+- Local staged commits now apply staged removal, overlays, committed-file state, and immutable commit ID under one transaction, checking live staged state for concurrent edits; completed push cleanup clears all three Git stores atomically.
 - W01 source CI evidence is normalized into the manifest, with the original tested tree recorded separately from the changed GHCode candidate.
 - The root release workflow's main-push event is restricted to active root app paths so source/provenance-only merges cannot trigger publication. Manual release dispatch and existing tag logic remain unchanged.
 - The Git backup verifier accepts an independent bundle SHA-256 and checks `git bundle verify` before isolated restore.

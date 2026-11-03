@@ -65,13 +65,14 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "f74902de4052871d57192c74c11795f0ac804db5",
+      "snapshotTreeSHA": "f27452bba85072005f2518cde38cb9cb2900c7fd",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
       ],
       "provisionalChanges": [
-        "GHC-00 historical regression suite preserved at evidence/ghc00-historical-tests"
+        "GHC-00 historical regression suite preserved at evidence/ghc00-historical-tests",
+        "W02 principal-bound, transaction-committed writes; staged-commit single-transaction compare-and-write; atomic remote-push cleanup; Bun adversarial tests"
       ],
       "rejectedChanges": [
         "GHC-02 PR #34 transactional v3 unsafe privacy/export and push queue implementation not activated"
@@ -80,7 +81,8 @@
         "GHC-03 durable DocumentService and guarded tab/workspace lifecycle not implemented",
         "GHCode v3 principal-bound storage and push-queue repairs not implemented",
         "GHC-00 behavioral acceptance tests not reconciled to new source",
-        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source-only snapshot (still in original Git DAG), to make checkout self-contained"
+        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source-only snapshot (still in original Git DAG), to make checkout self-contained",
+        "Full v3 store version/CAS, verified push operation idempotency and GHC-03 editor guards remain incomplete."
       ],
       "license": "GPL-3.0",
       "testCommands": [

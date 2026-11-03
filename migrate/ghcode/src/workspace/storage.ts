@@ -249,16 +249,156 @@ async function clearStoreForWorkspace<T extends { key?: string; id?: string; wor
   }
 }
 
+
+function sameStaged(left: StagedFile, right: StagedFile) {
+  return left.workspaceId === right.workspaceId &&
+    left.key === right.key &&
+    left.path === right.path &&
+    left.status === right.status &&
+    left.content === right.content &&
+    left.baseSha === right.baseSha &&
+    left.renamedFrom === right.renamedFrom &&
+    left.stagedAt === right.stagedAt &&
+    left.updatedAt === right.updatedAt;
+}
+
+function sameWorking(left: WorkingFile, right: WorkingFile) {
+  return left.path === right.path && left.status === right.status &&
+    left.content === right.content && left.baseSha === right.baseSha &&
+    left.renamedFrom === right.renamedFrom;
+}
+
+/**
+ * A single IndexedDB transaction owns the entire local-commit transition:
+ * committed-file state, durable commit, staged removals, and overlay reconciliation.
+ * Stale staged inputs abort instead of committing an incomplete snapshot.
+ * Other principals' records and unattributed v2 records are never mutated.
+ */
+export async function commitLocalChanges(commit: LocalCommit, expectedStaged: StagedFile[]) {
+  requireOwned(commit.workspaceId);
+  if (!expectedStaged.length || expectedStaged.length !== commit.files.length ||
+      !commit.id.startsWith(`${commit.workspaceId}:local:`)) {
+    throw new Error("Invalid local commit or empty staged snapshot.");
+  }
+  const keys = new Set<string>();
+  for (const file of expectedStaged) {
+    requireOwned(file.workspaceId);
+    if (file.workspaceId !== commit.workspaceId ||
+        file.key !== `${commit.workspaceId}:${file.path}` || keys.has(file.key)) {
+      throw new Error("Invalid staged ownership, key, or duplicate path.");
+    }
+    keys.add(file.key);
+    const matching = commit.files.find(candidate => candidate.key === file.key);
+    if (!matching || !sameWorking(matching, file)) {
+      throw new Error("Local commit does not match staged files.");
+    }
+  }
+  const db = await openDatabase();
+  try {
+    requireOwned(commit.workspaceId);
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(["staged", "overlays", "committed", "commits"], "readwrite");
+      let abortReason: Error | null = null;
+      const abortWith = (error: Error) => {
+        abortReason = error;
+        try { tx.abort(); } catch { reject(error); }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(abortReason ?? tx.error ?? new Error("Local commit transaction aborted"));
+      tx.onerror = () => reject(abortReason ?? tx.error ?? new Error("Local commit transaction failed"));
+      const stagedRequest = tx.objectStore("staged").getAll();
+      const overlaysRequest = tx.objectStore("overlays").getAll();
+      let storedStaged: StagedFile[] | null = null;
+      let storedOverlays: WorkingFile[] | null = null;
+      const apply = () => {
+        if (!storedStaged || !storedOverlays) return;
+        try {
+          requireOwned(commit.workspaceId);
+          const current = storedStaged.filter(file => file.workspaceId === commit.workspaceId);
+          if (current.length !== expectedStaged.length ||
+              expectedStaged.some(file => !current.some(actual => sameStaged(actual, file)))) {
+            throw new Error("Staged state changed concurrently; reload before committing.");
+          }
+          const overlayStore = tx.objectStore("overlays");
+          const stagedStore = tx.objectStore("staged");
+          const committedStore = tx.objectStore("committed");
+          const now = Date.now();
+          for (const file of expectedStaged) {
+            committedStore.put({
+              key: file.key, workspaceId: commit.workspaceId, path: file.path,
+              content: file.status === "deleted" ? undefined : file.content,
+              deleted: file.status === "deleted", baseSha: file.baseSha, updatedAt: now,
+            } satisfies CommittedFile);
+            stagedStore.delete(file.key);
+            const overlay = storedOverlays.find(candidate =>
+              candidate.workspaceId === commit.workspaceId && candidate.key === file.key);
+            if (overlay && sameWorking(overlay, file)) {
+              overlayStore.delete(file.key);
+            } else if (overlay && file.status !== "deleted" &&
+                       (overlay.status === "added" || overlay.status === "renamed")) {
+              overlayStore.put({
+                ...overlay, status: "modified", renamedFrom: undefined, updatedAt: now,
+              } satisfies WorkingFile);
+            }
+          }
+          // add(), not put(): an operation ID is immutable and cannot overwrite a prior commit.
+          tx.objectStore("commits").add(commit);
+        } catch (reason) {
+          abortWith(reason instanceof Error ? reason : new Error(String(reason)));
+        }
+      };
+      stagedRequest.onsuccess = () => { storedStaged = stagedRequest.result as StagedFile[]; apply(); };
+      overlaysRequest.onsuccess = () => { storedOverlays = overlaysRequest.result as WorkingFile[]; apply(); };
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export async function clearStaged(workspaceId: string) {
   await clearStoreForWorkspace<StagedFile>("staged", workspaceId);
 }
 
+/** Clear the complete local Git state in one atomic transaction after confirmed remote push. */
 export async function clearLocalGitState(workspaceId: string) {
-  await Promise.all([
-    clearStoreForWorkspace<StagedFile>("staged", workspaceId),
-    clearStoreForWorkspace<CommittedFile>("committed", workspaceId),
-    clearStoreForWorkspace<LocalCommit>("commits", workspaceId),
-  ]);
+  requireOwned(workspaceId);
+  const db = await openDatabase();
+  try {
+    requireOwned(workspaceId);
+    await new Promise<void>((resolve, reject) => {
+      const names: Array<"staged" | "committed" | "commits"> = ["staged", "committed", "commits"];
+      const tx = db.transaction(names, "readwrite");
+      let abortReason: Error | null = null;
+      const abortWith = (reason: Error) => {
+        abortReason = reason;
+        try { tx.abort(); } catch { reject(reason); }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(abortReason ?? tx.error ?? new Error("Git state cleanup aborted"));
+      tx.onerror = () => reject(abortReason ?? tx.error ?? new Error("Git state cleanup failed"));
+      for (const name of names) {
+        const store = tx.objectStore(name);
+        const request = store.getAll();
+        request.onsuccess = () => {
+          try {
+            requireOwned(workspaceId);
+            for (const item of request.result as Array<{ workspaceId: string; key?: string; id?: string }>) {
+              if (item.workspaceId !== workspaceId) continue;
+              const key = item.key ?? item.id;
+              if (!key || !key.startsWith(`${workspaceId}:`)) {
+                throw new Error("Corrupt Git state key; refusing destructive cleanup.");
+              }
+              store.delete(key);
+            }
+          } catch (reason) {
+            abortWith(reason instanceof Error ? reason : new Error(String(reason)));
+          }
+        };
+      }
+    });
+  } finally {
+    db.close();
+  }
 }
 
 export function loadRecentWorkspaces(owner: PrincipalKey): WorkspaceSnapshot[] {

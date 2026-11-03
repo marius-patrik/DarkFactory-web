@@ -54,6 +54,7 @@ import {
   bindStoragePrincipal,
   clearLocalGitState,
   clearStaged,
+  commitLocalChanges,
   loadBlob,
   loadCommittedFiles,
   loadLocalCommits,
@@ -806,35 +807,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         files: staged.map(asWorkingFile),
       };
 
-      for (const file of staged) {
-        await saveCommittedFile({
-          key: overlayKey(workspace.id, file.path),
-          workspaceId: workspace.id,
-          path: file.path,
-          content: file.status === "deleted" ? undefined : file.content,
-          deleted: file.status === "deleted",
-          baseSha: file.baseSha,
-          updatedAt: now,
-        });
-        const current = overlays.find((entry) => entry.path === file.path);
-        if (current && sameWorkingFile(current, file)) {
-          await removeOverlay(workspace.id, file.path);
-        } else if (
-          current &&
-          file.status !== "deleted" &&
-          (current.status === "added" || current.status === "renamed")
-        ) {
-          await saveOverlay({
-            ...current,
-            status: "modified",
-            renamedFrom: undefined,
-            updatedAt: Date.now(),
-          });
-        }
-      }
+      await commitLocalChanges(commit, staged);
       assertCurrent(lease);
-      await saveLocalCommit(commit);
-      await clearStaged(workspace.id);
       await loadLocalState(workspace.id, lease);
       return commit;
     },
