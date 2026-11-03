@@ -32,7 +32,7 @@ These are Git *tree* SHA-1 values, not SHA-256 hashes of ZIPs. The old originals
 - **FAIL (intermittent, unresolved)**: `d32ec65f` [Root Verify 41626375049](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41626375049), Chromium initial blank-frame timeout. Earlier [41596379238](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41596379238) also contained Chromium-frame and Git status timeout. Subsequent green runs are not fixes.
 - **NOT RUN**: fresh off-GitHub backup ZIP SHA-256 verification and isolated `git bundle verify` / restoration. Prior independent pre-deletion source restore remains separately documented in `POST_DELETION_RECOVERY.md`. No false offline recovery claim.
 - **NOT RUN**: Windows x64, Linux native distribution archive outside checkout, macOS ARM64/x64 native archives and installer tests, native PTY stress, transitive-license/SBOM clearance, repository-template retirement.
-- **PENDING**: exact-head full source CI after current fixes and new snapshot manifest. Any PASS for older source trees must not be treated as this candidate's acceptance.
+- **PASS:** exact-head isolated source CI at \`0c596f59\` passed all four jobs; this is candidate test acceptance, not final GHC-02/GHC-03/native acceptance.
 
 ## Unfinished acceptance gates
 
@@ -49,3 +49,17 @@ This progress checkpoint reports implementation and evidence, not a fully accept
 ### 483fd508 real-UI regression and accessibility correction
 
 [Migration source run 41630037042](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41630037042) confirmed **PASS** for history/77 ref preservation, Canvas, and RSCode, and **FAIL** for the GHCode browser job. GHCode had **30/31 Playwright cases passing**; the new real save-failure test reached the retry state, but the Monaco minimap overlaid its button because an additional alert had broken the grid's two-row layout. Commit \`3895da4e\` moves notices and the Monaco body into one bounded flex/grid content cell so the control is actually clickable, rather than bypassing interaction in the test. That correction awaits independent CI. No release acceptance is inferred.
+
+## Full exact-head CI after accessibility and fingerprint corrections
+
+**PASS**, tested revision \`0c596f59451ee0e337526c90c1d6cf43cd45c209\`:
+
+- [Root Verify 41630736068](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41630736068): PASS.
+- [DarkFactory Runtime 41630736821](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41630736821): PASS.
+- [Migration source verification 41630736085](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41630736085): **all four jobs PASS** — source history/root isolation, RSCode, Canvas, GHCode.
+- GHCode source job: \`bun run check\` PASS; **10 Bun unit tests PASS** across storage and DocumentService; **31/31 real Chromium Playwright tests PASS**, including the retryable save-failure scenario that previously failed on the Monaco canvas intercept.
+- Canvas source job: frozen Bun installation, TypeScript/Biome/build with **five source-context tests**, **23 Chromium IndexedDB tests**, and UI smoke PASS.
+- RSCode: Ubuntu source suite PASS; no Windows/macOS native packages or repeat stress acceptance from this run.
+- Source verifier: exact current three Git tree hashes, original history mapping for 77 source refs, release path guard and root isolation PASS. **No offline ZIP/bundle restore** occurred.
+
+The exact tested source-tree hashes remain pinned in \`migrate/manifest.json\`. Later documentation-only commits change the repository HEAD but do not alter the source snapshots. Exact-head CI should still be checked on the final PR revision. **Verdict stays CHANGES REQUIRED** because critical security, native, licensing, and unified-app acceptance is unfinished.

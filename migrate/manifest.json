@@ -45,9 +45,9 @@
       "originalSourceRevision": "39341ce5f8459b834c8e20b5227c25980078a87e",
       "reconciliationRevision": "0e797adca5315e859d61e216d8a763f2920c39fc",
       "sourceTestEvidence": {
-        "testedHeadSHA": "050168252a4eb9c5b95aa93ac4ade10b782bde09",
+        "testedHeadSHA": "0c596f59451ee0e337526c90c1d6cf43cd45c209",
         "testedSnapshotTreeSHA": "d3588b5ea1f3c4184728f6036a40da3b174dbd09",
-        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332020",
+        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41630736085",
         "job": "rscode",
         "result": "PASS",
         "executed": [
@@ -85,8 +85,7 @@
         "GHC-03 browser integration, Dockview group/move lifecycle and conflict recovery are not independently accepted; additional native paths require guarding.",
         "Legacy ambiguous-data non-destructive migration, secure import/export, quota recovery under real capacity pressure and comprehensive cross-tab release acceptance remain incomplete.",
         "Push ref-update API is non-force, but remote update is not atomic compare-and-swap; uncertain external concurrency requires reconciliation.",
-        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source snapshot (retained in original Git DAG).",
-        "Real Chromium GHC-03 failure alert initially obscured by Monaco grid; new resource-content flex layout fixes accessibility; needs exact-head acceptance."
+        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source snapshot (retained in original Git DAG)."
       ],
       "license": "GPL-3.0",
       "testCommands": [
@@ -94,24 +93,24 @@
         "bun run check",
         "bun run acceptance"
       ],
-      "testResults": "W02_R_CANDIDATE_GHC03_CHROMIUM_RETEST_PENDING",
+      "testResults": "W02_R_SOURCE_SUITE_PASS_0c596f59__10_BUN_UNIT_31_CHROMIUM; feature acceptance incomplete",
       "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
       "originalSourceRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "sourceTestEvidence": {
-        "testedHeadSHA": "5b07d9d687ecf76ea2eef8d538a2491d7dfd091e",
-        "testedSnapshotTreeSHA": "8bdef70ebb82752fd6a673a4ae0dd88a0d52db5a",
-        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41626641160",
+        "testedHeadSHA": "0c596f59451ee0e337526c90c1d6cf43cd45c209",
+        "testedSnapshotTreeSHA": "d5438d3751cd6dbb5c7920d7f635ca3557a74078",
+        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41630736085",
         "job": "ghcode",
-        "result": "PASS_PRIOR_PUSH_JOURNAL_SNAPSHOT_ONLY",
+        "result": "PASS",
         "executed": [
           "bun install --frozen-lockfile",
-          "bun run check",
-          "bun test .github/unit/storage-unit.test.ts",
-          "Playwright Chromium 30 tests (26 existing + 4 real IDB)"
+          "bun run check (TypeScript, Biome, build)",
+          "bun test ./.github/unit/storage-unit.test.ts ./.github/unit/document-service.test.ts (10 PASS)",
+          "bun run acceptance (31 Chromium PASS, 2 workers)"
         ],
         "platform": "GitHub-hosted Ubuntu + Chromium",
-        "limitation": "30/31 Chromium tests passed at 483fd508 (run 41630037042); the new real save-failure test exposed Monaco covering retry button. UI grid correction at 3895da4e; exact-head acceptance pending."
+        "limitation": "This demonstrates current test coverage only; full GHC-02 resource CAS/legacy migration, GHC-03 all Dockview transitions, remote ref CAS and native platforms remain unaccepted."
       }
     },
     "canvas": {
@@ -148,9 +147,9 @@
       "originalSourceRevision": "5f462ea6e73c570e483149d6846dcc9190c09d51",
       "reconciliationRevision": "bf17d45c8068a3bda8de5d4786a829bb4c511a86",
       "sourceTestEvidence": {
-        "testedHeadSHA": "050168252a4eb9c5b95aa93ac4ade10b782bde09",
+        "testedHeadSHA": "0c596f59451ee0e337526c90c1d6cf43cd45c209",
         "testedSnapshotTreeSHA": "1e99bf067ace6d0af37cf447662b822137a5f481",
-        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332020",
+        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41630736085",
         "job": "canvas",
         "result": "PASS",
         "executed": [
@@ -710,17 +709,17 @@
     "currentWave": {
       "gitObjectPresence": "PASS_W01_EXACT_HEAD_77_REF_RECORDS",
       "gitBundleRestoration": "NOT_RUN_IN_CURRENT_W02_ENVIRONMENT",
-      "rootFullBun": "PASS 050168252a4eb9c5b95aa93ac4ade10b782bde09 CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332115; new candidate requires repeat",
-      "chromium": "PASS_W01_GHCODE_AND_CANVAS_UBUNTU_CHROMIUM; W02_RETEST_PENDING",
+      "rootFullBun": "PASS exact tested source revision 0c596f59451ee0e337526c90c1d6cf43cd45c209 [41630736068]; later documentation-only commits do not mutate shipped root code.",
+      "chromium": "PASS Ubuntu GHCode 31 Playwright Chromium, Canvas 23 browser IDB + Chromium smoke at source verification 41630736085; full feature acceptance still incomplete.",
       "Windows": "NOT_RUN",
-      "canvasBrowser": "PASS 050168252a4eb9c5b95aa93ac4ade10b782bde09 CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332020",
-      "ghcodeBrowser": "30/31 Chromium tests PASS at 483fd508 source run 41630037042; one failed because Monaco overlaid the Retry save control. Corrected 3895da4e, pending exact-head rerun.",
-      "sourceIsolationCI": "PASS 3d4eecfb W02 CI 41596969230; current W02-R source hash manifest updated and pending exact-head repeat",
-      "sourceTrackCI": "PARTIAL 483fd508: history/isolation, Canvas, RSCode PASS; GHCode 30/31 PASS with a real UI accessibility error, corrected 3895da4e. Exact-head pending.",
-      "historyAndIsolation": "PASS 3d4eecfb W02 CI 41596969230; new candidate tree hashes updated and pending exact-head repeat; no --bundle.",
-      "ghcode": "PASS selected prior push-journal snapshot 5b07d9 (30 Playwright); GHC03 new UI fixture test at 050168 failed and is retesting.",
-      "rscode": "PASS 050168 source suite; intermittent root browser-frame flake still unresolved",
-      "canvas": "PASS 050168 (frozen lock + 5 context unit tests + 23 IDB browser scenarios + Chromium smoke)",
+      "canvasBrowser": "PASS Canvas frozen install, 5 source-context contract tests, 23 Chromium IndexedDB scenarios and UI smoke at 0c596f59 source run 41630736085.",
+      "ghcodeBrowser": "PASS 31/31 Playwright Chromium at 0c596f59 source run 41630736085 (includes quota/save/UI real regression).",
+      "sourceIsolationCI": "PASS 0c596f59 41630736085: four jobs (history, GHCode, RSCode, Canvas) succeeded.",
+      "sourceTrackCI": "PASS 0c596f59 41630736085 all four isolated source CI jobs; full functional security and native acceptance remain separate.",
+      "historyAndIsolation": "PASS 0c596f59 CI 41630736085 verifies 77 original ref records, preserved history, source-tree hashes and root isolation. Independent offsite bundle NOT RUN.",
+      "ghcode": "PASS exact source tree d5438d37 at 0c596f59: 10 Bun unit tests + 31 Chromium. GHC-02/GHC-03 outstanding acceptance gates remain.",
+      "rscode": "PASS exact source tree d3588b5e at 0c596f59: Ubuntu tests; native packages and intermittent frame/Git/PTTY races still unresolved.",
+      "canvas": "PASS exact source tree 1e99bf06 at 0c596f59: Bun check with 5 contract tests, browser 23 IDB scenarios and UI smoke.",
       "managedDarkFactory": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511238882 (agent and approvals SKIPPED)",
       "W02ChangesPending": "Reconciled GHCode journal, principal-bound IDB, DocumentService and Canvas source contract are committed. Full resource CAS/migration/security, RSCode native runners, licensing, template retirement and exact-head acceptance remain OPEN.",
       "W02CanvasLock": {
@@ -729,7 +728,7 @@
         "bun": "1.3.11",
         "sha256": "842a1d59da1c5f5b23303193545d3dd6e139f23251269132c7bdc7955e8e3d80",
         "gitBlob": "368d67603a2be43176d5052f618e3196c650155b",
-        "status": "FROZEN_INSTALL_AND_BROWSER_CI_PASS_41596969230",
+        "status": "FROZEN_INSTALL_PASS_AT_0c596f59_SOURCE_41630736085",
         "note": "Prior non-frozen run 41596024800 produced different SHA256 caa2634b..., showing version drift."
       },
       "W02RCandidate": {
@@ -740,7 +739,17 @@
         "lastVerifiedRoot": "050168252a4eb9c5b95aa93ac4ade10b782bde09",
         "lastVerifiedCanvasAndRSCodeRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332020",
         "currentManifestCorrection": "Exact-history and source isolation retest required",
-        "acceptance": "PROVISIONAL_SECURITY_AND_LIFECYCLE_INCOMPLETE"
+        "acceptance": "PROVISIONAL_SECURITY_AND_LIFECYCLE_INCOMPLETE",
+        "sourceVerifiedHeadSHA": "0c596f59451ee0e337526c90c1d6cf43cd45c209",
+        "sourceVerifiedWorkflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41630736085",
+        "sourceVerifiedJobs": [
+          "history-and-isolation",
+          "ghcode",
+          "rscode",
+          "canvas"
+        ],
+        "sourceWorkflow": "PASS",
+        "featureAcceptance": "CHANGES_REQUIRED"
       }
     },
     "priorExternalEvidence": [
