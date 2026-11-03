@@ -16,9 +16,33 @@ const OWNED_PREFIX = "ghcode-owned-v2:";
 // Updated synchronously before any React identity transition. Never infer authorization
 // from the workspace ID supplied by a caller, an old closure, or an IDB record itself.
 let activePrincipal: PrincipalKey | null = null;
+// Any pending readwrite transaction is revoked synchronously on identity changes.
+const activeWrites = new Set<IDBTransaction>();
+
+function validPrincipal(principal: unknown): principal is PrincipalKey {
+  return typeof principal === "string" && (
+    /^gh:github\.com:[1-9][0-9]*$/.test(principal) ||
+    /^anon:[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(principal)
+  );
+}
 
 export function bindStoragePrincipal(principal: PrincipalKey): void {
+  if (!validPrincipal(principal)) throw new Error("Invalid storage principal identifier.");
+  if (activePrincipal !== principal) {
+    for (const tx of activeWrites) {
+      try { tx.abort(); } catch { /* Already completed or inactive. */ }
+    }
+  }
   activePrincipal = principal;
+}
+
+function trackWrite(tx: IDBTransaction) {
+  // Browser transactions support addEventListener; isolated unit fakes need not.
+  if (typeof tx.addEventListener !== "function") return;
+  activeWrites.add(tx);
+  const clean = () => activeWrites.delete(tx);
+  tx.addEventListener("complete", clean, { once: true });
+  tx.addEventListener("abort", clean, { once: true });
 }
 
 function requireOwned(id: string) {
@@ -90,9 +114,13 @@ async function withStore<T>(
   mode: IDBTransactionMode,
   action: (store: IDBObjectStore) => IDBRequest<T>,
 ) {
+  const boundPrincipal = activePrincipal;
   const database = await openDatabase();
   try {
+    if (boundPrincipal !== activePrincipal)
+      throw new Error("Storage principal changed before transaction began.");
     const transaction = database.transaction(name, mode);
+    if (mode === "readwrite") trackWrite(transaction);
     // A successful IDBRequest is not proof that the transaction committed.
     // A later failure (including quota or explicit abort) must reject the API.
     const committed = new Promise<void>((resolve, reject) => {
@@ -117,6 +145,8 @@ async function withStore<T>(
       throw error;
     }
     await committed;
+    if (boundPrincipal !== activePrincipal)
+      throw new Error("Storage principal changed during transaction.");
     return value;
   } finally {
     database.close();
@@ -129,6 +159,7 @@ async function allForWorkspace<T extends { workspaceId: string }>(
 ) {
   requireOwned(workspaceId);
   const all = await withStore<T[]>(name, "readonly", (store) => store.getAll());
+  requireOwned(workspaceId);
   return all.filter((item) => item.workspaceId === workspaceId);
 }
 
@@ -147,6 +178,7 @@ export async function loadWorkspace(id: string, owner: PrincipalKey) {
     "readonly",
     (store) => store.get(id),
   );
+  requireOwned(id);
   return isOwnedWorkspace(snapshot, owner) ? snapshot : undefined;
 }
 
@@ -167,6 +199,7 @@ export async function loadBlob(workspaceId: string, sha: string) {
   const record = await withStore<BlobRecord | undefined>("blobs", "readonly", (store) =>
     store.get(`${workspaceId}:${sha}`),
   );
+  requireOwned(workspaceId);
   return record?.content ?? null;
 }
 
@@ -234,7 +267,9 @@ async function clearStoreForWorkspace<T extends { key?: string; id?: string; wor
   const items = await allForWorkspace<T>(name, workspaceId);
   const database = await openDatabase();
   try {
+    requireOwned(workspaceId);
     const transaction = database.transaction(name, "readwrite");
+    trackWrite(transaction);
     const store = transaction.objectStore(name);
     for (const item of items) {
       const key = item.key ?? item.id;
@@ -301,6 +336,7 @@ export async function commitLocalChanges(commit: LocalCommit, expectedStaged: St
     requireOwned(commit.workspaceId);
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(["staged", "overlays", "committed", "commits"], "readwrite");
+      trackWrite(tx);
       let abortReason: Error | null = null;
       const abortWith = (error: Error) => {
         abortReason = error;
@@ -371,6 +407,7 @@ export async function clearLocalGitState(workspaceId: string) {
     await new Promise<void>((resolve, reject) => {
       const names: Array<"staged" | "committed" | "commits"> = ["staged", "committed", "commits"];
       const tx = db.transaction(names, "readwrite");
+      trackWrite(tx);
       let abortReason: Error | null = null;
       const abortWith = (reason: Error) => {
         abortReason = reason;
@@ -465,6 +502,7 @@ export async function beginPushOperation(
     requireOwned(workspace.id);
     return await new Promise<PushOperation>((resolve, reject) => {
       const tx = db.transaction(["commits", "pushOperations"], "readwrite");
+      trackWrite(tx);
       const commitsRequest = tx.objectStore("commits").getAll();
       const operationsRequest = tx.objectStore("pushOperations").getAll();
       let commits: LocalCommit[] | undefined;
@@ -550,6 +588,7 @@ export async function advancePushOperation(
     requireOwned(workspace.id);
     return await new Promise<PushOperation>((resolve, reject) => {
       const tx = db.transaction("pushOperations", "readwrite");
+      trackWrite(tx);
       let result: PushOperation | undefined;
       let reason: Error | undefined;
       const abortWith = (err: Error) => {
@@ -615,6 +654,7 @@ export async function finalizeConfirmedPush(
       const tx = db.transaction(
         ["workspaces", "commits", "committed", "overlays", "pushOperations"], "readwrite",
       );
+      trackWrite(tx);
       let reason: Error | undefined;
       const abortWith = (error: Error) => {
         reason = error;

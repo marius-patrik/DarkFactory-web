@@ -305,13 +305,13 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
     if (path === `/repos/${MOCK_REPOSITORY}/git/blobs` && method === "POST") {
       createdBlob += 1;
       state.writes.push("blob");
-      return json(route, { sha: `created-blob-${createdBlob}` }, 201);
+      return json(route, { sha: createdBlob.toString(16).padStart(40, "b") }, 201);
     }
 
     if (path === `/repos/${MOCK_REPOSITORY}/git/trees` && method === "POST") {
       createdTree += 1;
       state.writes.push("tree");
-      const sha = `created-tree-${createdTree}`;
+      const sha = createdTree.toString(16).padStart(40, "d");
       trees.set(sha, tree(sha));
       return json(route, { sha, tree: tree(sha).tree }, 201);
     }
@@ -320,7 +320,7 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
       createdCommit += 1;
       state.writes.push("commit");
       const body = request.postDataJSON() as { message?: string; tree?: string };
-      const sha = `created-commit-${createdCommit}`;
+      const sha = createdCommit.toString(16).padStart(40, "c");
       commits.set(sha, commit(sha, body.tree || BASE_TREE, body.message || "Local commit"));
       return json(route, { sha, tree: { sha: body.tree || BASE_TREE } }, 201);
     }
