@@ -318,6 +318,67 @@ test("authenticated private repo supports dirty edits, staging, local commit, pu
   await expect(surface(page, "primary").getByTitle("Push local commits")).toBeDisabled();
 });
 
+
+test("Monaco save failures guard Dockview close and account transition until acknowledged", async ({ page }) => {
+  await installGithubMock(page);
+  await seedAuthenticatedSession(page);
+  await openPrivateRepository(page);
+  await tab(page, "primary", "Explorer").click();
+  await surface(page, "primary").getByTitle("README.md").click();
+  await expect(tab(page, "main", "README.md")).toBeVisible();
+
+  await page.evaluate(() => {
+    const original = IDBObjectStore.prototype.put;
+    (window as Window & { restoreOverlayStore?: () => void }).restoreOverlayStore =
+      () => { IDBObjectStore.prototype.put = original; };
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.name === "overlays")
+        throw new DOMException("Injected quota failure", "QuotaExceededError");
+      return original.apply(this, args as Parameters<IDBObjectStore["put"]>);
+    };
+  });
+  await editActiveMonaco(page, "# Unacknowledged important draft\\n");
+  await expect(surface(page, "main").getByRole("alert")).toContainText(
+    "Document save not acknowledged",
+  );
+
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await tab(page, "main", "README.md").getByTitle("Close").click();
+  await expect(tab(page, "main", "README.md")).toBeVisible();
+  await page.getByTitle("Sign out").click();
+  await expect(page.getByTitle("Sign out")).toBeVisible();
+
+  await page.evaluate(() => {
+    (window as Window & { restoreOverlayStore?: () => void }).restoreOverlayStore?.();
+  });
+  await surface(page, "main").getByRole("button", { name: "Retry save" }).click();
+  await expect(surface(page, "main").getByRole("alert")).toHaveCount(0);
+  await tab(page, "main", "README.md").getByTitle("Close").click();
+  await expect(tab(page, "main", "README.md")).toHaveCount(0);
+  await page.reload();
+
+  const durable = await page.evaluate(async () => {
+    const request = indexedDB.open("darkfactory-workbench");
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise<boolean>((resolve, reject) => {
+        const tx = db.transaction("overlays", "readonly");
+        const get = tx.objectStore("overlays").getAll();
+        get.onsuccess = () => resolve(
+          get.result.some((item) => item.content === "# Unacknowledged important draft\\n"),
+        );
+        get.onerror = () => reject(get.error);
+      });
+    } finally {
+      db.close();
+    }
+  });
+  expect(durable).toBe(true);
+});
+
 test("GitHub entity surfaces and omnibar navigate files, symbols, entities, commands, and refs", async ({ page }) => {
   await installGithubMock(page);
   await seedAuthenticatedSession(page);
