@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "f27452bba85072005f2518cde38cb9cb2900c7fd",
+      "snapshotTreeSHA": "40fb58b81a380520477560aa647cc4d8b69e8c45",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"

@@ -812,7 +812,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       await loadLocalState(workspace.id, lease);
       return commit;
     },
-    [assertCurrent, capture, loadLocalState, overlays, staged, workspace],
+    [assertCurrent, capture, loadLocalState, staged, workspace],
   );
 
   const createBranch = useCallback(
