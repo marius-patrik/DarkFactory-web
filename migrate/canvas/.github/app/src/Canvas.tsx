@@ -15,6 +15,7 @@ type Category = "Guidance" | "Planning" | "Architecture" | "Operations" | "Other
 const documents: Document[] = context.documents;
 const byPath = new Map(documents.map((document) => [document.path, document]));
 const allPaths = [...new Set([...documents.map((d) => d.path), ...context.paths])];
+const knownPaths = new Set(allPaths);
 const categories: Category[] = ["Guidance", "Planning", "Architecture", "Operations", "Other"];
 const panes: { id: Perspective; label: string; icon: string }[] = [
   { id: "overview", label: "Overview", icon: "overview" },
