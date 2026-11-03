@@ -303,6 +303,7 @@ export function EditorTab({
         target={compareTarget}
         onChange={updateState}
       />
+      <div className="resource-content">
       {error && loadedPath === path && (
         <div className="resource-generated-notice" role="alert">
           <strong>Document save not acknowledged: {error}</strong>
@@ -342,6 +343,7 @@ export function EditorTab({
         {body}
         <ReviewOverlay enabled={review} />
         {status && <span className={`resource-status file-status status-${status}`}>{status}</span>}
+      </div>
       </div>
     </div>
   );
