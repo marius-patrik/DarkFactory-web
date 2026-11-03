@@ -44,9 +44,13 @@ function object(value: unknown): Record<string, unknown> {
 }
 
 function text(value: unknown, label: string, max = 256): string {
-  if (typeof value !== "string" || !value.trim() || value.length > max ||
-      /[\u0000-\u001f\u007f]/.test(value)) {
+  if (typeof value !== "string" || !value.trim() || value.length > max) {
     throw new Error(`Invalid repository context ${label}.`);
+  }
+  for (const character of value) {
+    if (character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) {
+      throw new Error(`Invalid repository context ${label}.`);
+    }
   }
   return value;
 }
