@@ -1,31 +1,47 @@
-# W02 implementation checkpoint — 2026-11-03
+# W02-R recovery and implementation checkpoint — 2026-11-03
 
-The W02 acceptance wave is **in progress and not approved for M007**.
+**Decision: CHANGES REQUIRED.** This source-reconciliation branch remains a **draft**, is not M007-accepted, and has not modified production `main`.
 
-## Implemented in this candidate
+## Recovery and commits
 
-- GHCode v2 storage does not resolve a write from a request success before its IndexedDB transaction commits. A late transaction abort rejects the write.
-- IDB storage operations fence against the currently verified principal at the storage boundary, including stale asynchronous account-switch closures. Unattributed legacy records remain quarantined.
-- Targeted Bun tests simulate request success followed by transaction abort, delayed transaction completion, and cross-account access.
-- Local staged commits now apply staged removal, overlays, committed-file state, and immutable commit ID under one transaction, checking live staged state for concurrent edits; completed push cleanup clears all three Git stores atomically.
-- W01 source CI evidence is normalized into the manifest, with the original tested tree recorded separately from the changed GHCode candidate.
-- The root release workflow's main-push event is restricted to active root app paths so source/provenance-only merges cannot trigger publication. Manual release dispatch and existing tag logic remain unchanged.
-- The Git backup verifier accepts an independent bundle SHA-256 and checks `git bundle verify` before isolated restore.
+Original W01 source baseline: `d091a26eaa7ab7b814056e2c48ddc922ecebb3ac`. W02 recovery HEAD: `3d4eecfb54174fbc49e29f01fdb657f24a95f181`. All seven W02 commits (`8123bc55`, `f10d40c6`, `dab537ae`, `0a004c65`, `9cad0598`, `50c02134`, `3d4eecfb`) were preserved. W02-R continues linearly with `d7c811ea`, `d32ec65f`, `5b07d9d6`, `8e2bc144`, `f0ce46b0`, `fb5f7661`, `b6920b4c`, `a2cef27d`, `2d38fec5`, `6d09e825`, `05016825`, and `11f260e6`. These are actual remote branch commits, not work in a local draft.
 
-## Not represented as complete
+## Implemented source repairs (provisional)
 
-- GHC-02 versioned v3 schema/CAS/atomic multi-store operations/secure import-export, GHC-03 DocumentService and guarded Monaco/Dockview lifecycle, and durable push queue remain unimplemented.
-- Original off-GitHub ZIPs and embedded bundle were not accessible for W02 rehash or fresh restoration.
-- RSCode native Windows/macOS/Linux artifact acceptance and PTY stress tests were not run in this environment.
-- Canvas now has a CI-generated Bun 1.3.11 lockfile (SHA-256 `842a1d59da1c5f5b23303193545d3dd6e139f23251269132c7bdc7955e8e3d80`) and frozen-install workflow; exact-head verification pending. Repository-context boundary remains unresolved.
-- SBOM/T014 rights and template web retirement remain open.
-- This branch is not the unified application. Root production app remains unchanged, and PR #39 must remain draft.
+- GHCode: IndexedDB version 3 adds an authorized `pushOperations` journal, persists the exact target before remote GitHub ref mutation, validates remote ref on retries, and completes local cleanup in one transaction only after confirmation. Ambiguous outcomes retain local commits. A remote ref update is not remote compare-and-swap, so external races still require manual reconciliation.
+- GHCode: storage checks ownership after awaited reads and aborts tracked write transactions on principal switch. Unit and actual Chromium IndexedDB cases cover A/B/anonymous isolation, invalid principals, interrupted push journal, reload, phase CAS, atomic stage/commit, injected transaction/quota failures.
+- GHCode: a new `DocumentService` uses the existing IndexedDB workspace writer, keeps one in-memory authoritative model/resource, serializes revision-acknowledged Monaco saves, exposes retryable failure, and blocks basic tab close, signout, repository/ref switch and browser unload while bytes are unacknowledged. Model ownership is shared across views. It is a partial GHC-03 implementation, not complete Dockview group/drag and conflict acceptance.
+- Canvas: frozen Bun 1.3.11 lockfile from W02 remains unchanged. A new source-provenanced, deterministic, bounded parser rejects invalid/oversized paths, duplicates, conflicting immutable repository IDs and unsafe graph links; the existing standalone UI uses it for source documents and relationships. Five active Bun contract tests run from Canvas `check`.
+- Root: existing release push path restrictions and isolated `migrate/**` source testing remain. No release or Pages publication has occurred.
 
-## Historical exact-head W01 evidence
+## Latest source fingerprints after W02-R fixes
 
-- `d091a26eaa7ab7b814056e2c48ddc922ecebb3ac`
-- [Root Verify](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237736): PASS.
-- [Managed quality](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511238882): PASS with agent/approvals skipped.
-- [Source verification](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804): four jobs PASS (Ubuntu source suites and Chromium where applicable).
+| Source | Original immutable source SHA | Reconciled candidate subtree Git SHA |
+| --- | --- | --- |
+| RSCode | `39341ce5f8459b834c8e20b5227c25980078a87e` | `d3588b5ea1f3c4184728f6036a40da3b174dbd09` |
+| GHCode | `7801784b5bb596dcc720a48b7085443fc8f9ca3f` | `dc3a6c0b95d4f179d902d40038d546f520acd94b` |
+| Canvas | `5f462ea6e73c570e483149d6846dcc9190c09d51` | `1e99bf067ace6d0af37cf447662b822137a5f481` |
 
-No W02 exact-head CI acceptance may be inferred from these earlier W01 runs.
+These are Git *tree* SHA-1 values, not SHA-256 hashes of ZIPs. The old originals, imported original PR branch refs and tags are kept in the merge ancestry.
+
+## Executed CI evidence (precise limits)
+
+- **PASS**: `3d4eecfb` W02 exact-head [Verify 41596969237](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41596969237), [Runtime 41596969679](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41596969679), and [source 41596969230](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41596969230) with all four source jobs.
+- **PASS**: `5b07d9d6` GHCode source job [41626641160](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41626641160) with 30 Chromium cases (includes 4 new real-IDB cases); Root [Verify 41626641384](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41626641384) and [Runtime 41626642096](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41626642096). Full source workflow **FAIL** because the manifest still pinned the prior GHCode tree.
+- **PASS**: `05016825` [Root Verify 41629332115](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332115), [Runtime 41629332522](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332522), and Canvas and RSCode source jobs in [41629332020](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332020). Canvas included frozen install, `check`, five context contract tests, 23 Chromium IndexedDB scenarios and UI smoke. The same source run **FAIL** overall: manifest tree mismatch; GHCode's new quota/save UI test failed on an ambiguous alert selector. That assertion was corrected at `11f260e6`.
+- **FAIL (intermittent, unresolved)**: `d32ec65f` [Root Verify 41626375049](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41626375049), Chromium initial blank-frame timeout. Earlier [41596379238](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41596379238) also contained Chromium-frame and Git status timeout. Subsequent green runs are not fixes.
+- **NOT RUN**: fresh off-GitHub backup ZIP SHA-256 verification and isolated `git bundle verify` / restoration. Prior independent pre-deletion source restore remains separately documented in `POST_DELETION_RECOVERY.md`. No false offline recovery claim.
+- **NOT RUN**: Windows x64, Linux native distribution archive outside checkout, macOS ARM64/x64 native archives and installer tests, native PTY stress, transitive-license/SBOM clearance, repository-template retirement.
+- **PENDING**: exact-head full source CI after current fixes and new snapshot manifest. Any PASS for older source trees must not be treated as this candidate's acceptance.
+
+## Unfinished acceptance gates
+
+1. Complete GHC-02 resource-level ownership, immutable revisions and CAS, non-destructive owner-safe v3 legacy migration, authorization across exports/imports, quota capacity and cross-tab conflict tests. The rejected historical GHC-02 implementation remains excluded.
+2. Complete GHC-03 Monaco/Dockview group close, pane transfer, workspace/ref/account transitions and concurrent editor durability; explicitly distinguish acknowledged bytes from unacknowledged drafts.
+3. Strengthen the remote-ref push boundary (GitHub conditional update cannot currently guarantee CAS) and provide user-visible uncertain-push reconciliation.
+4. Fix reproducible RSCode Chromium-frame/readiness and Git/PTTY race conditions; build/check actual four-platform native artifacts on hosted OS runners.
+5. Provide a runtime selected-repository context source for Canvas, complete UI/graph/mobile acceptance and preserve its standalone browser IDB regression suite.
+6. Certify historical source-only merge readiness, online ancestry/manifest and independent offline bundle restoration separately; verify source-only paths cannot publish.
+7. Create a source-backed SPDX/SBOM/license and asset notice inventory, obtain owner licensing authorization before distribution. Template website retirement remains gated; **do not delete DarkFactory-template**.
+
+This progress checkpoint reports implementation and evidence, not a fully accepted release.

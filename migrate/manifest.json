@@ -40,14 +40,14 @@
         "bun run test:browser",
         "bun run test:ui"
       ],
-      "testResults": "W01_PASS_EXACT_HEAD",
+      "testResults": "W02_R_CANDIDATE_SOURCE_SUITE_PASS_05016825; native OS and intermittent reliability pending",
       "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
       "originalSourceRevision": "39341ce5f8459b834c8e20b5227c25980078a87e",
       "reconciliationRevision": "0e797adca5315e859d61e216d8a763f2920c39fc",
       "sourceTestEvidence": {
-        "testedHeadSHA": "d091a26eaa7ab7b814056e2c48ddc922ecebb3ac",
+        "testedHeadSHA": "050168252a4eb9c5b95aa93ac4ade10b782bde09",
         "testedSnapshotTreeSHA": "d3588b5ea1f3c4184728f6036a40da3b174dbd09",
-        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332020",
         "job": "rscode",
         "result": "PASS",
         "executed": [
@@ -57,7 +57,7 @@
           "bun test src"
         ],
         "platform": "GitHub-hosted Ubuntu + Chromium where exercised",
-        "limitation": "Native archives and Windows not exercised"
+        "limitation": "Ubuntu source suite only; native OS artifacts, Windows, startup races and repeat stress NOT RUN in this wave."
       }
     },
     "ghcode": {
@@ -65,24 +65,27 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "40fb58b81a380520477560aa647cc4d8b69e8c45",
+      "snapshotTreeSHA": "dc3a6c0b95d4f179d902d40038d546f520acd94b",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
       ],
       "provisionalChanges": [
         "GHC-00 historical regression suite preserved at evidence/ghc00-historical-tests",
-        "W02 principal-bound, transaction-committed writes; staged-commit single-transaction compare-and-write; atomic remote-push cleanup; Bun adversarial tests"
+        "W02 principal-bound, transaction-committed writes; staged-commit single-transaction compare-and-write; atomic remote-push cleanup; Bun adversarial tests",
+        "W02-R IndexedDB v3 pushOperations journal with durable prepared/ready/remote-confirmed phases and atomic local completion; non-force remote-ref reconciliation.",
+        "W02-R principal change revokes in-flight transactions; browser isolation, transaction CAS, quota and journal recovery tests; DocumentService serializes acknowledged Monaco saves and guards navigation."
       ],
       "rejectedChanges": [
         "GHC-02 PR #34 transactional v3 unsafe privacy/export and push queue implementation not activated"
       ],
       "knownUnresolved": [
-        "GHC-03 durable DocumentService and guarded tab/workspace lifecycle not implemented",
-        "GHCode v3 principal-bound storage and push-queue repairs not implemented",
-        "GHC-00 behavioral acceptance tests not reconciled to new source",
-        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source-only snapshot (still in original Git DAG), to make checkout self-contained",
-        "Full v3 store version/CAS, verified push operation idempotency and GHC-03 editor guards remain incomplete."
+        "Full GHC-02 resource-level versioned v3 schema, immutable resource identity and revision CAS across all stores remain incomplete; current v3 upgrade adds only push journal.",
+        "Historical GHC-02 PR #34 unsafe ownership/export/migration code remains rejected and excluded.",
+        "GHC-03 browser integration, Dockview group/move lifecycle and conflict recovery are not independently accepted; additional native paths require guarding.",
+        "Legacy ambiguous-data non-destructive migration, secure import/export, quota recovery under real capacity pressure and comprehensive cross-tab release acceptance remain incomplete.",
+        "Push ref-update API is non-force, but remote update is not atomic compare-and-swap; uncertain external concurrency requires reconciliation.",
+        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source snapshot (retained in original Git DAG)."
       ],
       "license": "GPL-3.0",
       "testCommands": [
@@ -90,23 +93,24 @@
         "bun run check",
         "bun run acceptance"
       ],
-      "testResults": "W01_PASS; W02_MODIFIED_PENDING_RETEST",
+      "testResults": "W02_R_CANDIDATE_GHC03_CHROMIUM_RETEST_PENDING",
       "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
       "originalSourceRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "sourceTestEvidence": {
-        "testedHeadSHA": "d091a26eaa7ab7b814056e2c48ddc922ecebb3ac",
-        "testedSnapshotTreeSHA": "3a858527d247f15924fd22e471abf5fe0edf54bc",
-        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+        "testedHeadSHA": "5b07d9d687ecf76ea2eef8d538a2491d7dfd091e",
+        "testedSnapshotTreeSHA": "8bdef70ebb82752fd6a673a4ae0dd88a0d52db5a",
+        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41626641160",
         "job": "ghcode",
-        "result": "PASS",
+        "result": "PASS_PRIOR_PUSH_JOURNAL_SNAPSHOT_ONLY",
         "executed": [
           "bun install --frozen-lockfile",
           "bun run check",
-          "Playwright Chromium acceptance"
+          "bun test .github/unit/storage-unit.test.ts",
+          "Playwright Chromium 30 tests (26 existing + 4 real IDB)"
         ],
-        "platform": "GitHub-hosted Ubuntu + Chromium where exercised",
-        "limitation": "W02 GHCode v2 transactional patch and unit acceptance pending exact-head repeat; versioned v3, CAS and DocumentService remain incomplete"
+        "platform": "GitHub-hosted Ubuntu + Chromium",
+        "limitation": "W02-R DocumentService + browser lifecycle at latest candidate differs; last new UI test at 05016825 failed due ambiguous alert selector and was corrected at 11f260e6; pending exact-head rerun."
       }
     },
     "canvas": {
@@ -114,20 +118,22 @@
       "originalBranch": "development",
       "originalSHA": "5f462ea6e73c570e483149d6846dcc9190c09d51",
       "reconciliationSourceSHA": "bf17d45c8068a3bda8de5d4786a829bb4c511a86",
-      "snapshotTreeSHA": "652332788e685944020c5d63d00de244cdf63d99",
-      "appSubtreeSHA": "caab348dd084548760ae77338133afe849d07ff1",
+      "snapshotTreeSHA": "1e99bf067ace6d0af37cf447662b822137a5f481",
+      "appSubtreeSHA": "9e4880ad5742f73ad5ea482b127fdf80742695e5",
       "expectedOwner": "DarkFactory-web unified app UI layer",
       "acceptedChanges": [
         "Canvas PR #41 complete standalone app, original persistence source, and app-specific browser/persistence tests preserved; no active runtime import"
       ],
       "provisionalChanges": [
         "IndexedDB adapter is not imported by Canvas App; do not activate alongside GHCode v3 store",
-        "W02 generated real Bun 1.3.11 lockfile on GitHub Actions Ubuntu and enforced frozen-install CI"
+        "W02 generated real Bun 1.3.11 lockfile on GitHub Actions Ubuntu and enforced frozen-install CI",
+        "W02-R validated repository-context parser and deterministic bounded source graph/search, selected-repository identity contract and five active Bun contract scenarios."
       ],
       "knownUnresolved": [
-        "App remains repository-document fixture-driven via .agents and repo.dfconfig",
-        "Browser/typecheck/persistence acceptance not rerun here",
-        "PR #42's workflow security stays upstream; no nested workflow copied"
+        "Standalone Canvas generator still publishes curated build-time repository documents, not a live runtime selected-repository adapter.",
+        "No final unified app imports Canvas storage as authority; keep independent Canvas IndexedDB tests isolated.",
+        "Advanced responsive/graph/omnibar/Monaco visual acceptance is limited to the retained standalone Chromium smoke.",
+        "Template website retirement remains gated by source-baseline acceptance; PR #42 workflow security remains upstream."
       ],
       "license": "GPL-3.0",
       "testCommands": [
@@ -136,24 +142,24 @@
         "node migrate/canvas/.github/tests/persistence/canvas-persistence.mjs",
         "node migrate/canvas/.github/tests/smoke_canvas.mjs migrate/canvas/.canvas-dist/index.html"
       ],
-      "testResults": "W01_PASS_EXACT_HEAD",
+      "testResults": "W02_R_SOURCE_SUITE_PASS_05016825; new context parser acceptance passed; no runtime integration",
       "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
       "originalSourceRevision": "5f462ea6e73c570e483149d6846dcc9190c09d51",
       "reconciliationRevision": "bf17d45c8068a3bda8de5d4786a829bb4c511a86",
       "sourceTestEvidence": {
-        "testedHeadSHA": "d091a26eaa7ab7b814056e2c48ddc922ecebb3ac",
-        "testedSnapshotTreeSHA": "85e473f97f494ae2f97e05290bd017f73cdec0f7",
-        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+        "testedHeadSHA": "050168252a4eb9c5b95aa93ac4ade10b782bde09",
+        "testedSnapshotTreeSHA": "1e99bf067ace6d0af37cf447662b822137a5f481",
+        "workflowRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332020",
         "job": "canvas",
         "result": "PASS",
         "executed": [
-          "bun install (non-frozen)",
-          "bun run check",
-          "Chromium IndexedDB persistence",
-          "Canvas UI smoke"
+          "bun install --frozen-lockfile (Bun 1.3.11)",
+          "bun run check (TypeScript, Biome, build and 5 source-context tests)",
+          "23 Chromium IndexedDB scenarios",
+          "Chromium app smoke"
         ],
-        "platform": "GitHub-hosted Ubuntu + Chromium where exercised",
-        "limitation": "W02 lock-generated candidate requires exact-head frozen install, Chromium and application acceptance; source context still fixture-coupled"
+        "platform": "GitHub-hosted Ubuntu + Chromium",
+        "limitation": "Selected-repository runtime provider, complete UI lifecycle and final production ownership are still unaccepted."
       }
     }
   },
@@ -703,27 +709,37 @@
     "currentWave": {
       "gitObjectPresence": "PASS_W01_EXACT_HEAD_77_REF_RECORDS",
       "gitBundleRestoration": "NOT_RUN_IN_CURRENT_W02_ENVIRONMENT",
-      "rootFullBun": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237736",
+      "rootFullBun": "PASS 050168252a4eb9c5b95aa93ac4ade10b782bde09 CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332115; new candidate requires repeat",
       "chromium": "PASS_W01_GHCODE_AND_CANVAS_UBUNTU_CHROMIUM; W02_RETEST_PENDING",
       "Windows": "NOT_RUN",
-      "canvasBrowser": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804 (previous unchanged Canvas tree)",
-      "ghcodeBrowser": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804 (previous GHCode tree); W02 patch pending",
-      "sourceIsolationCI": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
-      "sourceTrackCI": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804; W02 pending",
-      "historyAndIsolation": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804 (no --bundle)",
-      "ghcode": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804; W02 modified snapshot requires rerun",
-      "rscode": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
-      "canvas": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511237804",
+      "canvasBrowser": "PASS 050168252a4eb9c5b95aa93ac4ade10b782bde09 CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332020",
+      "ghcodeBrowser": "PASS 5b07d9d687ecf76ea2eef8d538a2491d7dfd091e (30 Chromium cases) CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41626641160; new GHC03 UI test corrected and pending",
+      "sourceIsolationCI": "PASS 3d4eecfb W02 CI 41596969230; current W02-R source hash manifest updated and pending exact-head repeat",
+      "sourceTrackCI": "PARTIAL 050168: sources Canvas/RSCode PASS; GHCode new UI selector FAIL; manifest mismatch FAIL. Corrective commits applied; retest required.",
+      "historyAndIsolation": "PASS 3d4eecfb W02 CI 41596969230; new candidate tree hashes updated and pending exact-head repeat; no --bundle.",
+      "ghcode": "PASS selected prior push-journal snapshot 5b07d9 (30 Playwright); GHC03 new UI fixture test at 050168 failed and is retesting.",
+      "rscode": "PASS 050168 source suite; intermittent root browser-frame flake still unresolved",
+      "canvas": "PASS 050168 (frozen lock + 5 context unit tests + 23 IDB browser scenarios + Chromium smoke)",
       "managedDarkFactory": "PASS d091a26eaa7ab7b814056e2c48ddc922ecebb3ac CI https://github.com/marius-patrik/DarkFactory-web/actions/runs/41511238882 (agent and approvals SKIPPED)",
-      "W02ChangesPending": "GHCode storage transaction-completion acknowledgment, current-principal data-boundary fencing, and targeted Bun regression tests. Not accepted until exact-head CI.",
+      "W02ChangesPending": "Reconciled GHCode journal, principal-bound IDB, DocumentService and Canvas source contract are committed. Full resource CAS/migration/security, RSCode native runners, licensing, template retirement and exact-head acceptance remain OPEN.",
       "W02CanvasLock": {
         "generationRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41596379238",
         "job": 125784599781,
         "bun": "1.3.11",
         "sha256": "842a1d59da1c5f5b23303193545d3dd6e139f23251269132c7bdc7955e8e3d80",
         "gitBlob": "368d67603a2be43176d5052f618e3196c650155b",
-        "status": "GENERATED_AND_COMMITTED_NEEDS_FROZEN_CI",
+        "status": "FROZEN_INSTALL_AND_BROWSER_CI_PASS_41596969230",
         "note": "Prior non-frozen run 41596024800 produced different SHA256 caa2634b..., showing version drift."
+      },
+      "W02RCandidate": {
+        "candidateBaseSHA": "11f260e61254f9c0b893669653b74c587bc21420",
+        "ghcodeTree": "dc3a6c0b95d4f179d902d40038d546f520acd94b",
+        "canvasTree": "1e99bf067ace6d0af37cf447662b822137a5f481",
+        "rscodeTree": "d3588b5ea1f3c4184728f6036a40da3b174dbd09",
+        "lastVerifiedRoot": "050168252a4eb9c5b95aa93ac4ade10b782bde09",
+        "lastVerifiedCanvasAndRSCodeRun": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41629332020",
+        "currentManifestCorrection": "Exact-history and source isolation retest required",
+        "acceptance": "PROVISIONAL_SECURITY_AND_LIFECYCLE_INCOMPLETE"
       }
     },
     "priorExternalEvidence": [
