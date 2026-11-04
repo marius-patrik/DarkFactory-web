@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "cff158b85daeae8e7db0234ce0d256059c044a9e",
+      "snapshotTreeSHA": "d39e8fa452b851eb3431dacbc50ffea8745e31c4",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -78,7 +78,8 @@
         "W03: canonical document resource identity includes principal, repository immutable ID, workspace/session, source ref and base revision; DocumentService denies malformed/foreign IDs, workspace storage rejects noncanonical owner IDs.",
         "W03: push branch update now uses GitHub GraphQL updateRefs with beforeOid exact expected remote SHA (no REST fallback); deterministic mocked transport tests added.",
         "W03: real Playwright GitHub transport mock rejects legacy REST PATCH and enforces beforeOid conditional ref mutation.",
-        "W03: compareAndSetOverlay adds atomic real IndexedDB document edit CAS and rejects stale revisions, concurrent deletes and account changes; actual React document writes use it; other legacy UI mutations remain non-CAS."
+        "W03: compareAndSetOverlay adds atomic real IndexedDB document edit CAS and rejects stale revisions, concurrent deletes and account changes; actual React document writes use it; other legacy UI mutations remain non-CAS.",
+        "W03: on forced identity invalidation DocumentService revokes all private Monaco readers and quarantines dirty bytes in principal-sealed in-memory recovery; same principal may reauthenticate and reopen; beforeunload warns even after account switch. This is NOT durable across a confirmed browser close."
       ],
       "rejectedChanges": [
         "GHC-02 PR #34 transactional v3 unsafe privacy/export and push queue implementation not activated"
@@ -89,7 +90,8 @@
         "GHC-03 browser integration, Dockview group/move lifecycle and conflict recovery are not independently accepted; additional native paths require guarding.",
         "Legacy ambiguous-data non-destructive migration, secure import/export, quota recovery under real capacity pressure and comprehensive cross-tab release acceptance remain incomplete.",
         "GraphQL beforeOid conditional mutation implemented in W03, but realistic conflict, permission and network-recovery acceptance are pending exact-head CI and live provider test.",
-        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source snapshot (retained in original Git DAG)."
+        "Historical .darkfactory submodule gitlink and .gitmodules omitted from source snapshot (retained in original Git DAG).",
+        "Principal-revoked dirty content is only in-memory safeguarded with browser unload warning; durable principal-scoped backup and explicit export/recovery UX remain P0."
       ],
       "license": "GPL-3.0",
       "testCommands": [
@@ -117,13 +119,14 @@
         "limitation": "This demonstrates current test coverage only; full GHC-02 resource CAS/legacy migration, GHC-03 all Dockview transitions, remote ref CAS and native platforms remain unaccepted."
       },
       "w03": {
-        "checkpointHead": "aca7e1d83dc8dc216772399954e9273d57a879d3",
-        "sourceTreeSHA": "cff158b85daeae8e7db0234ce0d256059c044a9e",
+        "checkpointHead": "3d598697ac6f86f1b57bc667c56f818d03340d7d",
+        "sourceTreeSHA": "d39e8fa452b851eb3431dacbc50ffea8745e31c4",
         "state": "IMPLEMENTED_NOT_YET_VERIFIED",
         "addedTests": [
           ".github/unit/resource-identity.test.ts",
           ".github/unit/github-cas.test.ts",
-          ".github/tests/push-journal.spec.ts (real IDB overlay CAS)"
+          ".github/tests/push-journal.spec.ts (real IDB overlay CAS)",
+          ".github/unit/document-service.test.ts (forced account revocation and same-principal recovery)"
         ],
         "currentCI": "NOT_RUN",
         "knownGaps": [
