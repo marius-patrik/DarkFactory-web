@@ -449,21 +449,61 @@ export function createGithubCommit(
   });
 }
 
-export function updateGithubBranchRef(
+/**
+ * Atomically compare the exact remote branch tip with expectedSha before updating.
+ * REST PATCH git/refs only checks fast-forward compatibility and is NOT an exact CAS.
+ * If the token/GraphQL mutation is unavailable, fail closed; never fall back to REST.
+ */
+export async function updateGithubBranchRef(
   fullName: string,
   branch: string,
+  expectedSha: string,
   sha: string,
   token: string | null,
-) {
-  return githubFetch<GithubGitRef>(
-    `/repos/${fullName}/git/refs/heads/${encodedRefPath(branch)}`,
-    requireToken(token),
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sha, force: false }),
-    },
+): Promise<void> {
+  if (!/^[a-f0-9]{40}$/i.test(expectedSha) || !/^[a-f0-9]{40}$/i.test(sha))
+    throw new Error("Conditional GitHub push requires two complete commit SHAs.");
+  const parts = fullName.split("/");
+  if (parts.length !== 2 || parts.some((part) => !/^[A-Za-z0-9_.-]+$/.test(part)))
+    throw new Error("Invalid repository identity for conditional GitHub push.");
+  if (!branch || branch.startsWith("refs/") || branch.includes("..") ||
+      branch.includes("\\") || branch.includes("@{") ||
+      /[\s~^:?*\[\]]/.test(branch) || branch.endsWith("/") || branch.endsWith(".lock"))
+    throw new Error("Invalid branch ref for conditional GitHub push.");
+  const credential = requireToken(token);
+  const [owner, name] = parts;
+  const identity = await githubGraphql<{
+    repository: { id: string } | null;
+  }>(
+    `query PushRepositoryIdentity($owner: String!, $name: String!) {
+      repository(owner: $owner, name: $name) { id }
+    }`,
+    { owner, name },
+    credential,
   );
+  const repositoryId = identity.repository?.id;
+  if (!repositoryId) throw new Error("GitHub did not confirm the target repository identity.");
+  const result = await githubGraphql<{
+    updateRefs: { clientMutationId: string | null } | null;
+  }>(
+    `mutation ConditionalPushRefs($input: UpdateRefsInput!) {
+      updateRefs(input: $input) { clientMutationId }
+    }`,
+    {
+      input: {
+        repositoryId,
+        refUpdates: [{
+          name: `refs/heads/${branch}`,
+          beforeOid: expectedSha.toLowerCase(),
+          afterOid: sha.toLowerCase(),
+          force: false,
+        }],
+      },
+    },
+    credential,
+  );
+  if (!result.updateRefs)
+    throw new Error("GitHub did not acknowledge the conditional ref update.");
 }
 
 export function createGithubBranchRef(
