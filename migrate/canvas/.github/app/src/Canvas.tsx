@@ -181,16 +181,24 @@ function FileRow({
 export default function Canvas() {
   const context = useRepositoryContext();
   const documents = context.documents;
-  const byPath = useMemo(() => new Map(documents.map((document) => [document.path, document])), [documents]);
+  const byPath = useMemo(
+    () => new Map(documents.map((document) => [document.path, document])),
+    [documents],
+  );
   const allPaths = useMemo(
     () => [...new Set([...documents.map((document) => document.path), ...context.paths])],
     [documents, context.paths],
   );
   const knownPaths = useMemo(() => new Set(allPaths), [allPaths]);
   const edgesOfDocuments = context.graphEdges;
-  const groupCounts = useMemo(() => categories.map((name) => ({
-    name, count: allPaths.filter((path) => categoryOf(path) === name).length,
-  })), [allPaths]);
+  const groupCounts = useMemo(
+    () =>
+      categories.map((name) => ({
+        name,
+        count: allPaths.filter((path) => categoryOf(path) === name).length,
+      })),
+    [allPaths],
+  );
   const { t } = useTranslation();
   const [route] = useLocation();
   const [perspective, setPerspective] = useState<Perspective>("overview");
