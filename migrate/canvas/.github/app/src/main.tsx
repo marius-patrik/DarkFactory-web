@@ -8,6 +8,7 @@ import { Router } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import "./i18n";
 import App from "./App";
+import { RuntimeRepositoryGate, RuntimeRepositoryProvider } from "./runtime-repository";
 import "./styles.css";
 import "@xyflow/react/dist/style.css";
 import "dockview-react/dist/styles/dockview.css";
@@ -47,9 +48,13 @@ function AppProviders() {
         }
       }}
     >
-      <Router hook={useHashLocation}>
-        <App />
-      </Router>
+      <RuntimeRepositoryProvider>
+        <RuntimeRepositoryGate>
+          <Router hook={useHashLocation}>
+            <App />
+          </Router>
+        </RuntimeRepositoryGate>
+      </RuntimeRepositoryProvider>
     </HotkeysProvider>
   );
 }
