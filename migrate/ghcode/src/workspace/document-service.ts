@@ -47,6 +47,9 @@ export class DocumentService {
     for (const entry of this.entries.values()) {
       entry.revoked = true;
       entry.generation += 1;
+      // React's old editor views may unmount after principal changes; their
+      // lease ownership must not carry over to a newly authenticated editor.
+      entry.leases = 0;
       entry.listeners.clear();
       entry.model?.dispose();
       entry.model = null;
