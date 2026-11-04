@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "f54fe8c8c6d63bff02646d16f3e7b20cc1350bd9",
+      "snapshotTreeSHA": "3459b9ebae052e340538cad5901d388516d82218",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -79,7 +79,8 @@
         "W03: push branch update now uses GitHub GraphQL updateRefs with beforeOid exact expected remote SHA (no REST fallback); deterministic mocked transport tests added.",
         "W03: real Playwright GitHub transport mock rejects legacy REST PATCH and enforces beforeOid conditional ref mutation.",
         "W03: compareAndSetOverlay adds atomic real IndexedDB document edit CAS and rejects stale revisions, concurrent deletes and account changes; actual React document writes use it; other legacy UI mutations remain non-CAS.",
-        "W03: on forced identity invalidation DocumentService revokes all private Monaco readers and quarantines dirty bytes in principal-sealed in-memory recovery; same principal may reauthenticate and reopen; beforeunload warns even after account switch. This is NOT durable across a confirmed browser close."
+        "W03: on forced identity invalidation DocumentService revokes all private Monaco readers and quarantines dirty bytes in principal-sealed in-memory recovery; same principal may reauthenticate and reopen; beforeunload warns even after account switch. This is NOT durable across a confirmed browser close.",
+        "W03: forced cross-tab authorization invalidation now surfaces an explicit user-visible message about private in-memory recovery and browser-close durability limitation."
       ],
       "rejectedChanges": [
         "GHC-02 PR #34 transactional v3 unsafe privacy/export and push queue implementation not activated"
@@ -119,8 +120,8 @@
         "limitation": "This demonstrates current test coverage only; full GHC-02 resource CAS/legacy migration, GHC-03 all Dockview transitions, remote ref CAS and native platforms remain unaccepted."
       },
       "w03": {
-        "checkpointHead": "3383855886934874ed6bc252d4f7c8308c99bd92",
-        "sourceTreeSHA": "f54fe8c8c6d63bff02646d16f3e7b20cc1350bd9",
+        "checkpointHead": "cba8f50a4774eed93d73ee22c2a3e12b78490c16",
+        "sourceTreeSHA": "3459b9ebae052e340538cad5901d388516d82218",
         "state": "IMPLEMENTED_NOT_YET_VERIFIED",
         "addedTests": [
           ".github/unit/resource-identity.test.ts",
