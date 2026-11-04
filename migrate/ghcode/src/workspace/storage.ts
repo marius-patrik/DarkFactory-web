@@ -212,6 +212,71 @@ export async function removeOverlay(workspaceId: string, path: string) {
   await withStore("overlays", "readwrite", (store) => store.delete(`${workspaceId}:${path}`));
 }
 
+
+/**
+ * Document-edit compare-and-swap. The expected overlay is the caller's last
+ * observed durable value; a stale editor/tab must never overwrite a newer
+ * edit or remove a concurrent overlay. Compare and mutation live in the same
+ * serializable IndexedDB readwrite transaction, and completion is the sole
+ * success acknowledgment.
+ *
+ * Legacy UI actions still using saveOverlay/removeOverlay are NOT covered by
+ * this primitive; broad resource-level CAS remains an acceptance requirement.
+ */
+export async function compareAndSetOverlay(
+  workspaceId: string,
+  path: string,
+  expected: WorkingFile | null,
+  next: WorkingFile | null,
+): Promise<void> {
+  requireOwned(workspaceId);
+  if (!path || path.startsWith("/") || path.includes("\\") || path.split("/").some(
+    segment => !segment || segment === "." || segment === "..",
+  )) throw new Error("Invalid overlay document path.");
+  const key = workspaceId + ":" + path;
+  for (const value of [expected, next]) {
+    if (value && (value.key !== key || value.workspaceId !== workspaceId ||
+        value.path !== path)) throw new Error("Overlay resource identity mismatch.");
+  }
+  const db = await openDatabase();
+  try {
+    requireOwned(workspaceId);
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction("overlays", "readwrite");
+      trackWrite(tx);
+      const store = tx.objectStore("overlays");
+      let reason: Error | undefined;
+      const abort = (error: Error) => {
+        reason = error;
+        try { tx.abort(); } catch { reject(error); }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(reason ?? tx.error ?? new Error("Overlay CAS transaction aborted."));
+      tx.onerror = () => reject(reason ?? tx.error ?? new Error("Overlay CAS transaction failed."));
+      const read = store.get(key);
+      read.onsuccess = () => {
+        try {
+          requireOwned(workspaceId);
+          const current = read.result as WorkingFile | undefined;
+          const matches = expected === null
+            ? current === undefined
+            : current !== undefined && current.key === expected.key &&
+              current.workspaceId === expected.workspaceId &&
+              current.updatedAt === expected.updatedAt &&
+              sameWorking(current, expected);
+          if (!matches) throw new Error("Document conflict: stored overlay changed since this editor last loaded it.");
+          if (next) store.put(next);
+          else store.delete(key);
+        } catch (error) {
+          abort(error instanceof Error ? error : new Error(String(error)));
+        }
+      };
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export function loadOverlays(workspaceId: string) {
   return allForWorkspace<WorkingFile>("overlays", workspaceId);
 }
