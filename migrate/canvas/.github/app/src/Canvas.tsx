@@ -6,16 +6,13 @@ import { useLocation } from "wouter";
 import { AnimatedIcon } from "./components/AnimatedIcon";
 import { useCanvasConfig } from "./config";
 import { notify } from "./notifications";
-import { context } from "./repository-context";
+import { useRepositoryContext } from "./runtime-repository";
+import type { RepositoryContext } from "./repository-context";
 
-type Document = (typeof context.documents)[number];
+type Document = RepositoryContext["documents"][number];
 type Perspective = "overview" | "artifacts" | "projects" | "agents" | "roadmap" | "context";
 type MainMode = "overview" | "documents" | "graph";
 type Category = "Guidance" | "Planning" | "Architecture" | "Operations" | "Other";
-const documents: Document[] = context.documents;
-const byPath = new Map(documents.map((document) => [document.path, document]));
-const allPaths = [...new Set([...documents.map((d) => d.path), ...context.paths])];
-const knownPaths = new Set(allPaths);
 const categories: Category[] = ["Guidance", "Planning", "Architecture", "Operations", "Other"];
 const panes: { id: Perspective; label: string; icon: string }[] = [
   { id: "overview", label: "Overview", icon: "overview" },
@@ -52,12 +49,7 @@ const extractSummary = (text: string, max = 245) => {
   const summary = human(content);
   return summary.length > max ? summary.slice(0, max).replace(/\s+\S*$/, "") + "…" : summary;
 };
-const edgesOfDocuments = context.graphEdges;
-const groupCounts = categories.map((name) => ({
-  name,
-  count: allPaths.filter((path) => categoryOf(path) === name).length,
-}));
-const relevant = (perspective: Perspective) => {
+const relevant = (documents: Document[], perspective: Perspective) => {
   if (perspective === "agents")
     return documents
       .filter((doc) => /agents|instructions|governance/i.test(doc.path))
@@ -187,6 +179,18 @@ function FileRow({
 }
 
 export default function Canvas() {
+  const context = useRepositoryContext();
+  const documents = context.documents;
+  const byPath = useMemo(() => new Map(documents.map((document) => [document.path, document])), [documents]);
+  const allPaths = useMemo(
+    () => [...new Set([...documents.map((document) => document.path), ...context.paths])],
+    [documents, context.paths],
+  );
+  const knownPaths = useMemo(() => new Set(allPaths), [allPaths]);
+  const edgesOfDocuments = context.graphEdges;
+  const groupCounts = useMemo(() => categories.map((name) => ({
+    name, count: allPaths.filter((path) => categoryOf(path) === name).length,
+  })), [allPaths]);
   const { t } = useTranslation();
   const [route] = useLocation();
   const [perspective, setPerspective] = useState<Perspective>("overview");
@@ -211,8 +215,8 @@ export default function Canvas() {
       setPerspective("artifacts");
       setMode("documents");
     }
-  }, [route]);
-  const available = relevant(perspective);
+  }, [route, knownPaths]);
+  const available = relevant(documents, perspective);
   const filtered = available.filter(
     (doc) =>
       doc.path.toLowerCase().includes(filter.trim().toLowerCase()) ||
@@ -279,7 +283,7 @@ export default function Canvas() {
       style: { stroke: "var(--subtle)", strokeWidth: 1.2 },
     }));
     return { nodes, edges, members };
-  }, [graphGroup, selected]);
+  }, [graphGroup, selected, allPaths, edgesOfDocuments]);
   const choose = (path: string) => {
     if (!byPath.has(path)) {
       setSelected(path);
