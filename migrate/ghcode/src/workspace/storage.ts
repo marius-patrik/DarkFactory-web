@@ -5,7 +5,7 @@ import type {
   WorkspaceSnapshot,
   WorkingFile,
 } from "./model";
-import { isOwnedWorkspace, isOwnedWorkspaceId, type PrincipalKey } from "./identity";
+import { isOwnedWorkspace, parseOwnedWorkspaceId, type PrincipalKey } from "./identity";
 
 const DATABASE = "darkfactory-workbench";
 const VERSION = 3;
@@ -46,8 +46,8 @@ function trackWrite(tx: IDBTransaction) {
 }
 
 function requireOwned(id: string) {
-  if (!activePrincipal || !isOwnedWorkspaceId(id) ||
-      !id.startsWith(`${OWNED_PREFIX}${encodeURIComponent(activePrincipal)}:`)) {
+  const identity = parseOwnedWorkspaceId(id);
+  if (!activePrincipal || !identity || identity.principalKey !== activePrincipal) {
     throw new Error("Workspace does not belong to the currently verified principal; legacy data remains quarantined.");
   }
 }
