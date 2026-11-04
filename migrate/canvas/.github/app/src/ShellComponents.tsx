@@ -195,8 +195,12 @@ export function Navigator({
   const context = useRepositoryContext();
   const runtime = useRuntimeRepository();
   const { t } = useTranslation();
-  const repositoryOption = (identity: { provider: string; id: string; ref: string; revision: string }) =>
-    JSON.stringify([identity.provider, identity.id, identity.ref, identity.revision]);
+  const repositoryOption = (identity: {
+    provider: string;
+    id: string;
+    ref: string;
+    revision: string;
+  }) => JSON.stringify([identity.provider, identity.id, identity.ref, identity.revision]);
   const selected = runtime.selection ? repositoryOption(runtime.selection) : context.repository;
   const options = runtime.available.length
     ? [
@@ -222,7 +226,9 @@ export function Navigator({
         value={runtime.available.length ? selected : context.repository}
         options={options}
         onValueChange={(value) => {
-          const identity = runtime.available.find((candidate) => repositoryOption(candidate) === value);
+          const identity = runtime.available.find(
+            (candidate) => repositoryOption(candidate) === value,
+          );
           if (identity) runtime.select(identity);
         }}
         className="title-repository-select"
