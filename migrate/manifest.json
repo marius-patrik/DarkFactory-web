@@ -80,7 +80,8 @@
         "W03: real Playwright GitHub transport mock rejects legacy REST PATCH and enforces beforeOid conditional ref mutation.",
         "W03: compareAndSetOverlay adds atomic real IndexedDB document edit CAS and rejects stale revisions, concurrent deletes and account changes; actual React document writes use it; other legacy UI mutations remain non-CAS.",
         "W03: on forced identity invalidation DocumentService revokes all private Monaco readers and quarantines dirty bytes in principal-sealed in-memory recovery; same principal may reauthenticate and reopen; beforeunload warns even after account switch. This is NOT durable across a confirmed browser close.",
-        "W03: forced cross-tab authorization invalidation now surfaces an explicit user-visible message about private in-memory recovery and browser-close durability limitation."
+        "W03: forced cross-tab authorization invalidation now surfaces an explicit user-visible message about private in-memory recovery and browser-close durability limitation.",
+        "W03: read-only CycloneDX SBOM generator and per-source CI artifact uploads; metadata/asset license completeness remains partial."
       ],
       "rejectedChanges": [
         "GHC-02 PR #34 transactional v3 unsafe privacy/export and push queue implementation not activated"
@@ -120,7 +121,7 @@
         "limitation": "This demonstrates current test coverage only; full GHC-02 resource CAS/legacy migration, GHC-03 all Dockview transitions, remote ref CAS and native platforms remain unaccepted."
       },
       "w03": {
-        "checkpointHead": "cba8f50a4774eed93d73ee22c2a3e12b78490c16",
+        "checkpointHead": "e1470d3bfa05d3357bfa0341dd8ecb6581e03b8b",
         "sourceTreeSHA": "3459b9ebae052e340538cad5901d388516d82218",
         "state": "IMPLEMENTED_NOT_YET_VERIFIED",
         "addedTests": [
@@ -144,7 +145,7 @@
       "originalBranch": "development",
       "originalSHA": "5f462ea6e73c570e483149d6846dcc9190c09d51",
       "reconciliationSourceSHA": "bf17d45c8068a3bda8de5d4786a829bb4c511a86",
-      "snapshotTreeSHA": "1e99bf067ace6d0af37cf447662b822137a5f481",
+      "snapshotTreeSHA": "16ecaa6ec94b473611664d7314b88f303b6d3b2c",
       "appSubtreeSHA": "9e4880ad5742f73ad5ea482b127fdf80742695e5",
       "expectedOwner": "DarkFactory-web unified app UI layer",
       "acceptedChanges": [
@@ -153,13 +154,15 @@
       "provisionalChanges": [
         "IndexedDB adapter is not imported by Canvas App; do not activate alongside GHCode v3 store",
         "W02 generated real Bun 1.3.11 lockfile on GitHub Actions Ubuntu and enforced frozen-install CI",
-        "W02-R validated repository-context parser and deterministic bounded source graph/search, selected-repository identity contract and five active Bun contract scenarios."
+        "W02-R validated repository-context parser and deterministic bounded source graph/search, selected-repository identity contract and five active Bun contract scenarios.",
+        "W03: injected read-only runtime selected-repository provider with immutable identity/revision validation, async stale-load abort, controlled repository UI selection and bounded document/graph/search consumer rewiring. Standalone generated source remains fallback only when no adapter is supplied."
       ],
       "knownUnresolved": [
         "Standalone Canvas generator still publishes curated build-time repository documents, not a live runtime selected-repository adapter.",
         "No final unified app imports Canvas storage as authority; keep independent Canvas IndexedDB tests isolated.",
         "Advanced responsive/graph/omnibar/Monaco visual acceptance is limited to the retained standalone Chromium smoke.",
-        "Template website retirement remains gated by source-baseline acceptance; PR #42 workflow security remains upstream."
+        "Template website retirement remains gated by source-baseline acceptance; PR #42 workflow security remains upstream.",
+        "W03 runtime provider is wired to standalone shell with generated-context default; full unified-app adapter, external repository authorization and browser switching acceptance still pending."
       ],
       "license": "GPL-3.0",
       "testCommands": [
@@ -168,7 +171,7 @@
         "node migrate/canvas/.github/tests/persistence/canvas-persistence.mjs",
         "node migrate/canvas/.github/tests/smoke_canvas.mjs migrate/canvas/.canvas-dist/index.html"
       ],
-      "testResults": "W02_R_SOURCE_SUITE_PASS_05016825; new context parser acceptance passed; no runtime integration",
+      "testResults": "W03_IMPLEMENTED_NOT_YET_VERIFIED",
       "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
       "originalSourceRevision": "5f462ea6e73c570e483149d6846dcc9190c09d51",
       "reconciliationRevision": "bf17d45c8068a3bda8de5d4786a829bb4c511a86",
@@ -186,6 +189,15 @@
         ],
         "platform": "GitHub-hosted Ubuntu + Chromium",
         "limitation": "Selected-repository runtime provider, complete UI lifecycle and final production ownership are still unaccepted."
+      },
+      "w03": {
+        "checkpointHead": "e1470d3bfa05d3357bfa0341dd8ecb6581e03b8b",
+        "sourceTreeSHA": "16ecaa6ec94b473611664d7314b88f303b6d3b2c",
+        "state": "IMPLEMENTED_NOT_YET_VERIFIED",
+        "addedTests": [
+          ".github/tests/runtime-repository.test.ts (5 contract scenarios)"
+        ],
+        "currentCI": "NOT_RUN"
       }
     }
   },
