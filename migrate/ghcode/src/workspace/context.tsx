@@ -1018,7 +1018,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           if (beforePatch.object.sha !== operation.expectedRemoteSha)
             throw new Error("Remote branch changed before push; reconcile without force.");
           await updateGithubBranchRef(
-            workspace.repository.fullName, workspace.ref, operation.targetSha, token,
+            workspace.repository.fullName, workspace.ref,
+            operation.expectedRemoteSha, operation.targetSha, token,
           );
           assertCurrent(lease);
         } else if (liveRef.object.sha !== operation.targetSha) {
