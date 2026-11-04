@@ -86,8 +86,11 @@ This is an incremental checkpoint in the W01 → W02 → W02-R history. It is **
 | `68e4b2a928a3` | [Source 41833602443](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41833602443) | PASS | History/isolation, RSCode, GHCode 21 Bun and 32 Chromium, Canvas typecheck/lint/format/build/10 context tests/23 IndexedDB/Chromium smoke; per-source SBOM artifacts |
 | `68e4b2a928a3` | [Root Verify 41833602447](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41833602447) | FAIL | Existing intermittent native blank-page browser frame test (20s) |
 | `68e4b2a928a3` | [Runtime 41833603368](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41833603368) | PASS | Root DarkFactory runtime workflow |
+| `8a2d5067fb37` | [Source 41834186035](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41834186035) | PASS | **All 4 source jobs**, GHCode 21 Bun + 32 Chromium, Canvas 10 context + 23 real IndexedDB + smoke, RSCode Ubuntu, 77 source refs, three SBOM artifacts |
+| `8a2d5067fb37` | [Root Verify 41834188206](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41834188206) | PASS | Root verification |
+| `8a2d5067fb37` | [Runtime 41834187422](https://github.com/marius-patrik/DarkFactory-web/actions/runs/41834187422) | PASS | DarkFactory runtime quality checks |
 
-Pending exact head may differ because a subsequent W03 fail-closed patch export correction and this report have been committed. Report final current head and its actual CI separately; a passing older candidate is never presented as passing the new exact head.
+At `8a2d5067fb3715398f8d0713e85f4ab46e04472a`, the source-only code, export correction, W03 report, root Verify, Runtime and all source jobs passed. The later provenance-only manifest/documentation commits do not alter the source subtree SHA; they nevertheless require their own exact-head CI record. Passing any of these checks does not close the P0 acceptance gaps or the earlier reproducible root browser blank-frame failure.
 
 ## K. Unresolved blockers
 
