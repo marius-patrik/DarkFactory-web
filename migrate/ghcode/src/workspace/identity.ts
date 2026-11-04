@@ -131,3 +131,98 @@ export function isOwnedWorkspace(
 export function sameOwnership(active: OwnershipGeneration, captured: OwnershipGeneration): boolean {
   return active.generation === captured.generation && active.principalKey === captured.principalKey;
 }
+
+const DOCUMENT_PREFIX = "ghcode-document-v1";
+const SHA40 = /^[0-9a-f]{40}$/;
+const OWNED_ID_PATTERN = /^ghcode-owned-v2:([^:]+):([0-9a-f]{8}-[0-9a-f-]{27,})$/i;
+
+function canonicalPrincipalKey(value: string): value is PrincipalKey {
+  if (/^gh:github\\.com:[1-9][0-9]*$/.test(value)) {
+    return Number.isSafeInteger(Number(value.slice("gh:github.com:".length)));
+  }
+  return /^anon:[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value);
+}
+
+export function parseOwnedWorkspaceId(value: string): {
+  principalKey: PrincipalKey;
+  sessionId: string;
+} | null {
+  const match = OWNED_ID_PATTERN.exec(value);
+  if (!match) return null;
+  let principal: string;
+  try { principal = decodeURIComponent(match[1]); } catch { return null; }
+  if (encodeURIComponent(principal) !== match[1] || !canonicalPrincipalKey(principal))
+    return null;
+  return { principalKey: principal, sessionId: match[2] };
+}
+
+export type DocumentResourceIdentity = {
+  type: "document";
+  principalKey: PrincipalKey;
+  workspaceId: string;
+  sessionId: string;
+  repositoryKey: RepositoryKey;
+  ref: GitRef;
+  baseSha: string;
+  path: string;
+};
+
+function validDocumentPath(path: string): boolean {
+  return !!path && path.length <= 4096 && path === path.normalize("NFC") &&
+    !path.startsWith("/") && !path.endsWith("/") &&
+    !path.includes("\\\\") && !/[\\u0000-\\u001f\\u007f]/.test(path) &&
+    path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+
+function validResourceRef(value: string): value is GitRef {
+  if (/^sha:[0-9a-f]{40}$/.test(value)) return true;
+  return /^refs\\/(heads|tags)\\/[^\\s\\u0000-\\u001f]+$/.test(value) &&
+    !value.includes("..") && !value.includes("\\\\") &&
+    !value.endsWith("/") && !value.includes("@{");
+}
+
+/**
+ * Canonical document identity includes immutable repository ID and source revision.
+ * Each component is percent-encoded, then compared against its canonical encoding
+ * when read. No raw substring is ever used to establish resource ownership.
+ */
+export function encodeDocumentResourceId(snapshot: WorkspaceSnapshot, path: string): string {
+  const ownership = snapshot.ownership;
+  if (!ownership || !isOwnedWorkspace(snapshot, ownership.principalKey))
+    throw new Error("Document cannot be bound to an unattributed workspace.");
+  if (!validDocumentPath(path) || !validResourceRef(ownership.session.ref) ||
+      !SHA40.test(snapshot.baseSha) ||
+      !Number.isSafeInteger(snapshot.repository.id) || snapshot.repository.id <= 0)
+    throw new Error("Invalid document path, repository ref or source revision.");
+  const parts = [
+    ownership.principalKey, snapshot.id, ownership.session.id,
+    ownership.session.repositoryKey, ownership.session.ref, snapshot.baseSha, path,
+  ];
+  return `${DOCUMENT_PREFIX}:${parts.map(encodeURIComponent).join(":")}`;
+}
+
+export function parseDocumentResourceId(value: string): DocumentResourceIdentity | null {
+  if (typeof value !== "string") return null;
+  const parts = value.split(":");
+  if (parts.length !== 8 || parts[0] !== DOCUMENT_PREFIX) return null;
+  const values: string[] = [];
+  try {
+    for (const part of parts.slice(1)) {
+      const decoded = decodeURIComponent(part);
+      if (encodeURIComponent(decoded) !== part) return null;
+      values.push(decoded);
+    }
+  } catch { return null; }
+  const [principalKey, workspaceId, sessionId, repositoryKey, ref, baseSha, path] = values;
+  const workspace = parseOwnedWorkspaceId(workspaceId);
+  const repo = /^gh:github\\.com:repo:([1-9][0-9]*)$/.exec(repositoryKey);
+  if (!workspace || !canonicalPrincipalKey(principalKey) ||
+      workspace.principalKey !== principalKey || workspace.sessionId !== sessionId ||
+      !repo || !Number.isSafeInteger(Number(repo[1])) ||
+      !validResourceRef(ref) || !SHA40.test(baseSha) || !validDocumentPath(path))
+    return null;
+  return {
+    type: "document", principalKey, workspaceId, sessionId,
+    repositoryKey: repositoryKey as RepositoryKey, ref, baseSha, path,
+  };
+}
