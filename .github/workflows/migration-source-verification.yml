@@ -45,6 +45,13 @@ jobs:
         with:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
+      - name: Generate CycloneDX SBOM (lock + available package metadata)
+        run: python3 ../../migrate/sbom.py bun.lock node_modules > "$GITHUB_WORKSPACE/rscode.cdx.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-rscode
+          path: rscode.cdx.json
+          retention-days: 30
       - run: bun run typecheck
       - run: bun run lint
       - run: bun test src
@@ -64,6 +71,13 @@ jobs:
         with:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
+      - name: Generate CycloneDX SBOM (lock + available package metadata)
+        run: python3 ../../migrate/sbom.py bun.lock node_modules > "$GITHUB_WORKSPACE/ghcode.cdx.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-ghcode
+          path: ghcode.cdx.json
+          retention-days: 30
       - run: bun run check
       - name: W02 transactional write and principal-fence regression tests
         run: bun test ./.github/unit/storage-unit.test.ts ./.github/unit/document-service.test.ts ./.github/unit/resource-identity.test.ts ./.github/unit/github-cas.test.ts
@@ -88,6 +102,13 @@ jobs:
         with:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
+      - name: Generate CycloneDX SBOM (lock + available package metadata)
+        run: python3 ../../../../migrate/sbom.py bun.lock node_modules > "$GITHUB_WORKSPACE/canvas.cdx.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-canvas
+          path: canvas.cdx.json
+          retention-days: 30
       - run: bun run check
       - run: bunx playwright install --with-deps chromium
       - name: Verify native Chromium IndexedDB acceptance
