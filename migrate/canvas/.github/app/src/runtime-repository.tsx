@@ -1,10 +1,18 @@
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
   type ReactNode,
 } from "react";
 import {
-  context as standaloneContext, parseRepositoryContext,
-  type RepositoryContext, type RepositoryIdentity,
+  context as standaloneContext,
+  parseRepositoryContext,
+  type RepositoryContext,
+  type RepositoryIdentity,
 } from "./repository-context";
 
 /**
@@ -27,9 +35,14 @@ type RuntimeRepositoryState = {
 };
 
 function sameIdentity(a: RepositoryIdentity | null, b: RepositoryIdentity | null): boolean {
-  return !!a && !!b &&
-    a.provider === b.provider && a.id === b.id &&
-    a.ref === b.ref && a.revision === b.revision;
+  return (
+    !!a &&
+    !!b &&
+    a.provider === b.provider &&
+    a.id === b.id &&
+    a.ref === b.ref &&
+    a.revision === b.revision
+  );
 }
 
 /** No build-time fallback is permitted once a runtime adapter is active. */
@@ -47,7 +60,9 @@ export function verifyRuntimeContext(
 const RuntimeRepository = createContext<RuntimeRepositoryState | null>(null);
 
 export function RuntimeRepositoryProvider({
-  adapter, selected, children,
+  adapter,
+  selected,
+  children,
 }: {
   adapter?: RuntimeRepositoryAdapter;
   selected?: RepositoryIdentity;
@@ -56,9 +71,7 @@ export function RuntimeRepositoryProvider({
   const [selection, setSelection] = useState<RepositoryIdentity | null>(
     selected ?? standaloneContext.repositoryIdentity,
   );
-  const [data, setData] = useState<RepositoryContext | null>(
-    adapter ? null : standaloneContext,
-  );
+  const [data, setData] = useState<RepositoryContext | null>(adapter ? null : standaloneContext);
   const [available, setAvailable] = useState<RepositoryIdentity[]>([]);
   const [loading, setLoading] = useState(!!adapter);
   const [error, setError] = useState<string | null>(null);
@@ -95,34 +108,43 @@ export function RuntimeRepositoryProvider({
       setLoading(false);
       return () => controller.abort();
     }
-    void adapter.load(active, controller.signal).then((payload) => {
-      const context = verifyRuntimeContext(payload, active);
-      if (controller.signal.aborted || generation.current !== current) return;
-      setData(context);
-      setLoading(false);
-    }).catch((reason: unknown) => {
-      if (controller.signal.aborted || generation.current !== current) return;
-      setData(null);
-      setError(reason instanceof Error ? reason.message : String(reason));
-      setLoading(false);
-    });
+    void adapter
+      .load(active, controller.signal)
+      .then((payload) => {
+        const context = verifyRuntimeContext(payload, active);
+        if (controller.signal.aborted || generation.current !== current) return;
+        setData(context);
+        setLoading(false);
+      })
+      .catch((reason: unknown) => {
+        if (controller.signal.aborted || generation.current !== current) return;
+        setData(null);
+        setError(reason instanceof Error ? reason.message : String(reason));
+        setLoading(false);
+      });
     return () => controller.abort();
   }, [adapter, selection]);
 
   useEffect(() => {
     if (!adapter?.list) return;
     const controller = new AbortController();
-    void adapter.list(controller.signal).then((identities) => {
-      if (controller.signal.aborted) return;
-      setAvailable(identities.filter((candidate) =>
-        typeof candidate.provider === "string" &&
-        typeof candidate.id === "string" &&
-        typeof candidate.ref === "string" &&
-        typeof candidate.revision === "string",
-      ));
-    }).catch(() => {
-      if (!controller.signal.aborted) setAvailable([]);
-    });
+    void adapter
+      .list(controller.signal)
+      .then((identities) => {
+        if (controller.signal.aborted) return;
+        setAvailable(
+          identities.filter(
+            (candidate) =>
+              typeof candidate.provider === "string" &&
+              typeof candidate.id === "string" &&
+              typeof candidate.ref === "string" &&
+              typeof candidate.revision === "string",
+          ),
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setAvailable([]);
+      });
     return () => controller.abort();
   }, [adapter]);
 
