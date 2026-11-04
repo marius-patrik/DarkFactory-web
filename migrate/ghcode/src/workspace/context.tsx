@@ -296,7 +296,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (event.data?.type !== "invalidate") return;
       clearGithubToken();
       transition(anonymous, "invalidated");
-      setError("Account changed in another tab. Sign in again to access private repositories.");
+      setError(
+        documentService.hasSuspendedChanges()
+          ? "Account changed in another tab. Unsaved private drafts are held only in this tab. Reauthenticate the original account to recover them; closing the browser will discard them."
+          : "Account changed in another tab. Sign in again to access private repositories.",
+      );
     };
     channel.current = next;
     return () => {
