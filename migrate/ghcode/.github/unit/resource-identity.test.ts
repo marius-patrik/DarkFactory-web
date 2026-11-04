@@ -53,7 +53,7 @@ describe("validated document identities", () => {
     const id = encodeDocumentResourceId(workspace(b), "test.ts");
     const service = new DocumentService();
     service.bindPrincipal(a);
-    expect(() => service.acquire(id, a, "", async () => {})).toThrow(/not authorized/);
+    expect(() => service.acquire(id, a, "", async () => {})).toThrow(/no longer authorized/);
     expect(encodeDocumentResourceId(workspace(a), "test.ts")).not.toBe(id);
     service.bindPrincipal(b);
     expect(() => service.acquire(id, b, "", async () => {})).not.toThrow();
