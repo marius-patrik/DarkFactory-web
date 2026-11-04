@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "71b1d65b9ac72d4833517ec52df3e6aee0a33cc3",
+      "snapshotTreeSHA": "03bfad568532e9a1a6830706f71e9750633b5874",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -82,7 +82,8 @@
         "W03: on forced identity invalidation DocumentService revokes all private Monaco readers and quarantines dirty bytes in principal-sealed in-memory recovery; same principal may reauthenticate and reopen; beforeunload warns even after account switch. This is NOT durable across a confirmed browser close.",
         "W03: forced cross-tab authorization invalidation now surfaces an explicit user-visible message about private in-memory recovery and browser-close durability limitation.",
         "W03: read-only CycloneDX SBOM generator and per-source CI artifact uploads; metadata/asset license completeness remains partial.",
-        "W03: Monaco model React key and path follow canonical immutable document identity after baseSHA/ref change; test GitHub transport restores created blobs by SHA."
+        "W03: Monaco model React key and path follow canonical immutable document identity after baseSHA/ref change; test GitHub transport restores created blobs by SHA.",
+        "W03: whole-file patch export no longer suppresses arbitrary read failures as fabricated deletions; intentional deleted paths remain explicit."
       ],
       "rejectedChanges": [
         "GHC-02 PR #34 transactional v3 unsafe privacy/export and push queue implementation not activated"
@@ -122,8 +123,8 @@
         "limitation": "This demonstrates current test coverage only; full GHC-02 resource CAS/legacy migration, GHC-03 all Dockview transitions, remote ref CAS and native platforms remain unaccepted."
       },
       "w03": {
-        "checkpointHead": "55c6f3bf0d31aa90bd1c21456648fe83cb6e8753",
-        "sourceTreeSHA": "71b1d65b9ac72d4833517ec52df3e6aee0a33cc3",
+        "checkpointHead": "6d8827157c773e7e11fa1dd675ebefbca4ea78e7",
+        "sourceTreeSHA": "03bfad568532e9a1a6830706f71e9750633b5874",
         "state": "IMPLEMENTED_NOT_YET_VERIFIED",
         "addedTests": [
           ".github/unit/resource-identity.test.ts",
