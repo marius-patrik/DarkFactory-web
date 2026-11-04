@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "e1939e225a6173a16a77071dfe73acf63135e4f1",
+      "snapshotTreeSHA": "0caa0ccf7fc14c0323357f8655d3e8364bd5be5c",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -76,7 +76,8 @@
         "W02-R IndexedDB v3 pushOperations journal with durable prepared/ready/remote-confirmed phases and atomic local completion; non-force remote-ref reconciliation.",
         "W02-R principal change revokes in-flight transactions; browser isolation, transaction CAS, quota and journal recovery tests; DocumentService serializes acknowledged Monaco saves and guards navigation.",
         "W03: canonical document resource identity includes principal, repository immutable ID, workspace/session, source ref and base revision; DocumentService denies malformed/foreign IDs, workspace storage rejects noncanonical owner IDs.",
-        "W03: push branch update now uses GitHub GraphQL updateRefs with beforeOid exact expected remote SHA (no REST fallback); deterministic mocked transport tests added."
+        "W03: push branch update now uses GitHub GraphQL updateRefs with beforeOid exact expected remote SHA (no REST fallback); deterministic mocked transport tests added.",
+        "W03: real Playwright GitHub transport mock rejects legacy REST PATCH and enforces beforeOid conditional ref mutation."
       ],
       "rejectedChanges": [
         "GHC-02 PR #34 transactional v3 unsafe privacy/export and push queue implementation not activated"
@@ -115,8 +116,8 @@
         "limitation": "This demonstrates current test coverage only; full GHC-02 resource CAS/legacy migration, GHC-03 all Dockview transitions, remote ref CAS and native platforms remain unaccepted."
       },
       "w03": {
-        "checkpointHead": "8fd492b968a36b83eee8e411c04d3b69d63ad734",
-        "sourceTreeSHA": "e1939e225a6173a16a77071dfe73acf63135e4f1",
+        "checkpointHead": "2dd1b4c1c04cb4fb67232794d4b5b4a4f0b0f144",
+        "sourceTreeSHA": "0caa0ccf7fc14c0323357f8655d3e8364bd5be5c",
         "state": "IMPLEMENTED_NOT_YET_VERIFIED",
         "addedTests": [
           ".github/unit/resource-identity.test.ts",
