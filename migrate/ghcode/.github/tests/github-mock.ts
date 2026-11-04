@@ -173,6 +173,7 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
     writes: [] as string[],
   };
   let createdBlob = 0;
+  const createdBlobs = new Map<string, string>();
   let createdTree = 0;
   let createdCommit = 0;
   const trees = new Map<string, ReturnType<typeof tree>>();
@@ -326,10 +327,24 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
       });
     }
 
+    if (path.startsWith(`/repos/${MOCK_REPOSITORY}/git/blobs/`) && method === "GET") {
+      const sha = decodeURIComponent(path.split("/").at(-1) ?? "");
+      const blob = createdBlobs.get(sha);
+      if (blob !== undefined) {
+        return json(route, { encoding: "base64", content: btoa(blob) });
+      }
+    }
+
     if (path === `/repos/${MOCK_REPOSITORY}/git/blobs` && method === "POST") {
+      const body = request.postDataJSON() as { content?: string; encoding?: string };
+      if (typeof body.content !== "string" || !["utf-8", "base64"].includes(body.encoding ?? "utf-8")) {
+        return json(route, { message: "Invalid blob creation" }, 422);
+      }
       createdBlob += 1;
       state.writes.push("blob");
-      return json(route, { sha: createdBlob.toString(16).padStart(40, "b") }, 201);
+      const sha = createdBlob.toString(16).padStart(40, "b");
+      createdBlobs.set(sha, body.encoding === "base64" ? atob(body.content) : body.content);
+      return json(route, { sha }, 201);
     }
 
     if (path === `/repos/${MOCK_REPOSITORY}/git/trees` && method === "POST") {
