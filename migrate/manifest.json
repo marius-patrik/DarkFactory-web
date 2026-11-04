@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "d39e8fa452b851eb3431dacbc50ffea8745e31c4",
+      "snapshotTreeSHA": "f54fe8c8c6d63bff02646d16f3e7b20cc1350bd9",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -119,8 +119,8 @@
         "limitation": "This demonstrates current test coverage only; full GHC-02 resource CAS/legacy migration, GHC-03 all Dockview transitions, remote ref CAS and native platforms remain unaccepted."
       },
       "w03": {
-        "checkpointHead": "3d598697ac6f86f1b57bc667c56f818d03340d7d",
-        "sourceTreeSHA": "d39e8fa452b851eb3431dacbc50ffea8745e31c4",
+        "checkpointHead": "3383855886934874ed6bc252d4f7c8308c99bd92",
+        "sourceTreeSHA": "f54fe8c8c6d63bff02646d16f3e7b20cc1350bd9",
         "state": "IMPLEMENTED_NOT_YET_VERIFIED",
         "addedTests": [
           ".github/unit/resource-identity.test.ts",
