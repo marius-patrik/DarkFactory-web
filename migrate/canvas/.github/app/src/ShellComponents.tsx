@@ -8,7 +8,7 @@ import { useCanvasConfig, POSITIONS, type CanvasPreferences } from "./config";
 import { useProfiles } from "./profiles";
 import { notify } from "./notifications";
 import { VIEWS, type CanvasView, viewLabel } from "./views";
-import { useRepositoryContext } from "./runtime-repository";
+import { useRepositoryContext, useRuntimeRepository } from "./runtime-repository";
 
 /** Right click moves a surface; ordinary clicks keep its primary action. */
 export function SurfaceMenu({
@@ -193,7 +193,22 @@ export function Navigator({
   onProfile: (id: string) => void;
 }) {
   const context = useRepositoryContext();
+  const runtime = useRuntimeRepository();
   const { t } = useTranslation();
+  const repositoryOption = (identity: { provider: string; id: string; ref: string; revision: string }) =>
+    JSON.stringify([identity.provider, identity.id, identity.ref, identity.revision]);
+  const selected = runtime.selection ? repositoryOption(runtime.selection) : context.repository;
+  const options = runtime.available.length
+    ? [
+        { value: selected, label: context.name },
+        ...runtime.available
+          .filter((identity) => repositoryOption(identity) !== selected)
+          .map((identity) => ({
+            value: repositoryOption(identity),
+            label: identity.provider + "/" + identity.id + " · " + identity.ref,
+          })),
+      ]
+    : [{ value: context.repository, label: context.name }];
   return (
     <nav
       className="title-navigation"
@@ -204,9 +219,12 @@ export function Navigator({
       <AnimatedIcon name="right" size={13} />
       <CanvasSelect
         label={t("Repository")}
-        value={context.repository}
-        options={[{ value: context.repository, label: context.name }]}
-        onValueChange={() => {}}
+        value={runtime.available.length ? selected : context.repository}
+        options={options}
+        onValueChange={(value) => {
+          const identity = runtime.available.find((candidate) => repositoryOption(candidate) === value);
+          if (identity) runtime.select(identity);
+        }}
         className="title-repository-select"
       />
       <AnimatedIcon name="right" size={13} />
