@@ -1,8 +1,28 @@
 import { describe, expect, test } from "bun:test";
 import { DocumentService } from "../../src/workspace/document-service";
+import { encodeDocumentResourceId } from "../../src/workspace/identity";
 
-const principal = "gh:github.com:1001";
-const resource = `ghcode-owned-v2:${encodeURIComponent(principal)}:session:README.md`;
+const principal = "gh:github.com:1001" as const;
+const workspaceUuid = "203c58bb-1336-4d74-bfd9-b5f81d08bf92";
+const sessionUuid = "4a333080-117b-4a5c-9e12-151bf90184de";
+const workspaceId = `ghcode-owned-v2:${encodeURIComponent(principal)}:${sessionUuid}`;
+const resource = encodeDocumentResourceId({
+  version: 2,
+  id: workspaceId,
+  ownership: {
+    principalKey: principal,
+    workspace: { id: workspaceUuid, principalKey: principal },
+    session: {
+      id: sessionUuid, principalKey: principal, workspaceId: workspaceUuid,
+      repositoryKey: "gh:github.com:repo:42", ref: "refs/heads/main",
+    },
+  },
+  repository: {
+    id: 42, name: "private", fullName: "acme/private", owner: "acme",
+    private: true, defaultBranch: "main", htmlUrl: "", canPush: true,
+  },
+  ref: "main", baseSha: "a".repeat(40), treeSha: "b".repeat(40), tree: [], updatedAt: 1,
+}, "README.md");
 
 function deferred() {
   let resolve!: () => void;
