@@ -77,9 +77,6 @@ export function RuntimeRepositoryProvider({
     setSelection({ ...identity });
   }, []);
 
-  const key = selection
-    ? JSON.stringify([selection.provider, selection.id, selection.ref, selection.revision])
-    : "";
   useEffect(() => {
     if (!adapter) {
       setData(standaloneContext);
@@ -110,7 +107,7 @@ export function RuntimeRepositoryProvider({
       setLoading(false);
     });
     return () => controller.abort();
-  }, [adapter, key]);
+  }, [adapter, selection]);
 
   useEffect(() => {
     if (!adapter?.list) return;
@@ -149,9 +146,9 @@ export function useRepositoryContext(): RepositoryContext {
 }
 
 export function RuntimeRepositoryGate({ children }: { children: ReactNode }) {
-  const { loading, error, selection } = useRuntimeRepository();
+  const { context, loading, error } = useRuntimeRepository();
   if (loading) return <main role="status">Loading selected repository context…</main>;
   if (error) return <main role="alert">{error}</main>;
-  if (!selection) return <main role="status">No repository is selected.</main>;
+  if (!context) return <main role="status">No repository is selected.</main>;
   return <>{children}</>;
 }
