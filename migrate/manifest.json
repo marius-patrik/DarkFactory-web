@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "c522028bcb5fb9b77090982d5be9993b53100806",
+      "snapshotTreeSHA": "cff158b85daeae8e7db0234ce0d256059c044a9e",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -77,7 +77,8 @@
         "W02-R principal change revokes in-flight transactions; browser isolation, transaction CAS, quota and journal recovery tests; DocumentService serializes acknowledged Monaco saves and guards navigation.",
         "W03: canonical document resource identity includes principal, repository immutable ID, workspace/session, source ref and base revision; DocumentService denies malformed/foreign IDs, workspace storage rejects noncanonical owner IDs.",
         "W03: push branch update now uses GitHub GraphQL updateRefs with beforeOid exact expected remote SHA (no REST fallback); deterministic mocked transport tests added.",
-        "W03: real Playwright GitHub transport mock rejects legacy REST PATCH and enforces beforeOid conditional ref mutation."
+        "W03: real Playwright GitHub transport mock rejects legacy REST PATCH and enforces beforeOid conditional ref mutation.",
+        "W03: compareAndSetOverlay adds atomic real IndexedDB document edit CAS and rejects stale revisions, concurrent deletes and account changes; actual React document writes use it; other legacy UI mutations remain non-CAS."
       ],
       "rejectedChanges": [
         "GHC-02 PR #34 transactional v3 unsafe privacy/export and push queue implementation not activated"
@@ -116,12 +117,13 @@
         "limitation": "This demonstrates current test coverage only; full GHC-02 resource CAS/legacy migration, GHC-03 all Dockview transitions, remote ref CAS and native platforms remain unaccepted."
       },
       "w03": {
-        "checkpointHead": "c6d652f3e4bf6142906516e7b0e00f079552f072",
-        "sourceTreeSHA": "c522028bcb5fb9b77090982d5be9993b53100806",
+        "checkpointHead": "aca7e1d83dc8dc216772399954e9273d57a879d3",
+        "sourceTreeSHA": "cff158b85daeae8e7db0234ce0d256059c044a9e",
         "state": "IMPLEMENTED_NOT_YET_VERIFIED",
         "addedTests": [
           ".github/unit/resource-identity.test.ts",
-          ".github/unit/github-cas.test.ts"
+          ".github/unit/github-cas.test.ts",
+          ".github/tests/push-journal.spec.ts (real IDB overlay CAS)"
         ],
         "currentCI": "NOT_RUN",
         "knownGaps": [
