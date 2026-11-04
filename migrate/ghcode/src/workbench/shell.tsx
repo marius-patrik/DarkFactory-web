@@ -216,7 +216,7 @@ export function WorkbenchShell() {
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (!documentService.hasUnacknowledgedChanges()) return;
+      if (!documentService.hasAnyUnacknowledgedChanges()) return;
       event.preventDefault();
       event.returnValue = "";
     };
