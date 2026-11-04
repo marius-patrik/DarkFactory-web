@@ -236,12 +236,12 @@ export function EditorTab({
   } else if (renderer === "editor") {
     body = (
       <Editor
-        key={workspace.workspace ? `${workspace.workspace.id}:${path}` : tab.id}
+        key={repositoryFile ? documentId : tab.id}
         height="100%"
         beforeMount={registerCapabilityLanguages}
         onMount={handleEditorMount}
         keepCurrentModel
-        path={workspace.workspace ? `${workspace.workspace.id}/${path}` : tab.id}
+        path={repositoryFile ? documentId : tab.id}
         language={language}
         value={value}
         theme={theme === "light" ? "light" : "vs-dark"}
