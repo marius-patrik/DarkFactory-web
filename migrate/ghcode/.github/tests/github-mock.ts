@@ -197,6 +197,30 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
         variables?: Record<string, unknown>;
       };
       const query = body.query || "";
+      if (query.includes("PushRepositoryIdentity")) {
+        return json(route, { data: { repository: { id: "R_mock_42" } } });
+      }
+      if (query.includes("ConditionalPushRefs")) {
+        const variables = body.variables as {
+          input?: { repositoryId?: string; refUpdates?: Array<{
+            name?: string; beforeOid?: string; afterOid?: string; force?: boolean;
+          }> };
+        } | undefined;
+        const updates = variables?.input?.refUpdates;
+        const update = updates?.[0];
+        if (variables?.input?.repositoryId !== "R_mock_42" ||
+            updates?.length !== 1 ||
+            update?.name !== "refs/heads/main" ||
+            update?.beforeOid !== state.remoteHead ||
+            update?.force !== false ||
+            !/^[a-f0-9]{40}$/.test(update.afterOid ?? "")) {
+          return json(route, { errors: [{ message: "beforeOid mismatch or invalid ref update" }] });
+        }
+        state.remoteHead = update.afterOid as string;
+        state.pushed = true;
+        state.writes.push("graphql-ref-cas");
+        return json(route, { data: { updateRefs: { clientMutationId: null } } });
+      }
       if (query.includes("RepositoryProjects")) {
         return json(route, { data: { repository: { projectsV2: { nodes: [project] } } } });
       }
@@ -325,15 +349,9 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
       return json(route, { sha, tree: { sha: body.tree || BASE_TREE } }, 201);
     }
 
+    // REST ref mutation is intentionally rejected: only GraphQL exact beforeOid CAS is allowed.
     if (path === `/repos/${MOCK_REPOSITORY}/git/refs/heads/main` && method === "PATCH") {
-      const body = request.postDataJSON() as { sha: string };
-      state.remoteHead = body.sha;
-      state.pushed = true;
-      state.writes.push("ref-update");
-      return json(route, {
-        ref: "refs/heads/main",
-        object: { sha: state.remoteHead, type: "commit", url: "https://api.github.com/mock" },
-      });
+      return json(route, { message: "Unsafe REST ref write disabled" }, 409);
     }
 
     if (path === `/repos/${MOCK_REPOSITORY}/issues` && method === "GET") {
