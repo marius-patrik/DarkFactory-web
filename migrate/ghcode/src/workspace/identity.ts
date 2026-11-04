@@ -167,18 +167,26 @@ export type DocumentResourceIdentity = {
   path: string;
 };
 
+function hasControlCharacters(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+
 function validDocumentPath(path: string): boolean {
   return !!path && path.length <= 4096 && path === path.normalize("NFC") &&
     !path.startsWith("/") && !path.endsWith("/") &&
-    !path.includes("\\") && !/[\u0000-\u001f\u007f]/.test(path) &&
+    !path.includes("\\") && !hasControlCharacters(path) &&
     path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
 }
 
 function validResourceRef(value: string): value is GitRef {
   if (/^sha:[0-9a-f]{40}$/.test(value)) return true;
-  return /^refs\/(heads|tags)\/[^\s\u0000-\u001f]+$/.test(value) &&
-    !value.includes("..") && !value.includes("\\") &&
-    !value.endsWith("/") && !value.includes("@{");
+  return /^refs\/(heads|tags)\/\S+$/.test(value) &&
+    !hasControlCharacters(value) && !value.includes("..") &&
+    !value.includes("\\") && !value.endsWith("/") && !value.includes("@{");
 }
 
 /**
