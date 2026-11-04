@@ -1,3 +1,4 @@
+import { parseDocumentResourceId } from "./identity";
 import type { editor as MonacoEditor } from "monaco-editor";
 
 export type DocumentSnapshot = {
@@ -53,9 +54,10 @@ export class DocumentService {
     initial: string,
     writer: (value: string) => Promise<void>,
   ): DocumentSnapshot {
-    if (!this.principal || this.principal !== principal || !id ||
-        !id.includes(encodeURIComponent(principal))) {
-      throw new Error("Document principal is no longer authorized.");
+    const identity = parseDocumentResourceId(id);
+    if (!this.principal || this.principal !== principal || !identity ||
+        identity.principalKey !== principal) {
+      throw new Error("Document principal is no longer authorized or resource identity is invalid.");
     }
     let entry = this.entries.get(id);
     if (!entry) {
