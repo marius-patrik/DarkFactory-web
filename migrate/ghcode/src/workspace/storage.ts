@@ -11,7 +11,6 @@ const DATABASE = "darkfactory-workbench";
 const VERSION = 3;
 // The original workbench-recent-workspaces-v1 is unattributed legacy and stays untouched.
 const OWNED_RECENT_PREFIX = "ghcode-recent-owned-v1:";
-const OWNED_PREFIX = "ghcode-owned-v2:";
 
 // Updated synchronously before any React identity transition. Never infer authorization
 // from the workspace ID supplied by a caller, an old closure, or an IDB record itself.
