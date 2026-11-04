@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "d5438d3751cd6dbb5c7920d7f635ca3557a74078",
+      "snapshotTreeSHA": "cf45b09b27aea2f2e5e760fb0ced037e77f586ce",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -74,7 +74,9 @@
         "GHC-00 historical regression suite preserved at evidence/ghc00-historical-tests",
         "W02 principal-bound, transaction-committed writes; staged-commit single-transaction compare-and-write; atomic remote-push cleanup; Bun adversarial tests",
         "W02-R IndexedDB v3 pushOperations journal with durable prepared/ready/remote-confirmed phases and atomic local completion; non-force remote-ref reconciliation.",
-        "W02-R principal change revokes in-flight transactions; browser isolation, transaction CAS, quota and journal recovery tests; DocumentService serializes acknowledged Monaco saves and guards navigation."
+        "W02-R principal change revokes in-flight transactions; browser isolation, transaction CAS, quota and journal recovery tests; DocumentService serializes acknowledged Monaco saves and guards navigation.",
+        "W03: canonical document resource identity includes principal, repository immutable ID, workspace/session, source ref and base revision; DocumentService denies malformed/foreign IDs, workspace storage rejects noncanonical owner IDs.",
+        "W03: push branch update now uses GitHub GraphQL updateRefs with beforeOid exact expected remote SHA (no REST fallback); deterministic mocked transport tests added."
       ],
       "rejectedChanges": [
         "GHC-02 PR #34 transactional v3 unsafe privacy/export and push queue implementation not activated"
@@ -84,7 +86,7 @@
         "Historical GHC-02 PR #34 unsafe ownership/export/migration code remains rejected and excluded.",
         "GHC-03 browser integration, Dockview group/move lifecycle and conflict recovery are not independently accepted; additional native paths require guarding.",
         "Legacy ambiguous-data non-destructive migration, secure import/export, quota recovery under real capacity pressure and comprehensive cross-tab release acceptance remain incomplete.",
-        "Push ref-update API is non-force, but remote update is not atomic compare-and-swap; uncertain external concurrency requires reconciliation.",
+        "GraphQL beforeOid conditional mutation implemented in W03, but realistic conflict, permission and network-recovery acceptance are pending exact-head CI and live provider test.",
         "Historical .darkfactory submodule gitlink and .gitmodules omitted from source snapshot (retained in original Git DAG)."
       ],
       "license": "GPL-3.0",
@@ -93,7 +95,7 @@
         "bun run check",
         "bun run acceptance"
       ],
-      "testResults": "W02_R_SOURCE_SUITE_PASS_0c596f59__10_BUN_UNIT_31_CHROMIUM; feature acceptance incomplete",
+      "testResults": "W03_IMPLEMENTED_NOT_YET_TESTED; W02_R_PASS_ARCHIVED_0c596f59",
       "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
       "originalSourceRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
@@ -111,6 +113,23 @@
         ],
         "platform": "GitHub-hosted Ubuntu + Chromium",
         "limitation": "This demonstrates current test coverage only; full GHC-02 resource CAS/legacy migration, GHC-03 all Dockview transitions, remote ref CAS and native platforms remain unaccepted."
+      },
+      "w03": {
+        "checkpointHead": "66ce5d592ec985ff2f6be9970d8f65cf3cd9ccdb",
+        "sourceTreeSHA": "cf45b09b27aea2f2e5e760fb0ced037e77f586ce",
+        "state": "IMPLEMENTED_NOT_YET_VERIFIED",
+        "addedTests": [
+          ".github/unit/resource-identity.test.ts",
+          ".github/unit/github-cas.test.ts"
+        ],
+        "currentCI": "NOT_RUN",
+        "knownGaps": [
+          "Non-destructive legacy migration",
+          "resource-level v3 CAS",
+          "forced principal revocation preserving drafts",
+          "Dockview native lifecycle",
+          "GitHub permission contract and UI reconciliation"
+        ]
       }
     },
     "canvas": {
