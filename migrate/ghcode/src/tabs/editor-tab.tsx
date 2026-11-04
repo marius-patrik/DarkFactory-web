@@ -9,6 +9,7 @@ import { useWorkbenchRuntime } from "@/workbench/runtime";
 import { isGeneratedDocument } from "@/workspace/governance";
 import { languageForPath } from "@/workspace/languages";
 import { documentService } from "@/workspace/document-service";
+import { encodeDocumentResourceId } from "@/workspace/identity";
 import type { WorkbenchTab } from "@/workbench/model";
 import {
   RenderedResource,
@@ -44,7 +45,7 @@ export function EditorTab({
   const repositoryFile = path !== "Untitled" && Boolean(workspace.workspace);
   const generated = repositoryFile && isGeneratedDocument(path);
   const documentId = repositoryFile && workspace.workspace
-    ? `${workspace.workspace.id}:${path}`
+    ? encodeDocumentResourceId(workspace.workspace, path)
     : tab.id;
   const writeRef = useRef(workspace.writeFile);
   writeRef.current = workspace.writeFile;
