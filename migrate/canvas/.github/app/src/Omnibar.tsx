@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useCanvasConfig } from "./config";
 import { AnimatedIcon } from "./components/AnimatedIcon";
 import { VIEWS, type CanvasView } from "./views";
-import { context } from "./repository-context";
+import { useRepositoryContext } from "./runtime-repository";
 
 type Placement = "up" | "down";
 export default function Omnibar({
@@ -18,6 +18,7 @@ export default function Omnibar({
   fallback?: boolean;
   floating?: { left: number; top: number };
 }) {
+  const context = useRepositoryContext();
   const { t } = useTranslation();
   const prefs = useCanvasConfig((state) => state.preferences);
   const inputRef = useRef<HTMLInputElement>(null);
