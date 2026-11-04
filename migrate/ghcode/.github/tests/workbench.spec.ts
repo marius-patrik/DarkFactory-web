@@ -305,7 +305,7 @@ test("authenticated private repo supports dirty edits, staging, local commit, pu
   await expect(push).toBeEnabled();
   await push.click();
   await expect.poll(() => github.state.pushed).toBe(true);
-  expect(github.state.writes).toEqual(expect.arrayContaining(["blob", "tree", "commit", "ref-update"]));
+  expect(github.state.writes).toEqual(expect.arrayContaining(["blob", "tree", "commit", "graphql-ref-cas"]));
   await expect(surface(page, "primary").getByText("No local changes.")).toBeVisible();
 
   await tab(page, "main", "README.md").click();
