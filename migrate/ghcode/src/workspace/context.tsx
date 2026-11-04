@@ -54,6 +54,7 @@ import { documentService } from "./document-service";
 import {
   bindStoragePrincipal,
   beginPushOperation,
+  compareAndSetOverlay,
   advancePushOperation,
   finalizeConfirmedPush,
   loadPendingPushOperation,
@@ -559,11 +560,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [assertCurrent, capture, workspace]);
 
   const commitOverlay = useCallback(
-    async (file: WorkingFile | null, path: string) => {
+    async (file: WorkingFile | null, path: string, expected?: WorkingFile | null) => {
       if (!workspace) throw new Error("No workspace is open.");
       const lease = capture();
       assertCurrent(lease);
-      if (file) await saveOverlay(file);
+      if (expected !== undefined)
+        await compareAndSetOverlay(workspace.id, path, expected, file);
+      else if (file) await saveOverlay(file);
       else await removeOverlay(workspace.id, path);
       assertCurrent(lease);
       await refreshOverlays();
@@ -579,7 +582,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (exists) {
         const baselineContent = await readBaselineFile(path);
         if (baselineContent === content) {
-          await commitOverlay(null, path);
+          await commitOverlay(null, path, currentOverlay ?? null);
           return;
         }
       }
@@ -598,6 +601,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           updatedAt: Date.now(),
         },
         path,
+        currentOverlay ?? null,
       );
     },
     [baselineExists, commitOverlay, overlays, readBaselineFile, workspace],
