@@ -206,3 +206,47 @@ test("real storage quota exception aborts and does not acknowledge a write", asy
   }, sourceUrl);
   expect(outcome).toEqual({ rejected: true, persisted: false });
 });
+
+
+test("real overlay revision CAS prevents lost updates, stale deletes and cross-account writes", async ({ page }) => {
+  const result = await page.evaluate(async (url) => {
+    const storage = await import(url);
+    const principal = "gh:github.com:1001";
+    const id = "ghcode-owned-v2:" + encodeURIComponent(principal) + ":" + crypto.randomUUID();
+    const path = "src/document.ts";
+    const initial = {
+      key: id + ":" + path, workspaceId: id, path, status: "modified",
+      content: "baseline", updatedAt: 1,
+    };
+    storage.bindStoragePrincipal(principal);
+    const left = { ...initial, content: "left", updatedAt: 2 };
+    const right = { ...initial, content: "right", updatedAt: 3 };
+    const outcomes = await Promise.allSettled([
+      storage.compareAndSetOverlay(id, path, null, left),
+      storage.compareAndSetOverlay(id, path, null, right),
+    ]);
+    const after = (await storage.loadOverlays(id))[0];
+    const stale = await storage.compareAndSetOverlay(id, path, initial, null)
+      .then(() => false, () => true);
+    const updated = { ...after, content: "resolved", updatedAt: 4 };
+    await storage.compareAndSetOverlay(id, path, after, updated);
+    storage.bindStoragePrincipal("gh:github.com:2002");
+    const crossPrincipalDenied = await storage.compareAndSetOverlay(id, path, updated, null)
+      .then(() => false, () => true);
+    storage.bindStoragePrincipal(principal);
+    const preserved = (await storage.loadOverlays(id))[0];
+    return {
+      completed: outcomes.filter(item => item.status === "fulfilled").length,
+      conflicted: outcomes.filter(item => item.status === "rejected").length,
+      original: after?.content,
+      stale, crossPrincipalDenied,
+      preserved: preserved?.content,
+    };
+  }, sourceUrl);
+  expect(result.completed).toBe(1);
+  expect(result.conflicted).toBe(1);
+  expect(["left", "right"]).toContain(result.original);
+  expect(result.stale).toBe(true);
+  expect(result.crossPrincipalDenied).toBe(true);
+  expect(result.preserved).toBe("resolved");
+});
