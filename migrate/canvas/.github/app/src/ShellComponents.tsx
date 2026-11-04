@@ -8,7 +8,7 @@ import { useCanvasConfig, POSITIONS, type CanvasPreferences } from "./config";
 import { useProfiles } from "./profiles";
 import { notify } from "./notifications";
 import { VIEWS, type CanvasView, viewLabel } from "./views";
-import { context } from "./repository-context";
+import { useRepositoryContext } from "./runtime-repository";
 
 /** Right click moves a surface; ordinary clicks keep its primary action. */
 export function SurfaceMenu({
@@ -192,6 +192,7 @@ export function Navigator({
   onNavigate: (route: string) => void;
   onProfile: (id: string) => void;
 }) {
+  const context = useRepositoryContext();
   const { t } = useTranslation();
   return (
     <nav
@@ -354,6 +355,7 @@ export function SidebarContents({
   current: CanvasView | null;
   onNavigate: (path: string) => void;
 }) {
+  const context = useRepositoryContext();
   const { t } = useTranslation();
   const [filter, setFilter] = useState("");
   const prefs = useCanvasConfig((state) => state.preferences);
@@ -415,6 +417,7 @@ export function Notepad() {
   );
 }
 export function Library({ onNavigate }: { onNavigate: (path: string) => void }) {
+  const context = useRepositoryContext();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const docs = context.documents.filter((doc) =>
