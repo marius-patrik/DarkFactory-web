@@ -88,6 +88,7 @@ def inventory(lock_path: Path, node_modules: Path) -> dict:
         raise ValueError("Bun dependency lock is malformed or unsupported")
     pkg_entries = lock["packages"]
     packages = {}
+    aliases = defaultdict(list)
     by_name = defaultdict(list)
     for key, entry in sorted(pkg_entries.items()):
         if not isinstance(key, str) or not isinstance(entry, list) or not entry:
@@ -97,7 +98,14 @@ def inventory(lock_path: Path, node_modules: Path) -> dict:
             raise ValueError("Cannot determine exact locked version for " + key)
         ref = "pkg:npm/" + quote(name, safe="/") + "@" + quote(version, safe=".")
         if ref in packages:
-            raise ValueError("Duplicate resolved package identity: " + ref)
+            # Bun can lock the same exact artifact in both the root and a
+            # nested platform dependency. Preserve both lock paths, but do
+            # not invent duplicate SBOM components for identical content.
+            prior = packages[ref][3]
+            if prior[3:] != entry[3:] or prior[1] != entry[1]:
+                raise ValueError("Conflicting source/checksum for shared package identity: " + ref)
+            aliases[ref].append(key)
+            continue
         packages[ref] = (key, name, version, entry)
         by_name[name].append(ref)
 
@@ -108,6 +116,8 @@ def inventory(lock_path: Path, node_modules: Path) -> dict:
         installed = read_installed_package(node_modules, name, version)
         license_strings = license_declarations(installed)
         props = [{"name": "darkfactory:bun-lock-key", "value": key}]
+        for alias in sorted(aliases[ref]):
+            props.append({"name": "darkfactory:bun-lock-alias", "value": alias})
         if not license_strings:
             props.append({"name": "darkfactory:missing-license-evidence", "value": "true"})
         if installed is None:
