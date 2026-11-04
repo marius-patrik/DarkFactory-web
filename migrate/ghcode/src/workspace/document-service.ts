@@ -23,6 +23,7 @@ type Entry = {
   revoked: boolean;
   writer: (value: string) => Promise<void>;
   inFlight: Promise<void> | null;
+  generation: number;
   listeners: Set<(snapshot: DocumentSnapshot) => void>;
   model: MonacoEditor.ITextModel | null;
 };
@@ -36,16 +37,45 @@ type Entry = {
 export class DocumentService {
   private principal: string | null = null;
   private readonly entries = new Map<string, Entry>();
+  // Forced account invalidation cannot synchronously commit an IndexedDB write.
+  // Retain unacknowledged bytes in a principal-sealed in-memory recovery lane.
+  // Never expose another principal's draft, and warn before browser unload.
+  private readonly suspended = new Map<string, Entry>();
 
   bindPrincipal(principal: string): void {
     if (this.principal === principal) return;
     for (const entry of this.entries.values()) {
       entry.revoked = true;
+      entry.generation += 1;
       entry.listeners.clear();
       entry.model?.dispose();
+      entry.model = null;
+      if (entry.revision !== entry.acknowledgedRevision || entry.error || entry.saving) {
+        entry.writer = async () => { throw new Error("Reopen the original authorized workspace to retry this draft."); };
+        this.suspended.set(entry.id, entry);
+      }
     }
     this.entries.clear();
     this.principal = principal;
+    for (const [id, draft] of this.suspended) {
+      if (draft.principal !== principal) continue;
+      this.suspended.delete(id);
+      draft.revoked = false;
+      draft.saving = false;
+      // A previous write may still be completing after revocation. It must
+      // never acknowledge bytes on reauthentication; the epoch check in the
+      // serial writer rejects it. The new editor supplies a fresh writer.
+      this.entries.set(id, draft);
+    }
+  }
+
+  /** Warn on unload even when the user switched away from a private account. */
+  hasSuspendedChanges(): boolean {
+    return this.suspended.size > 0;
+  }
+
+  hasAnyUnacknowledgedChanges(): boolean {
+    return this.hasUnacknowledgedChanges() || this.hasSuspendedChanges();
   }
 
   acquire(
@@ -64,7 +94,7 @@ export class DocumentService {
       entry = {
         id, principal, content: initial, revision: 0, acknowledgedRevision: 0,
         saving: false, error: null, leases: 0, revoked: false, writer,
-        inFlight: null, listeners: new Set(), model: null,
+        inFlight: null, generation: 0, listeners: new Set(), model: null,
       };
       this.entries.set(id, entry);
     }
@@ -91,7 +121,7 @@ export class DocumentService {
 
   attachModel(id: string, model: MonacoEditor.ITextModel | null): void {
     const entry = this.entries.get(id);
-    if (!entry || !model || entry.revoked) return;
+    if (!entry || !model || entry.revoked || entry.principal !== this.principal) return;
     // Monaco reuses the same URI/model for multiple editor views.
     // Never replace an existing live model with a competing copy.
     if (entry.model && entry.model !== model && !entry.model.isDisposed()) {
@@ -102,7 +132,7 @@ export class DocumentService {
 
   subscribe(id: string, listener: (snapshot: DocumentSnapshot) => void): () => void {
     const entry = this.entries.get(id);
-    if (!entry) return () => {};
+    if (!entry || entry.revoked || entry.principal !== this.principal) return () => {};
     entry.listeners.add(listener);
     listener(this.snapshotEntry(entry));
     return () => entry.listeners.delete(listener);
@@ -110,7 +140,8 @@ export class DocumentService {
 
   snapshot(id: string): DocumentSnapshot | null {
     const entry = this.entries.get(id);
-    return entry ? this.snapshotEntry(entry) : null;
+    return entry && !entry.revoked && entry.principal === this.principal
+      ? this.snapshotEntry(entry) : null;
   }
 
   private snapshotEntry(entry: Entry): DocumentSnapshot {
@@ -154,16 +185,19 @@ export class DocumentService {
   }
 
   private async writeUntilCurrent(entry: Entry): Promise<void> {
+    const generation = entry.generation;
     entry.saving = true;
     this.notify(entry);
     try {
       while (entry.revision !== entry.acknowledgedRevision) {
-        if (entry.revoked || entry.principal !== this.principal)
+        if (entry.revoked || entry.principal !== this.principal ||
+            generation !== entry.generation)
           throw new Error("Document authority revoked before save.");
         const revision = entry.revision;
         const content = entry.content;
         await entry.writer(content);
-        if (entry.revoked || entry.principal !== this.principal)
+        if (entry.revoked || entry.principal !== this.principal ||
+            generation !== entry.generation)
           throw new Error("Document authority revoked after save.");
         entry.acknowledgedRevision = revision;
         this.notify(entry);
