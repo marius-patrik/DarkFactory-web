@@ -103,7 +103,7 @@
         "bun run check",
         "bun run acceptance"
       ],
-      "testResults": "W03_IMPLEMENTED_NOT_YET_TESTED; W02_R_PASS_ARCHIVED_0c596f59",
+      "testResults": "W03_SOURCE_CI_PASS_41834186035; FUNCTIONAL_AND_SECURITY_ACCEPTANCE_INCOMPLETE",
       "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
       "originalSourceRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
@@ -125,21 +125,22 @@
       "w03": {
         "checkpointHead": "6d8827157c773e7e11fa1dd675ebefbca4ea78e7",
         "sourceTreeSHA": "03bfad568532e9a1a6830706f71e9750633b5874",
-        "state": "IMPLEMENTED_NOT_YET_VERIFIED",
+        "state": "SOURCE_CI_PASS_CRITICAL_ACCEPTANCE_GAPS",
         "addedTests": [
           ".github/unit/resource-identity.test.ts",
           ".github/unit/github-cas.test.ts",
           ".github/tests/push-journal.spec.ts (real IDB overlay CAS)",
           ".github/unit/document-service.test.ts (forced account revocation and same-principal recovery)"
         ],
-        "currentCI": "NOT_RUN",
+        "currentCI": "PASS migration run 41834186035, 4/4 jobs",
         "knownGaps": [
           "Non-destructive legacy migration",
           "resource-level v3 CAS",
           "forced principal revocation preserving drafts",
           "Dockview native lifecycle",
           "GitHub permission contract and UI reconciliation"
-        ]
+        ],
+        "lastFullyTestedSourceHead": "8a2d5067fb3715398f8d0713e85f4ab46e04472a"
       }
     },
     "canvas": {
@@ -173,7 +174,7 @@
         "node migrate/canvas/.github/tests/persistence/canvas-persistence.mjs",
         "node migrate/canvas/.github/tests/smoke_canvas.mjs migrate/canvas/.canvas-dist/index.html"
       ],
-      "testResults": "W03_IMPLEMENTED_NOT_YET_VERIFIED",
+      "testResults": "W03_SOURCE_CI_PASS_41834186035; FUNCTIONAL_AND_SECURITY_ACCEPTANCE_INCOMPLETE",
       "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
       "originalSourceRevision": "5f462ea6e73c570e483149d6846dcc9190c09d51",
       "reconciliationRevision": "bf17d45c8068a3bda8de5d4786a829bb4c511a86",
@@ -195,11 +196,12 @@
       "w03": {
         "checkpointHead": "7e6de1f480c2cb790c8664b182b6c021dd23b491",
         "sourceTreeSHA": "83a92de0e33027e7688e6867095b0b36b6fd48ec",
-        "state": "IMPLEMENTED_NOT_YET_VERIFIED",
+        "state": "SOURCE_CI_PASS_CRITICAL_ACCEPTANCE_GAPS",
         "addedTests": [
           ".github/tests/runtime-repository.test.ts (5 contract scenarios)"
         ],
-        "currentCI": "NOT_RUN"
+        "currentCI": "PASS migration run 41834186035, 4/4 jobs",
+        "lastFullyTestedSourceHead": "8a2d5067fb3715398f8d0713e85f4ab46e04472a"
       }
     }
   },
@@ -853,5 +855,43 @@
   },
   "distributionGate": "BLOCKED_T014_GPL_AND_SBOM",
   "sourceIsolation": "Root Bun and Biome ignore migrate/** for root verification; managed df ci matrix excludes migration-only jobs (without dropping root quality) while standalone PR-only CI exercises all source tracks.",
-  "historyOnlyImportCommit": "27def47a6cc528ca3679b1e1dfd51ae1b4bb820b"
+  "historyOnlyImportCommit": "27def47a6cc528ca3679b1e1dfd51ae1b4bb820b",
+  "w03Checkpoint": {
+    "startHead": "dfcf438d68a38abcc63176fe8eb3bec70299a0db",
+    "codeAndReportHead": "8a2d5067fb3715398f8d0713e85f4ab46e04472a",
+    "sourceTrees": {
+      "rscode": "d3588b5ea1f3c4184728f6036a40da3b174dbd09",
+      "ghcode": "03bfad568532e9a1a6830706f71e9750633b5874",
+      "canvas": "83a92de0e33027e7688e6867095b0b36b6fd48ec"
+    },
+    "migrationSource": {
+      "status": "PASS",
+      "run": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41834186035",
+      "tests": {
+        "ghcodeBun": 21,
+        "ghcodeChromium": 32,
+        "canvasContext": 10,
+        "canvasIndexedDB": 23
+      }
+    },
+    "rootVerify": {
+      "status": "PASS",
+      "run": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41834188206"
+    },
+    "runtime": {
+      "status": "PASS",
+      "run": "https://github.com/marius-patrik/DarkFactory-web/actions/runs/41834187422"
+    },
+    "sourceBaselineAcceptance": "CHANGES_REQUIRED",
+    "exclusions": [
+      "Full v3 legacy migration",
+      "Durable draft quarantine",
+      "Complete Dockview lifecycle",
+      "Native 4-platform acceptance",
+      "Live GitHub contract",
+      "Complete license rights",
+      "Original backups fresh restore",
+      "Unified application"
+    ]
+  }
 }
