@@ -137,7 +137,7 @@ const SHA40 = /^[0-9a-f]{40}$/;
 const OWNED_ID_PATTERN = /^ghcode-owned-v2:([^:]+):([0-9a-f]{8}-[0-9a-f-]{27,})$/i;
 
 function canonicalPrincipalKey(value: string): value is PrincipalKey {
-  if (/^gh:github\\.com:[1-9][0-9]*$/.test(value)) {
+  if (/^gh:github\.com:[1-9][0-9]*$/.test(value)) {
     return Number.isSafeInteger(Number(value.slice("gh:github.com:".length)));
   }
   return /^anon:[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value);
@@ -170,14 +170,14 @@ export type DocumentResourceIdentity = {
 function validDocumentPath(path: string): boolean {
   return !!path && path.length <= 4096 && path === path.normalize("NFC") &&
     !path.startsWith("/") && !path.endsWith("/") &&
-    !path.includes("\\\\") && !/[\\u0000-\\u001f\\u007f]/.test(path) &&
+    !path.includes("\\") && !/[\u0000-\u001f\u007f]/.test(path) &&
     path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
 }
 
 function validResourceRef(value: string): value is GitRef {
   if (/^sha:[0-9a-f]{40}$/.test(value)) return true;
-  return /^refs\\/(heads|tags)\\/[^\\s\\u0000-\\u001f]+$/.test(value) &&
-    !value.includes("..") && !value.includes("\\\\") &&
+  return /^refs\/(heads|tags)\/[^\s\u0000-\u001f]+$/.test(value) &&
+    !value.includes("..") && !value.includes("\\") &&
     !value.endsWith("/") && !value.includes("@{");
 }
 
@@ -215,7 +215,7 @@ export function parseDocumentResourceId(value: string): DocumentResourceIdentity
   } catch { return null; }
   const [principalKey, workspaceId, sessionId, repositoryKey, ref, baseSha, path] = values;
   const workspace = parseOwnedWorkspaceId(workspaceId);
-  const repo = /^gh:github\\.com:repo:([1-9][0-9]*)$/.exec(repositoryKey);
+  const repo = /^gh:github\.com:repo:([1-9][0-9]*)$/.exec(repositoryKey);
   if (!workspace || !canonicalPrincipalKey(principalKey) ||
       workspace.principalKey !== principalKey || workspace.sessionId !== sessionId ||
       !repo || !Number.isSafeInteger(Number(repo[1])) ||
