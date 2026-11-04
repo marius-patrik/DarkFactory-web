@@ -315,7 +315,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const openRepository = useCallback(
     async (input: string, requestedRef?: string) => {
-      documentService.assertSafeToNavigate();
+      // After forced revocation, reopening a repository must remain possible
+      // so the original principal can recover sealed unacknowledged drafts.
+      // Never bypass guards while an existing workspace is active.
+      if (workspace) documentService.assertSafeToNavigate();
       if (authPhase === "resolving" || authPhase === "failed" || authPhase === "invalidated")
         throw new Error(
           "Resolve your GitHub identity or continue anonymously before opening a repository.",
