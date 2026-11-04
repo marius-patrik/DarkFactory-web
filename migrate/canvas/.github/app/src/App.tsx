@@ -17,13 +17,14 @@ import DockCanvas from "./DockCanvas";
 import { useProfiles } from "./profiles";
 import { NotificationCenter, Notifications } from "./notifications";
 import { viewFromRoute } from "./views";
-import { context } from "./repository-context";
+import { useRepositoryContext } from "./runtime-repository";
 import { version as appVersion } from "../package.json";
 
 type Alignment = "left" | "center" | "right";
 type Segment = { id: StatusPart; visible: boolean; node: ReactNode };
 
 export default function App() {
+  const context = useRepositoryContext();
   const [path, navigate] = useLocation();
   const { t, i18n } = useTranslation();
   const hotkeys = useAppHotkeys();
