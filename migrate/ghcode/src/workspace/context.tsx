@@ -1157,12 +1157,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
         for (const path of [...paths].sort()) {
           const before = await readRemote(path);
-          let after: string | null = null;
-          try {
-            after = await readFile(path);
-          } catch {
-            after = null;
-          }
+          // An intentional deletion must be represented as null, but
+          // arbitrary read/auth/network failures must abort the export.
+          // Converting every error to a deletion silently corrupts the patch.
+          const deleted = overlays.some((item) => item.path === path && item.status === "deleted") ||
+            committedFiles.some((item) => item.path === path && item.deleted);
+          const after = deleted ? null : await readFile(path);
           appendPatch(path, before, after);
         }
       }
