@@ -97,4 +97,33 @@ describe("GHC-03 durable document lifecycle", () => {
     await service.flush(resource);
     expect(service.snapshot(resource)?.dirty).toBe(false);
   });
+
+  test("forced cross-tab revocation seals dirty content from another principal and restores on reauthentication", async () => {
+    const service = new DocumentService();
+    const write = deferred();
+    service.bindPrincipal(principal);
+    service.acquire(resource, principal, "before", () => write.promise);
+    const pending = service.edit(resource, "private draft");
+    service.bindPrincipal("gh:github.com:2002");
+    expect(service.snapshot(resource)).toBeNull();
+    expect(service.hasSuspendedChanges()).toBe(true);
+    expect(service.hasAnyUnacknowledgedChanges()).toBe(true);
+    expect(service.hasUnacknowledgedChanges()).toBe(false);
+    service.assertSafeToNavigate();
+    service.bindPrincipal(principal);
+    expect(service.snapshot(resource)?.content).toBe("private draft");
+    expect(service.snapshot(resource)?.dirty).toBe(true);
+    expect(service.hasSuspendedChanges()).toBe(false);
+    const retried: string[] = [];
+    service.acquire(resource, principal, "stale baseline", async (value) => {
+      retried.push(value);
+    });
+    write.resolve();
+    await expect(pending).rejects.toThrow(/revoked/);
+    await service.flush(resource);
+    expect(retried).toEqual(["private draft"]);
+    expect(service.snapshot(resource)?.dirty).toBe(false);
+    expect(service.hasAnyUnacknowledgedChanges()).toBe(false);
+  });
+
 });
