@@ -13,7 +13,7 @@
     "lint": "biome lint . --max-diagnostics=100",
     "format:check": "biome ci . --max-diagnostics=200",
     "format:write": "biome check --write .",
-    "test:context": "bun test ../tests/repository-context.test.ts"
+    "test:context": "bun test ../tests/repository-context.test.ts ../tests/runtime-repository.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dropdown-menu": "^2.1.16",
