@@ -219,6 +219,23 @@ test("real overlay revision CAS prevents lost updates, stale deletes and cross-a
       content: "baseline", updatedAt: 1,
     };
     storage.bindStoragePrincipal(principal);
+    const sessionId = id.split(":").at(-1);
+    const workspaceUuid = crypto.randomUUID();
+    await storage.saveWorkspace({
+      version: 2, id, updatedAt: 1, ref: "main", baseSha: "1".repeat(40),
+      treeSha: "2".repeat(40), tree: [],
+      repository: {
+        id: 42, name: "private", owner: "acme", fullName: "acme/private",
+        private: true, defaultBranch: "main", htmlUrl: "", canPush: true,
+      },
+      ownership: {
+        principalKey: principal,
+        workspace: { id: workspaceUuid, principalKey: principal },
+        session: { id: sessionId, workspaceId: workspaceUuid,
+          principalKey: principal, repositoryKey: "gh:github.com:repo:42",
+          ref: "refs/heads/main" },
+      },
+    });
     const left = { ...initial, content: "left", updatedAt: 2 };
     const right = { ...initial, content: "right", updatedAt: 3 };
     const outcomes = await Promise.allSettled([
@@ -249,4 +266,54 @@ test("real overlay revision CAS prevents lost updates, stale deletes and cross-a
   expect(result.stale).toBe(true);
   expect(result.crossPrincipalDenied).toBe(true);
   expect(result.preserved).toBe("resolved");
+});
+
+
+test("real storage rejects forged same-principal workspace IDs with no persisted repository proof", async ({ page }) => {
+  const state = await page.evaluate(async (url) => {
+    const storage = await import(url);
+    const principal = "gh:github.com:1001";
+    storage.bindStoragePrincipal(principal);
+    const orphan = "ghcode-owned-v2:" + encodeURIComponent(principal) + ":" + crypto.randomUUID();
+    const file = {
+      key: orphan + ":private.txt", workspaceId: orphan, path: "private.txt",
+      status: "added", content: "forged", updatedAt: 1,
+    };
+    const rejection: Record<string, boolean> = {};
+    const cases = {
+      read: () => storage.loadOverlays(orphan),
+      blob: () => storage.saveBlob(orphan, "3".repeat(40), "private"),
+      stage: () => storage.saveStaged({ ...file, stagedAt: 2 }),
+      overlay: () => storage.saveOverlay(file),
+      cas: () => storage.compareAndSetOverlay(orphan, file.path, null, file),
+    };
+    for (const [key, operation] of Object.entries(cases)) {
+      try { await operation(); rejection[key] = false; }
+      catch { rejection[key] = true; }
+    }
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("darkfactory-workbench", 3);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const persisted = await new Promise<boolean>((resolve, reject) => {
+      const tx = db.transaction(["overlays", "staged", "blobs"], "readonly");
+      let pending = 3;
+      let any = false;
+      for (const name of ["overlays", "staged", "blobs"]) {
+        const req = tx.objectStore(name).getAll();
+        req.onsuccess = () => {
+          any = any || req.result.some((record) => record.workspaceId === orphan);
+          if (--pending === 0) resolve(any);
+        };
+        req.onerror = () => reject(req.error);
+      }
+      tx.oncomplete = () => db.close();
+    });
+    return { rejection, persisted };
+  }, sourceUrl);
+  expect(state).toEqual({
+    rejection: { read: true, blob: true, stage: true, overlay: true, cas: true },
+    persisted: false,
+  });
 });
