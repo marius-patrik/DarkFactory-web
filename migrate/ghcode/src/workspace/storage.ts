@@ -123,7 +123,17 @@ function openDatabase() {
 
 function requestResult<T>(request: IDBRequest<T>) {
   return new Promise<T>((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
+    // Preserve a producer's request-success hook. In particular, authorized
+    // workspace replacement may enqueue its put after reading the old record.
+    const onSuccess = request.onsuccess;
+    request.onsuccess = (event) => {
+      try {
+        if (onSuccess) onSuccess.call(request, event);
+        resolve(request.result);
+      } catch (error) {
+        reject(error);
+      }
+    };
     request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
   });
 }
@@ -257,7 +267,23 @@ export function saveWorkspace(snapshot: WorkspaceSnapshot) {
   requireOwned(snapshot.id);
   if (!snapshot.ownership || !activePrincipal || !isOwnedWorkspace(snapshot, activePrincipal))
     throw new Error("Refusing to overwrite unattributed legacy v2 workspace.");
-  return withStore("workspaces", "readwrite", (store) => store.put(snapshot));
+  return withStore("workspaces", "readwrite", (store) => {
+    const request = store.get(snapshot.id);
+    request.onsuccess = () => {
+      const previous = request.result as WorkspaceSnapshot | undefined;
+      if (previous && (!samePersistedWorkspace(previous, snapshot) ||
+          previous.updatedAt > snapshot.updatedAt)) {
+        // The only safe path after an identity or revision conflict is explicit
+        // reconciliation; never replace an existing unrelated owner/session.
+        store.transaction.abort();
+      } else if (!activePrincipal || !isOwnedWorkspace(snapshot, activePrincipal)) {
+        store.transaction.abort();
+      } else {
+        store.put(snapshot);
+      }
+    };
+    return request;
+  });
 }
 
 export async function loadWorkspace(id: string, owner: PrincipalKey) {
