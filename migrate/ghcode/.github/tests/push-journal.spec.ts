@@ -150,6 +150,20 @@ test("real concurrent staged commits cannot both consume the same staging snapsh
     const workspaceId = crypto.randomUUID();
     const id = `ghcode-owned-v2:${encodeURIComponent(principal)}:${sessionId}`;
     storage.bindStoragePrincipal(principal);
+    await storage.saveWorkspace({
+      version: 2, id, updatedAt: 1, ref: "main", baseSha: "1".repeat(40),
+      treeSha: "2".repeat(40), tree: [],
+      repository: {
+        id: 42, name: "private", owner: "acme", fullName: "acme/private",
+        private: true, defaultBranch: "main", htmlUrl: "", canPush: true,
+      },
+      ownership: {
+        principalKey: principal,
+        workspace: { id: workspaceId, principalKey: principal },
+        session: { id: sessionId, principalKey: principal, workspaceId,
+          repositoryKey: "gh:github.com:repo:42", ref: "refs/heads/main" },
+      },
+    });
     const staged = {
       key: `${id}:README.md`, workspaceId: id, path: "README.md",
       content: "updated", status: "modified", updatedAt: 1, stagedAt: 2,
