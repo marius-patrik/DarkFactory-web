@@ -3,7 +3,7 @@
   "createdUTC": "2026-11-02",
   "purpose": "Isolated reference source snapshots, not an integrated application or production executable",
   "acceptance": "CANDIDATE_REQUIRES_INDEPENDENT_REVIEW",
-  "canonicalRepository": "marius-patrik/DarkFactory-web",
+  "canonicalRepository": "marius-patrik/Wrkbench",
   "sourceOnlyTargetBranch": "main",
   "rootBaseline": {
     "commit": "39341ce5f8459b834c8e20b5227c25980078a87e",
@@ -65,7 +65,7 @@
       "originalBranch": "development",
       "originalSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationSourceSHA": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
-      "snapshotTreeSHA": "03bfad568532e9a1a6830706f71e9750633b5874",
+      "snapshotTreeSHA": "95a464200187986fec15cdd2e9299a69e2c3f9da",
       "expectedOwner": "DarkFactory-web unified GitHub + Factory provider",
       "acceptedChanges": [
         "GHC-01 principal isolation inherited from development source"
@@ -83,7 +83,11 @@
         "W03: forced cross-tab authorization invalidation now surfaces an explicit user-visible message about private in-memory recovery and browser-close durability limitation.",
         "W03: read-only CycloneDX SBOM generator and per-source CI artifact uploads; metadata/asset license completeness remains partial.",
         "W03: Monaco model React key and path follow canonical immutable document identity after baseSHA/ref change; test GitHub transport restores created blobs by SHA.",
-        "W03: whole-file patch export no longer suppresses arbitrary read failures as fabricated deletions; intentional deleted paths remain explicit."
+        "W03: whole-file patch export no longer suppresses arbitrary read failures as fabricated deletions; intentional deleted paths remain explicit.",
+        "W03 continued: revocation-epoch fencing protects A→B→A; persistent same-principal workspace evidence is required in resource read/write, overlay CAS, stage and commit transitions, push intent/phase/finalization, cleanup; unknown or forged workspace IDs fail closed.",
+        "W03 continued: resource storage rejects cross-account forged primary keys, invalid paths, corrupt file records, invalid blob object hashes; snapshot updates deny immutable repository/session reassignment and stale timestamps.",
+        "W03 continued: atomic stage/unstage changes use one full-staged-snapshot CAS, including multi-file rename pairs. Chromium acceptance expanded for same-principal forgery, key poisoning, staged writers, and incomplete push recovery.",
+        "W03 continued: explicit source-control pending-push reconciliation exposes journal phase, expected/last observed/intended SHAs, local commit count, inspect/export/safe retry actions; no force or automatic merge."
       ],
       "rejectedChanges": [
         "GHC-02 PR #34 transactional v3 unsafe privacy/export and push queue implementation not activated"
@@ -103,7 +107,7 @@
         "bun run check",
         "bun run acceptance"
       ],
-      "testResults": "W03_SOURCE_CI_PASS_41834186035; FUNCTIONAL_AND_SECURITY_ACCEPTANCE_INCOMPLETE",
+      "testResults": "W03_CONTINUATION_IMPLEMENTED_CI_PENDING; prior W03 PASS 41834186035 remains historical",
       "acceptanceState": "PROVISIONAL_SOURCE_ONLY",
       "originalSourceRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
       "reconciliationRevision": "7801784b5bb596dcc720a48b7085443fc8f9ca3f",
@@ -893,5 +897,35 @@
       "Original backups fresh restore",
       "Unified application"
     ]
+  },
+  "repositoryId": 1357326589,
+  "previousRepositoryNames": [
+    "marius-patrik/DarkFactory-web"
+  ],
+  "w03Continuation": {
+    "repositoryIdentity": "marius-patrik/Wrkbench (GitHub repository ID 1357326589; renamed from marius-patrik/DarkFactory-web)",
+    "expectedHead": "5f5c676976e0c1a19c0cbb330a7fbf79ab7818c5",
+    "sourceTrees": {
+      "canvas": "83a92de0e33027e7688e6867095b0b36b6fd48ec",
+      "ghcode": "95a464200187986fec15cdd2e9299a69e2c3f9da",
+      "rscode": "d3588b5ea1f3c4184728f6036a40da3b174dbd09"
+    },
+    "state": "IMPLEMENTED_EXACT_HEAD_CI_NOT_YET_VERIFIED",
+    "addedBrowserScenarios": [
+      "Forged same-principal workspace without persisted ownership",
+      "Cross-account key poisoning and immutable repository reassignment",
+      "Concurrent full-stage CAS and atomic rename pair",
+      "Uncertain GitHub ref CAS, reload, durable journal recovery and idempotent finalization"
+    ],
+    "gaps": [
+      "Full legacy v2→v3 non-destructive migration",
+      "Crash-durable revoked drafts",
+      "Complete Dockview guards",
+      "Full v3 typed schema/CAS and secure import/export",
+      "Live GraphQL protected-branch behavior",
+      "RSCode native four-OS QA",
+      "Asset rights and independent offsite backup restore"
+    ],
+    "release": "NO_MERGE_NO_DEPLOY_NO_PUBLICATION"
   }
 }
