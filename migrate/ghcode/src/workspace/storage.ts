@@ -5,7 +5,7 @@ import type {
   WorkspaceSnapshot,
   WorkingFile,
 } from "./model";
-import { isOwnedWorkspace, parseOwnedWorkspaceId, type PrincipalKey } from "./identity";
+import { isOwnedWorkspace, parseOwnedWorkspaceId, validDocumentPath, type PrincipalKey } from "./identity";
 
 const DATABASE = "darkfactory-workbench";
 const VERSION = 3;
@@ -73,6 +73,14 @@ function samePersistedWorkspace(
 
 function recentKey(owner: PrincipalKey) {
   return `${OWNED_RECENT_PREFIX}${encodeURIComponent(owner)}`;
+}
+
+/** No caller may choose another workspace's primary IDB key through file.key. */
+function requireCanonicalFileKey(file: { workspaceId: string; key: string; path: string }): void {
+  requireOwned(file.workspaceId);
+  if (!validDocumentPath(file.path) ||
+      file.key !== file.workspaceId + ":" + file.path)
+    throw new Error("Invalid resource path or forged cross-workspace primary key.");
 }
 
 type BlobRecord = {
@@ -260,7 +268,16 @@ async function allForWorkspace<T extends { workspaceId: string }>(
   if (name === "workspaces") throw new Error("Workspace-scoped resource store required.");
   const all = await withOwnedStore<T[]>(name, "readonly", workspaceId, (store) => store.getAll());
   requireOwned(workspaceId);
-  return all.filter((item) => item.workspaceId === workspaceId);
+  return all.filter((item) => {
+    if (item.workspaceId !== workspaceId) return false;
+    const record = item as T & { key?: string; id?: string; path?: string };
+    const key = name === "commits" ? record.id : record.key;
+    if (!key || !key.startsWith(workspaceId + ":") ||
+        (name !== "commits" && (!record.path || !validDocumentPath(record.path) ||
+          key !== workspaceId + ":" + record.path)))
+      throw new Error("Corrupt resource identifier in authorized workspace.");
+    return true;
+  });
 }
 
 export function saveWorkspace(snapshot: WorkspaceSnapshot) {
@@ -316,16 +333,20 @@ export async function loadBlob(workspaceId: string, sha: string) {
     store.get(`${workspaceId}:${sha}`),
   );
   requireOwned(workspaceId);
+  if (record && (record.workspaceId !== workspaceId ||
+      record.key !== workspaceId + ":" + sha || record.sha !== sha))
+    throw new Error("Corrupt or foreign-owned blob record.");
   return record?.content ?? null;
 }
 
 export async function saveOverlay(file: WorkingFile) {
-  requireOwned(file.workspaceId);
+  requireCanonicalFileKey(file);
   await withOwnedStore("overlays", "readwrite", file.workspaceId, (store) => store.put(file));
 }
 
 export async function removeOverlay(workspaceId: string, path: string) {
   requireOwned(workspaceId);
+  if (!validDocumentPath(path)) throw new Error("Invalid resource path.");
   await withOwnedStore("overlays", "readwrite", workspaceId, (store) => store.delete(`${workspaceId}:${path}`));
 }
 
@@ -352,6 +373,7 @@ export async function compareAndSetOverlay(
   )) throw new Error("Invalid overlay document path.");
   const key = workspaceId + ":" + path;
   for (const value of [expected, next]) {
+    if (value) requireCanonicalFileKey(value);
     if (value && (value.key !== key || value.workspaceId !== workspaceId ||
         value.path !== path)) throw new Error("Overlay resource identity mismatch.");
   }
@@ -423,12 +445,13 @@ export function loadOverlays(workspaceId: string) {
 }
 
 export async function saveStaged(file: StagedFile) {
-  requireOwned(file.workspaceId);
+  requireCanonicalFileKey(file);
   await withOwnedStore("staged", "readwrite", file.workspaceId, (store) => store.put(file));
 }
 
 export async function removeStaged(workspaceId: string, path: string) {
   requireOwned(workspaceId);
+  if (!validDocumentPath(path)) throw new Error("Invalid resource path.");
   await withOwnedStore("staged", "readwrite", workspaceId, (store) => store.delete(`${workspaceId}:${path}`));
 }
 
@@ -437,12 +460,13 @@ export function loadStaged(workspaceId: string) {
 }
 
 export async function saveCommittedFile(file: CommittedFile) {
-  requireOwned(file.workspaceId);
+  requireCanonicalFileKey(file);
   await withOwnedStore("committed", "readwrite", file.workspaceId, (store) => store.put(file));
 }
 
 export async function removeCommittedFile(workspaceId: string, path: string) {
   requireOwned(workspaceId);
+  if (!validDocumentPath(path)) throw new Error("Invalid resource path.");
   await withOwnedStore("committed", "readwrite", workspaceId, (store) => store.delete(`${workspaceId}:${path}`));
 }
 
@@ -452,6 +476,10 @@ export function loadCommittedFiles(workspaceId: string) {
 
 export async function saveLocalCommit(commit: LocalCommit) {
   requireOwned(commit.workspaceId);
+  if (!commit.id.startsWith(commit.workspaceId + ":local:") ||
+      !commit.files.every((file) => file.workspaceId === commit.workspaceId))
+    throw new Error("Invalid local commit resource identity.");
+  for (const file of commit.files) requireCanonicalFileKey(file);
   await withOwnedStore("commits", "readwrite", commit.workspaceId, (store) => store.put(commit));
 }
 
