@@ -185,7 +185,7 @@ function hasControlCharacters(value: string): boolean {
   return false;
 }
 
-function validDocumentPath(path: string): boolean {
+export function validDocumentPath(path: string): boolean {
   return !!path && path.length <= 4096 && path === path.normalize("NFC") &&
     !path.startsWith("/") && !path.endsWith("/") &&
     !path.includes("\\") && !hasControlCharacters(path) &&
