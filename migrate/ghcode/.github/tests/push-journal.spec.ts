@@ -55,13 +55,13 @@ test("real IndexedDB v3 denies cross-principal reads, blobs and push preparation
     };
     storage.bindStoragePrincipal(a);
     await storage.saveWorkspace(workspace);
-    await storage.saveBlob(id, "private", "A-only secret");
+    await storage.saveBlob(id, "3".repeat(40), "A-only secret");
     const owned = await storage.loadWorkspace(id, a);
     storage.bindStoragePrincipal(b);
     const denied: Record<string, boolean> = {};
     for (const [key, action] of [
       ["workspace", () => storage.loadWorkspace(id, a)],
-      ["blob", () => storage.loadBlob(id, "private")],
+      ["blob", () => storage.loadBlob(id, "3".repeat(40))],
       ["push", () => storage.beginPushOperation(workspace, [`${id}:local:1:one`])],
     ] as const) {
       try { await action(); denied[key] = false; }
