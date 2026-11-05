@@ -327,6 +327,8 @@ export async function loadWorkspace(id: string, owner: PrincipalKey) {
 
 export async function saveBlob(workspaceId: string, sha: string, content: string) {
   requireOwned(workspaceId);
+  if (!/^([a-f0-9]{40}|[a-f0-9]{64})$/.test(sha))
+    throw new Error("Blob SHA must be an immutable full object hash.");
   const record: BlobRecord = {
     key: `${workspaceId}:${sha}`,
     workspaceId,
@@ -339,6 +341,8 @@ export async function saveBlob(workspaceId: string, sha: string, content: string
 
 export async function loadBlob(workspaceId: string, sha: string) {
   requireOwned(workspaceId);
+  if (!/^([a-f0-9]{40}|[a-f0-9]{64})$/.test(sha))
+    throw new Error("Blob SHA must be an immutable full object hash.");
   const record = await withOwnedStore<BlobRecord | undefined>("blobs", "readonly", workspaceId, (store) =>
     store.get(`${workspaceId}:${sha}`),
   );
