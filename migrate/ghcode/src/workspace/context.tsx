@@ -280,7 +280,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
     });
     return () => { cancelled = true; };
-  }, [workspace, remoteHeadSha, ownershipGeneration, capture, isCurrent]);
+  }, [workspace, remoteHeadSha, capture, isCurrent]);
 
   const connectToken = useCallback(
     async (candidate: string) => {
