@@ -124,7 +124,7 @@ export function isOwnedWorkspace(
     : recordedRef.replace(/^refs\/(heads|tags)\//, "");
   return (
     Number.isSafeInteger(snapshot.repository.id) && snapshot.repository.id > 0 &&
-    snapshot.ref === refName &&
+    (snapshot.ref === refName || snapshot.ref === recordedRef) &&
     validResourceRef(recordedRef) &&
     parsed.sessionId === ownership.session.id &&
     ownership.principalKey === principalKey &&
