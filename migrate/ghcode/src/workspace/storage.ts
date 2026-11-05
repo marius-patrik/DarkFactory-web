@@ -92,6 +92,14 @@ type BlobRecord = {
 };
 type StoreName = "workspaces" | "blobs" | "overlays" | "staged" | "committed" | "commits" | "pushOperations";
 
+/** String-key prefix query never materializes another workspace's private records. */
+function ownedKeyRange(workspaceId: string): IDBKeyRange {
+  requireOwned(workspaceId);
+  // ':' precedes ';' in IDB's lexicographic string ordering.
+  return IDBKeyRange.bound(workspaceId + ":", workspaceId + ";", false, true);
+}
+
+
 function openDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DATABASE, VERSION);
@@ -266,7 +274,9 @@ async function allForWorkspace<T extends { workspaceId: string }>(
 ) {
   requireOwned(workspaceId);
   if (name === "workspaces") throw new Error("Workspace-scoped resource store required.");
-  const all = await withOwnedStore<T[]>(name, "readonly", workspaceId, (store) => store.getAll());
+  const all = await withOwnedStore<T[]>(name, "readonly", workspaceId, (store) =>
+    store.getAll(ownedKeyRange(workspaceId)),
+  );
   requireOwned(workspaceId);
   return all.filter((item) => {
     if (item.workspaceId !== workspaceId) return false;
@@ -871,7 +881,8 @@ export async function loadPendingPushOperation(
 ): Promise<PushOperation | null> {
   requireOwned(workspace.id);
   const all = await withOwnedStore<PushOperation[]>(
-    "pushOperations", "readonly", workspace.id, (store) => store.getAll(),
+    "pushOperations", "readonly", workspace.id,
+    (store) => store.getAll(ownedKeyRange(workspace.id)),
   );
   requireOwned(workspace.id);
   const pending = all.filter((item) => item.workspaceId === workspace.id && item.phase !== "completed");
