@@ -114,9 +114,19 @@ export function isOwnedWorkspace(
   repo?: RepositoryIdentity,
   gitRef?: GitRef,
 ): snapshot is WorkspaceSnapshot & { ownership: OwnedWorkspaceIdentity } {
-  if (!snapshot || !isOwnedWorkspaceId(snapshot.id) || !snapshot.ownership) return false;
+  if (!snapshot || !snapshot.ownership) return false;
+  const parsed = parseOwnedWorkspaceId(snapshot.id);
+  if (!parsed || parsed.principalKey !== principalKey) return false;
   const { ownership } = snapshot;
+  const recordedRef = ownership.session.ref;
+  const refName = recordedRef.startsWith("sha:")
+    ? recordedRef.slice(4)
+    : recordedRef.replace(/^refs\/(heads|tags)\//, "");
   return (
+    Number.isSafeInteger(snapshot.repository.id) && snapshot.repository.id > 0 &&
+    snapshot.ref === refName &&
+    validResourceRef(recordedRef) &&
+    parsed.sessionId === ownership.session.id &&
     ownership.principalKey === principalKey &&
     ownership.workspace.principalKey === principalKey &&
     ownership.session.principalKey === principalKey &&
