@@ -568,6 +568,96 @@ function sameStaged(left: StagedFile, right: StagedFile) {
     left.updatedAt === right.updatedAt;
 }
 
+/**
+ * Atomic multi-file staging with an exact durable stage-set CAS.
+ * Every edit to the staged set is applied as a single IDB transaction,
+ * including rename/source-delete pairs and "unstage all". A concurrent
+ * tab must reload instead of losing another editor's staged state.
+ */
+export async function compareAndApplyStaged(
+  workspaceId: string,
+  expected: StagedFile[],
+  changes: Array<{ path: string; next: StagedFile | null }>,
+): Promise<void> {
+  requireOwned(workspaceId);
+  const owner = activePrincipal;
+  const generation = principalGeneration;
+  const expectedKeys = new Set<string>();
+  for (const file of expected) {
+    requireCanonicalFileKey(file);
+    if (file.workspaceId !== workspaceId || expectedKeys.has(file.key))
+      throw new Error("Malformed or duplicate expected staged state.");
+    expectedKeys.add(file.key);
+  }
+  const updates = new Set<string>();
+  for (const change of changes) {
+    if (!validDocumentPath(change.path) || updates.has(change.path))
+      throw new Error("Duplicate or invalid staged mutation path.");
+    updates.add(change.path);
+    if (change.next) {
+      requireCanonicalFileKey(change.next);
+      if (change.next.workspaceId !== workspaceId || change.next.path !== change.path)
+        throw new Error("Staged mutation targets another repository resource.");
+    }
+  }
+  const db = await openDatabase();
+  try {
+    requireOwned(workspaceId);
+    if (activePrincipal !== owner || principalGeneration !== generation)
+      throw new Error("Staging authority was revoked before the transaction.");
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(["workspaces", "staged"], "readwrite");
+      trackWrite(tx);
+      let reason: Error | null = null;
+      const abortWith = (error: Error) => {
+        reason = error;
+        try { tx.abort(); } catch { reject(error); }
+      };
+      tx.oncomplete = () => {
+        if (activePrincipal !== owner || principalGeneration !== generation)
+          reject(new Error("Staging authority was revoked before acknowledgment."));
+        else resolve();
+      };
+      tx.onabort = () => reject(reason ?? tx.error ?? new Error("Staging CAS aborted."));
+      tx.onerror = () => reject(reason ?? tx.error ?? new Error("Staging CAS failed."));
+      const proof = tx.objectStore("workspaces").get(workspaceId);
+      const stored = tx.objectStore("staged").getAll(ownedKeyRange(workspaceId));
+      let proofReady = false;
+      let stagedReady = false;
+      const apply = () => {
+        if (!proofReady || !stagedReady) return;
+        try {
+          if (!owner || activePrincipal !== owner || principalGeneration !== generation ||
+              !isOwnedWorkspace(proof.result as WorkspaceSnapshot | undefined, owner))
+            throw new Error("Staging CAS lacks persisted repository/session authority.");
+          const current = stored.result as StagedFile[];
+          for (const file of current) {
+            requireCanonicalFileKey(file);
+            if (file.workspaceId !== workspaceId)
+              throw new Error("Staging record belongs to another workspace.");
+          }
+          if (current.length !== expected.length ||
+              expected.some((file) => !current.some((actual) => sameStaged(actual, file))))
+            throw new Error("Staged state changed concurrently; reload before staging.");
+          const store = tx.objectStore("staged");
+          for (const change of changes) {
+            if (change.next) store.put(change.next);
+            else store.delete(workspaceId + ":" + change.path);
+          }
+        } catch (error) {
+          abortWith(error instanceof Error ? error : new Error(String(error)));
+        }
+      };
+      proof.onsuccess = () => { proofReady = true; apply(); };
+      stored.onsuccess = () => { stagedReady = true; apply(); };
+      proof.onerror = () => abortWith(proof.error ?? new Error("Staging workspace lookup failed."));
+      stored.onerror = () => abortWith(stored.error ?? new Error("Staging state read failed."));
+    });
+  } finally {
+    db.close();
+  }
+}
+
 function sameWorking(left: WorkingFile, right: WorkingFile) {
   return left.path === right.path && left.status === right.status &&
     left.content === right.content && left.baseSha === right.baseSha &&
