@@ -428,22 +428,46 @@ async function clearStoreForWorkspace<T extends { key?: string; id?: string; wor
   workspaceId: string,
 ) {
   const items = await allForWorkspace<T>(name, workspaceId);
+  const owner = activePrincipal;
+  const generation = principalGeneration;
   const database = await openDatabase();
   try {
     requireOwned(workspaceId);
-    const transaction = database.transaction(name, "readwrite");
-    trackWrite(transaction);
-    const store = transaction.objectStore(name);
-    for (const item of items) {
-      const key = item.key ?? item.id;
-      if (key) store.delete(key);
-    }
     await new Promise<void>((resolve, reject) => {
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () =>
-        reject(transaction.error ?? new Error("IndexedDB transaction failed"));
-      transaction.onabort = () =>
-        reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
+      const transaction = database.transaction(["workspaces", name], "readwrite");
+      trackWrite(transaction);
+      const store = transaction.objectStore(name);
+      let reason: Error | null = null;
+      const abortWith = (error: Error) => {
+        reason = error;
+        try { transaction.abort(); } catch { reject(error); }
+      };
+      transaction.oncomplete = () =>
+        activePrincipal === owner && principalGeneration === generation
+          ? resolve()
+          : reject(new Error("Workspace authority changed during destructive cleanup."));
+      transaction.onerror = () => reject(reason ?? transaction.error ??
+        new Error("IndexedDB transaction failed"));
+      transaction.onabort = () => reject(reason ?? transaction.error ??
+        new Error("IndexedDB transaction aborted"));
+      const proof = transaction.objectStore("workspaces").get(workspaceId);
+      proof.onsuccess = () => {
+        try {
+          if (!owner || activePrincipal !== owner || principalGeneration !== generation ||
+              !isOwnedWorkspace(proof.result as WorkspaceSnapshot | undefined, owner))
+            throw new Error("No persisted workspace proof for destructive cleanup.");
+          for (const item of items) {
+            const key = item.key ?? item.id;
+            if (!key || item.workspaceId !== workspaceId || !key.startsWith(workspaceId + ":"))
+              throw new Error("Corrupt workspace resource key; refusing cleanup.");
+            store.delete(key);
+          }
+        } catch (error) {
+          abortWith(error instanceof Error ? error : new Error(String(error)));
+        }
+      };
+      proof.onerror = () => abortWith(proof.error ??
+        new Error("Workspace ownership lookup failed."));
     });
   } finally {
     database.close();
@@ -498,7 +522,7 @@ export async function commitLocalChanges(commit: LocalCommit, expectedStaged: St
   try {
     requireOwned(commit.workspaceId);
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(["staged", "overlays", "committed", "commits"], "readwrite");
+      const tx = db.transaction(["workspaces", "staged", "overlays", "committed", "commits"], "readwrite");
       trackWrite(tx);
       let abortReason: Error | null = null;
       const abortWith = (error: Error) => {
@@ -508,14 +532,19 @@ export async function commitLocalChanges(commit: LocalCommit, expectedStaged: St
       tx.oncomplete = () => resolve();
       tx.onabort = () => reject(abortReason ?? tx.error ?? new Error("Local commit transaction aborted"));
       tx.onerror = () => reject(abortReason ?? tx.error ?? new Error("Local commit transaction failed"));
+      const proof = tx.objectStore("workspaces").get(commit.workspaceId);
       const stagedRequest = tx.objectStore("staged").getAll();
       const overlaysRequest = tx.objectStore("overlays").getAll();
+      let storedWorkspace: WorkspaceSnapshot | undefined;
+      let proofReady = false;
       let storedStaged: StagedFile[] | null = null;
       let storedOverlays: WorkingFile[] | null = null;
       const apply = () => {
-        if (!storedStaged || !storedOverlays) return;
+        if (!proofReady || !storedStaged || !storedOverlays) return;
         try {
           requireOwned(commit.workspaceId);
+          if (!activePrincipal || !isOwnedWorkspace(storedWorkspace, activePrincipal))
+            throw new Error("Missing persisted repository/session proof for local commit.");
           const current = storedStaged.filter(file => file.workspaceId === commit.workspaceId);
           if (current.length !== expectedStaged.length ||
               expectedStaged.some(file => !current.some(actual => sameStaged(actual, file)))) {
@@ -549,6 +578,13 @@ export async function commitLocalChanges(commit: LocalCommit, expectedStaged: St
           abortWith(reason instanceof Error ? reason : new Error(String(reason)));
         }
       };
+      proof.onsuccess = () => {
+        storedWorkspace = proof.result as WorkspaceSnapshot | undefined;
+        proofReady = true;
+        apply();
+      };
+      proof.onerror = () => abortWith(proof.error ??
+        new Error("Local commit workspace lookup failed."));
       stagedRequest.onsuccess = () => { storedStaged = stagedRequest.result as StagedFile[]; apply(); };
       overlaysRequest.onsuccess = () => { storedOverlays = overlaysRequest.result as WorkingFile[]; apply(); };
     });
@@ -569,7 +605,7 @@ export async function clearLocalGitState(workspaceId: string) {
     requireOwned(workspaceId);
     await new Promise<void>((resolve, reject) => {
       const names: Array<"staged" | "committed" | "commits"> = ["staged", "committed", "commits"];
-      const tx = db.transaction(names, "readwrite");
+      const tx = db.transaction(["workspaces", ...names], "readwrite");
       trackWrite(tx);
       let abortReason: Error | null = null;
       const abortWith = (reason: Error) => {
@@ -579,25 +615,37 @@ export async function clearLocalGitState(workspaceId: string) {
       tx.oncomplete = () => resolve();
       tx.onabort = () => reject(abortReason ?? tx.error ?? new Error("Git state cleanup aborted"));
       tx.onerror = () => reject(abortReason ?? tx.error ?? new Error("Git state cleanup failed"));
-      for (const name of names) {
-        const store = tx.objectStore(name);
-        const request = store.getAll();
-        request.onsuccess = () => {
-          try {
-            requireOwned(workspaceId);
-            for (const item of request.result as Array<{ workspaceId: string; key?: string; id?: string }>) {
-              if (item.workspaceId !== workspaceId) continue;
-              const key = item.key ?? item.id;
-              if (!key || !key.startsWith(`${workspaceId}:`)) {
-                throw new Error("Corrupt Git state key; refusing destructive cleanup.");
+      const proof = tx.objectStore("workspaces").get(workspaceId);
+      proof.onsuccess = () => {
+        try {
+          requireOwned(workspaceId);
+          if (!activePrincipal ||
+              !isOwnedWorkspace(proof.result as WorkspaceSnapshot | undefined, activePrincipal))
+            throw new Error("No persisted repository/session proof for Git cleanup.");
+          for (const name of names) {
+            const store = tx.objectStore(name);
+            const request = store.getAll();
+            request.onsuccess = () => {
+              try {
+                requireOwned(workspaceId);
+                for (const item of request.result as Array<{ workspaceId: string; key?: string; id?: string }>) {
+                  if (item.workspaceId !== workspaceId) continue;
+                  const key = item.key ?? item.id;
+                  if (!key || !key.startsWith(`${workspaceId}:`))
+                    throw new Error("Corrupt Git state key; refusing destructive cleanup.");
+                  store.delete(key);
+                }
+              } catch (reason) {
+                abortWith(reason instanceof Error ? reason : new Error(String(reason)));
               }
-              store.delete(key);
-            }
-          } catch (reason) {
-            abortWith(reason instanceof Error ? reason : new Error(String(reason)));
+            };
           }
-        };
-      }
+        } catch (reason) {
+          abortWith(reason instanceof Error ? reason : new Error(String(reason)));
+        }
+      };
+      proof.onerror = () => abortWith(proof.error ??
+        new Error("Git cleanup workspace lookup failed."));
     });
   } finally {
     db.close();
