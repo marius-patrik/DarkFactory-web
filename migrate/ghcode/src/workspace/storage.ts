@@ -54,6 +54,23 @@ function requireOwned(id: string) {
   }
 }
 
+/** Compare only immutable identities. Repository names are aliases, never authority. */
+function samePersistedWorkspace(
+  stored: WorkspaceSnapshot | undefined,
+  candidate: WorkspaceSnapshot,
+): boolean {
+  const owner = activePrincipal;
+  return !!owner && isOwnedWorkspace(stored, owner) &&
+    isOwnedWorkspace(candidate, owner) &&
+    stored.id === candidate.id &&
+    stored.repository.id === candidate.repository.id &&
+    stored.ref === candidate.ref &&
+    stored.ownership.session.id === candidate.ownership.session.id &&
+    stored.ownership.workspace.id === candidate.ownership.workspace.id &&
+    stored.ownership.session.ref === candidate.ownership.session.ref &&
+    stored.ownership.session.repositoryKey === candidate.ownership.session.repositoryKey;
+}
+
 function recentKey(owner: PrincipalKey) {
   return `${OWNED_RECENT_PREFIX}${encodeURIComponent(owner)}`;
 }
@@ -712,10 +729,13 @@ export async function beginPushOperation(
   try {
     requireOwned(workspace.id);
     return await new Promise<PushOperation>((resolve, reject) => {
-      const tx = db.transaction(["commits", "pushOperations"], "readwrite");
+      const tx = db.transaction(["workspaces", "commits", "pushOperations"], "readwrite");
       trackWrite(tx);
+      const workspaceRequest = tx.objectStore("workspaces").get(workspace.id);
       const commitsRequest = tx.objectStore("commits").getAll();
       const operationsRequest = tx.objectStore("pushOperations").getAll();
+      let storedWorkspace: WorkspaceSnapshot | undefined;
+      let proofReady = false;
       let commits: LocalCommit[] | undefined;
       let operations: PushOperation[] | undefined;
       let result: PushOperation | undefined;
@@ -731,10 +751,13 @@ export async function beginPushOperation(
       tx.onabort = () => reject(reason ?? tx.error ?? new Error("Push intent aborted"));
       tx.onerror = () => reject(reason ?? tx.error ?? new Error("Push intent failed"));
       const apply = () => {
-        if (!commits || !operations) return;
+        if (!proofReady || !commits || !operations) return;
         try {
           requireOwned(workspace.id);
-          if (activePrincipal !== owner) throw new Error("Account switched during push preparation.");
+          if (activePrincipal !== owner || !samePersistedWorkspace(storedWorkspace, workspace) ||
+              storedWorkspace?.baseSha !== workspace.baseSha ||
+              storedWorkspace?.treeSha !== workspace.treeSha)
+            throw new Error("Persisted workspace revision/identity changed during push preparation.");
           const existing = operations.filter((op) => op.workspaceId === workspace.id &&
             op.phase !== "completed");
           if (existing.length > 1) throw new Error("Multiple unresolved push operations.");
@@ -758,6 +781,13 @@ export async function beginPushOperation(
           abortWith(error instanceof Error ? error : new Error(String(error)));
         }
       };
+      workspaceRequest.onsuccess = () => {
+        storedWorkspace = workspaceRequest.result as WorkspaceSnapshot | undefined;
+        proofReady = true;
+        apply();
+      };
+      workspaceRequest.onerror = () => abortWith(workspaceRequest.error ??
+        new Error("Push workspace lookup failed."));
       commitsRequest.onsuccess = () => {
         commits = commitsRequest.result as LocalCommit[];
         apply();
@@ -776,7 +806,9 @@ export async function loadPendingPushOperation(
   workspace: WorkspaceSnapshot,
 ): Promise<PushOperation | null> {
   requireOwned(workspace.id);
-  const all = await withStore<PushOperation[]>("pushOperations", "readonly", (store) => store.getAll());
+  const all = await withOwnedStore<PushOperation[]>(
+    "pushOperations", "readonly", workspace.id, (store) => store.getAll(),
+  );
   requireOwned(workspace.id);
   const pending = all.filter((item) => item.workspaceId === workspace.id && item.phase !== "completed");
   if (pending.length > 1) throw new Error("Multiple unresolved push operations.");
@@ -798,7 +830,7 @@ export async function advancePushOperation(
   try {
     requireOwned(workspace.id);
     return await new Promise<PushOperation>((resolve, reject) => {
-      const tx = db.transaction("pushOperations", "readwrite");
+      const tx = db.transaction(["workspaces", "pushOperations"], "readwrite");
       trackWrite(tx);
       let result: PushOperation | undefined;
       let reason: Error | undefined;
@@ -811,9 +843,16 @@ export async function advancePushOperation(
         : reject(new Error("Push journal was not updated."));
       tx.onerror = () => reject(reason ?? tx.error ?? new Error("Push transition failed"));
       tx.onabort = () => reject(reason ?? tx.error ?? new Error("Push transition aborted"));
+      const proof = tx.objectStore("workspaces").get(workspace.id);
       const req = tx.objectStore("pushOperations").get(id);
-      req.onsuccess = () => {
+      let proofReady = false;
+      let journalReady = false;
+      const apply = () => {
+        if (!proofReady || !journalReady) return;
         try {
+          if (!samePersistedWorkspace(proof.result as WorkspaceSnapshot | undefined, workspace) ||
+              (proof.result as WorkspaceSnapshot).baseSha !== workspace.baseSha)
+            throw new Error("Push phase transition lacks matching persisted workspace identity.");
           const current = req.result as PushOperation | undefined;
           if (!current) throw new Error("Push operation not found.");
           assertPushOwner(current, workspace);
@@ -835,6 +874,10 @@ export async function advancePushOperation(
           abortWith(error instanceof Error ? error : new Error(String(error)));
         }
       };
+      proof.onsuccess = () => { proofReady = true; apply(); };
+      req.onsuccess = () => { journalReady = true; apply(); };
+      proof.onerror = () => abortWith(proof.error ??
+        new Error("Push phase workspace lookup failed."));
     });
   } finally { db.close(); }
 }
@@ -890,6 +933,7 @@ export async function finalizeConfirmedPush(
           const currentJournal = reqs.journal.result as PushOperation | undefined;
           if (!storedWorkspace || !activePrincipal ||
               !isOwnedWorkspace(storedWorkspace, activePrincipal) ||
+              !samePersistedWorkspace(storedWorkspace, previous) ||
               storedWorkspace.baseSha !== operation.expectedRemoteSha ||
               storedWorkspace.treeSha !== previous.treeSha ||
               !currentJournal || currentJournal.phase !== "remote-confirmed" ||
