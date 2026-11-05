@@ -1002,14 +1002,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       throw new Error("Push requires a branch workspace. Tags and detached refs are read-only.");
 
     const lease = capture();
+    let attempted: Awaited<ReturnType<typeof loadPendingPushOperation>> = null;
+    let lastObservedSha: string | null = null;
     setLoading(true);
     setError(null);
     try {
       let operation = await loadPendingPushOperation(workspace);
+      attempted = operation;
       assertCurrent(lease);
       if (!operation) {
         if (!commits.length) throw new Error("There are no local commits to push.");
         operation = await beginPushOperation(workspace, commits.map((item) => item.id));
+        attempted = operation;
       }
       assertCurrent(lease);
       if (operation.expectedRemoteSha !== workspace.baseSha ||
@@ -1019,6 +1023,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
       const liveRef = await getGithubBranchRef(workspace.repository.fullName, workspace.ref, token);
       assertCurrent(lease);
+      lastObservedSha = liveRef.object.sha;
       // A remote update can succeed while its response or local acknowledgment fails.
       // The journaled target permits idempotent reconciliation without discarding commits.
       if (operation.phase === "prepared") {
@@ -1065,6 +1070,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         operation = await advancePushOperation(
           workspace, operation.id, "prepared", "ready", parentSha,
         );
+        attempted = operation;
         assertCurrent(lease);
       }
 
@@ -1095,6 +1101,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         operation = await advancePushOperation(
           workspace, operation.id, "ready", "remote-confirmed", operation.targetSha,
         );
+        attempted = operation;
         assertCurrent(lease);
       }
 
@@ -1129,7 +1136,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setRemoteHeadSha(operation.targetSha);
       setRecent(rememberWorkspace(snapshot));
       await loadLocalState(workspace.id, lease);
+      setPendingPush(null);
       return operation.targetSha;
+    } catch (reason) {
+      if (isCurrent(lease) && attempted) {
+        setPendingPush({
+          phase: attempted.phase === "completed" ? "remote-confirmed" : attempted.phase,
+          expectedRemoteSha: attempted.expectedRemoteSha,
+          observedRemoteSha: lastObservedSha,
+          intendedTargetSha: attempted.targetSha ?? null,
+          localCommitIds: [...attempted.commitIds],
+          reason: reason instanceof Error ? reason.message : String(reason),
+        });
+      }
+      throw reason;
     } finally {
       if (isCurrent(lease)) setLoading(false);
     }
