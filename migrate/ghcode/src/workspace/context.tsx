@@ -88,6 +88,15 @@ import {
 
 export type PatchExportScope = "all" | "working" | "staged" | "commits" | "commit";
 
+export type PushReconciliation = {
+  phase: "prepared" | "ready" | "remote-confirmed";
+  expectedRemoteSha: string;
+  observedRemoteSha: string | null;
+  intendedTargetSha: string | null;
+  localCommitIds: string[];
+  reason: string;
+};
+
 type WorkspaceContextValue = {
   token: string | null;
   user: GithubUser | null;
@@ -103,6 +112,7 @@ type WorkspaceContextValue = {
   commits: LocalCommit[];
   recent: WorkspaceSnapshot[];
   remoteHeadSha: string | null;
+  pendingPush: PushReconciliation | null;
   loading: boolean;
   error: string | null;
   dialogOpen: boolean;
@@ -182,6 +192,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     loadRecentWorkspaces(anonymous.key),
   );
   const [remoteHeadSha, setRemoteHeadSha] = useState<string | null>(null);
+  const [pendingPush, setPendingPush] = useState<PushReconciliation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -213,6 +224,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setCommittedFiles([]);
     setCommits([]);
     setRemoteHeadSha(null);
+    setPendingPush(null);
     setRecent(phase === "resolving" ? [] : loadRecentWorkspaces(next.key));
     setError(null);
     setLoading(false);
@@ -242,6 +254,33 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     },
     [assertCurrent],
   );
+
+  // Journal state is rediscovered on reload, including after an uncertain
+  // network response. Never carry its private details across principal epochs.
+  useEffect(() => {
+    if (!workspace) {
+      setPendingPush(null);
+      return;
+    }
+    let cancelled = false;
+    const lease = capture();
+    void loadPendingPushOperation(workspace).then((operation) => {
+      if (cancelled || !isCurrent(lease)) return;
+      setPendingPush(operation ? {
+        phase: operation.phase === "completed" ? "remote-confirmed" : operation.phase,
+        expectedRemoteSha: operation.expectedRemoteSha,
+        observedRemoteSha: remoteHeadSha,
+        intendedTargetSha: operation.targetSha ?? null,
+        localCommitIds: [...operation.commitIds],
+        reason: "Unfinished publication is durable. Inspect the remote branch and retry safely.",
+      } : null);
+    }).catch(() => {
+      if (!cancelled && isCurrent(lease)) {
+        setError("Push journal could not be read. Existing local commits must be preserved.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [workspace, remoteHeadSha, ownershipGeneration, capture, isCurrent]);
 
   const connectToken = useCallback(
     async (candidate: string) => {
@@ -1273,6 +1312,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       commits,
       recent,
       remoteHeadSha,
+      pendingPush,
       loading,
       error,
       dialogOpen,
@@ -1318,6 +1358,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       commits,
       recent,
       remoteHeadSha,
+      pendingPush,
       loading,
       error,
       dialogOpen,
