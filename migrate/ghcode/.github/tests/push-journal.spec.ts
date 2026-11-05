@@ -317,3 +317,70 @@ test("real storage rejects forged same-principal workspace IDs with no persisted
     persisted: false,
   });
 });
+
+
+test("real IndexedDB rejects forged cross-workspace primary keys and immutable repository reassignment", async ({ page }) => {
+  const result = await page.evaluate(async (url) => {
+    const storage = await import(url);
+    const principal = "gh:github.com:1001";
+    const otherPrincipal = "gh:github.com:2002";
+    const make = (owner: string, repositoryId: number) => {
+      const session = crypto.randomUUID();
+      const workspaceUuid = crypto.randomUUID();
+      const id = "ghcode-owned-v2:" + encodeURIComponent(owner) + ":" + session;
+      return {
+        version: 2, id, ref: "main", updatedAt: 1, baseSha: "1".repeat(40),
+        treeSha: "2".repeat(40), tree: [],
+        repository: {
+          id: repositoryId, name: "identical-name", owner: "acme",
+          fullName: "acme/identical-name", private: true,
+          defaultBranch: "main", htmlUrl: "", canPush: true,
+        },
+        ownership: {
+          principalKey: owner, workspace: { id: workspaceUuid, principalKey: owner },
+          session: { id: session, principalKey: owner, workspaceId: workspaceUuid,
+            repositoryKey: "gh:github.com:repo:" + repositoryId, ref: "refs/heads/main" },
+        },
+      };
+    };
+    const a = make(principal, 42);
+    const b = make(otherPrincipal, 43);
+    storage.bindStoragePrincipal(principal);
+    await storage.saveWorkspace(a);
+    storage.bindStoragePrincipal(otherPrincipal);
+    await storage.saveWorkspace(b);
+    storage.bindStoragePrincipal(principal);
+    const forgedFile = {
+      workspaceId: a.id, key: b.id + ":README.md", path: "README.md",
+      status: "modified", content: "poisoned", updatedAt: 2,
+    };
+    const forgedOverlay = await storage.saveOverlay(forgedFile)
+      .then(() => false, () => true);
+    const forgedStage = await storage.saveStaged({ ...forgedFile, stagedAt: 2 })
+      .then(() => false, () => true);
+    const forgedCommit = await storage.saveLocalCommit({
+      id: a.id + ":local:2:test", workspaceId: a.id, createdAt: 2,
+      message: "malicious", files: [forgedFile],
+    }).then(() => false, () => true);
+    const forgedRepository = await storage.saveWorkspace({
+      ...a, repository: { ...a.repository, id: 43 },
+      ownership: { ...a.ownership, session: {
+        ...a.ownership.session, repositoryKey: "gh:github.com:repo:43",
+      } }, updatedAt: 3,
+    }).then(() => false, () => true);
+    const traversal = await storage.removeOverlay(a.id, "../README.md")
+      .then(() => false, () => true);
+    storage.bindStoragePrincipal(otherPrincipal);
+    const overlays = await storage.loadOverlays(b.id);
+    const stored = await storage.loadWorkspace(b.id, otherPrincipal);
+    storage.bindStoragePrincipal(principal);
+    const stillA = await storage.loadWorkspace(a.id, principal);
+    return { forgedOverlay, forgedStage, forgedCommit, forgedRepository, traversal,
+      unchangedB: overlays.length === 0 && stored?.repository.id === 43,
+      unchangedA: stillA?.repository.id === 42 };
+  }, sourceUrl);
+  expect(result).toEqual({
+    forgedOverlay: true, forgedStage: true, forgedCommit: true,
+    forgedRepository: true, traversal: true, unchangedB: true, unchangedA: true,
+  });
+});
