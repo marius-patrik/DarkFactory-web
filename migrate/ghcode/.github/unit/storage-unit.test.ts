@@ -41,12 +41,17 @@ function fakeIndexedDB(behavior: Behavior) {
         onerror?: () => void;
         error: Error | null;
         abort: () => void;
-        objectStore: () => { put: () => unknown };
+        objectStore: () => { get: () => unknown; put: () => unknown };
       } = {
         error: null,
         abort() { tx.error = new Error("AbortError"); tx.onabort?.(); },
         objectStore() {
           return {
+            get() {
+              const request: { result?: WorkspaceSnapshot; onsuccess?: () => void } = {};
+              queueMicrotask(() => { request.result = undefined; request.onsuccess?.(); });
+              return request;
+            },
             put() {
               const operation: { result?: string; onsuccess?: () => void; onerror?: () => void } = {};
               queueMicrotask(() => {
