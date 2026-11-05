@@ -312,11 +312,15 @@ export async function compareAndSetOverlay(
     if (value && (value.key !== key || value.workspaceId !== workspaceId ||
         value.path !== path)) throw new Error("Overlay resource identity mismatch.");
   }
+  const owner = activePrincipal;
+  const generation = principalGeneration;
   const db = await openDatabase();
   try {
     requireOwned(workspaceId);
+    if (activePrincipal !== owner || generation !== principalGeneration)
+      throw new Error("Document authority changed before CAS.");
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction("overlays", "readwrite");
+      const tx = db.transaction(["workspaces", "overlays"], "readwrite");
       trackWrite(tx);
       const store = tx.objectStore("overlays");
       let reason: Error | undefined;
@@ -324,27 +328,47 @@ export async function compareAndSetOverlay(
         reason = error;
         try { tx.abort(); } catch { reject(error); }
       };
-      tx.oncomplete = () => resolve();
+      tx.oncomplete = () => {
+        if (activePrincipal !== owner || generation !== principalGeneration)
+          reject(new Error("Document authority changed during CAS."));
+        else resolve();
+      };
       tx.onabort = () => reject(reason ?? tx.error ?? new Error("Overlay CAS transaction aborted."));
       tx.onerror = () => reject(reason ?? tx.error ?? new Error("Overlay CAS transaction failed."));
-      const read = store.get(key);
-      read.onsuccess = () => {
+      const proof = tx.objectStore("workspaces").get(workspaceId);
+      proof.onsuccess = () => {
         try {
           requireOwned(workspaceId);
-          const current = read.result as WorkingFile | undefined;
-          const matches = expected === null
-            ? current === undefined
-            : current !== undefined && current.key === expected.key &&
-              current.workspaceId === expected.workspaceId &&
-              current.updatedAt === expected.updatedAt &&
-              sameWorking(current, expected);
-          if (!matches) throw new Error("Document conflict: stored overlay changed since this editor last loaded it.");
-          if (next) store.put(next);
-          else store.delete(key);
+          if (activePrincipal !== owner || generation !== principalGeneration ||
+              !owner || !isOwnedWorkspace(proof.result as WorkspaceSnapshot | undefined, owner))
+            throw new Error("Document CAS lacks persisted principal/repository/session authorization.");
+          const read = store.get(key);
+          read.onsuccess = () => {
+            try {
+              requireOwned(workspaceId);
+              if (activePrincipal !== owner || generation !== principalGeneration)
+                throw new Error("Document authority revoked before mutation.");
+              const current = read.result as WorkingFile | undefined;
+              const matches = expected === null
+                ? current === undefined
+                : current !== undefined && current.key === expected.key &&
+                  current.workspaceId === expected.workspaceId &&
+                  current.updatedAt === expected.updatedAt &&
+                  sameWorking(current, expected);
+              if (!matches)
+                throw new Error("Document conflict: stored overlay changed since this editor last loaded it.");
+              if (next) store.put(next);
+              else store.delete(key);
+            } catch (error) {
+              abort(error instanceof Error ? error : new Error(String(error)));
+            }
+          };
         } catch (error) {
           abort(error instanceof Error ? error : new Error(String(error)));
         }
       };
+      proof.onerror = () => abort(proof.error ??
+        new Error("Document ownership lookup failed."));
     });
   } finally {
     db.close();
