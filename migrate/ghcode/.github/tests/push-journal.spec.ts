@@ -384,3 +384,71 @@ test("real IndexedDB rejects forged cross-workspace primary keys and immutable r
     forgedRepository: true, traversal: true, unchangedB: true, unchangedA: true,
   });
 });
+
+
+test("real staged snapshot CAS serializes competing writers and atomically stages rename pairs", async ({ page }) => {
+  const result = await page.evaluate(async (url) => {
+    const storage = await import(url);
+    const owner = "gh:github.com:1001";
+    const session = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    const id = "ghcode-owned-v2:" + encodeURIComponent(owner) + ":" + session;
+    const workspace = {
+      version: 2, id, ref: "main", updatedAt: 1, baseSha: "1".repeat(40),
+      treeSha: "2".repeat(40), tree: [],
+      repository: {
+        id: 42, name: "private", owner: "acme", fullName: "acme/private",
+        private: true, defaultBranch: "main", htmlUrl: "", canPush: true,
+      },
+      ownership: {
+        principalKey: owner, workspace: { id: workspaceId, principalKey: owner },
+        session: { id: session, principalKey: owner, workspaceId,
+          repositoryKey: "gh:github.com:repo:42", ref: "refs/heads/main" },
+      },
+    };
+    storage.bindStoragePrincipal(owner);
+    await storage.saveWorkspace(workspace);
+    const file = (path: string, content: string, stagedAt: number) => ({
+      key: id + ":" + path, workspaceId: id, path,
+      status: "modified", content, baseSha: "1".repeat(40),
+      updatedAt: stagedAt, stagedAt,
+    });
+    const left = file("README.md", "from A", 11);
+    const right = file("README.md", "from B", 12);
+    const races = await Promise.allSettled([
+      storage.compareAndApplyStaged(id, [], [{ path: left.path, next: left }]),
+      storage.compareAndApplyStaged(id, [], [{ path: right.path, next: right }]),
+    ]);
+    const stored = await storage.loadStaged(id);
+    const staleRemovalDenied = await storage.compareAndApplyStaged(
+      id, [], [{ path: "README.md", next: null }],
+    ).then(() => false, () => true);
+    const rename = file("renamed.md", "new name", 20);
+    const sourceDelete = { ...file("old.md", "", 20), status: "deleted" };
+    await storage.compareAndApplyStaged(id, stored, [
+      { path: rename.path, next: rename },
+      { path: sourceDelete.path, next: sourceDelete },
+    ]);
+    const after = await storage.loadStaged(id);
+    const invalidBatchDenied = await storage.compareAndApplyStaged(id, after, [
+      { path: "../escape", next: file("../escape", "bad", 25) },
+      { path: "unused.md", next: file("unused.md", "new", 25) },
+    ]).then(() => false, () => true);
+    storage.bindStoragePrincipal("gh:github.com:2002");
+    const otherPrincipalDenied = await storage.compareAndApplyStaged(
+      id, after, [{ path: "old.md", next: null }],
+    ).then(() => false, () => true);
+    storage.bindStoragePrincipal(owner);
+    return {
+      accepted: races.filter(x => x.status === "fulfilled").length,
+      rejected: races.filter(x => x.status === "rejected").length,
+      staleRemovalDenied, invalidBatchDenied, otherPrincipalDenied,
+      finalPaths: (await storage.loadStaged(id)).map(x => x.path).sort(),
+    };
+  }, sourceUrl);
+  expect(result).toEqual({
+    accepted: 1, rejected: 1,
+    staleRemovalDenied: true, invalidBatchDenied: true, otherPrincipalDenied: true,
+    finalPaths: ["README.md", "old.md", "renamed.md"],
+  });
+});
