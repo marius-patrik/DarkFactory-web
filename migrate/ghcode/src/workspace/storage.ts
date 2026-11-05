@@ -15,6 +15,8 @@ const OWNED_RECENT_PREFIX = "ghcode-recent-owned-v1:";
 // Updated synchronously before any React identity transition. Never infer authorization
 // from the workspace ID supplied by a caller, an old closure, or an IDB record itself.
 let activePrincipal: PrincipalKey | null = null;
+// A→B→A must invalidate A's previously captured authority, not just compare strings.
+let principalGeneration = 0;
 // Any pending readwrite transaction is revoked synchronously on identity changes.
 const activeWrites = new Set<IDBTransaction>();
 
@@ -28,6 +30,7 @@ function validPrincipal(principal: unknown): principal is PrincipalKey {
 export function bindStoragePrincipal(principal: PrincipalKey): void {
   if (!validPrincipal(principal)) throw new Error("Invalid storage principal identifier.");
   if (activePrincipal !== principal) {
+    principalGeneration++;
     for (const tx of activeWrites) {
       try { tx.abort(); } catch { /* Already completed or inactive. */ }
     }
@@ -114,9 +117,10 @@ async function withStore<T>(
   action: (store: IDBObjectStore) => IDBRequest<T>,
 ) {
   const boundPrincipal = activePrincipal;
+  const boundGeneration = principalGeneration;
   const database = await openDatabase();
   try {
-    if (boundPrincipal !== activePrincipal)
+    if (boundPrincipal !== activePrincipal || boundGeneration !== principalGeneration)
       throw new Error("Storage principal changed before transaction began.");
     const transaction = database.transaction(name, mode);
     if (mode === "readwrite") trackWrite(transaction);
@@ -144,11 +148,80 @@ async function withStore<T>(
       throw error;
     }
     await committed;
-    if (boundPrincipal !== activePrincipal)
+    if (boundPrincipal !== activePrincipal || boundGeneration !== principalGeneration)
       throw new Error("Storage principal changed during transaction.");
     return value;
   } finally {
     database.close();
+  }
+}
+
+/**
+ * Workspace-scoped authoritative data boundary.
+ *
+ * A correctly encoded workspace ID is NOT evidence of an authorized repository.
+ * Every read or mutation must first prove the persisted workspace's principal,
+ * immutable repository ID, session, and selected ref inside the SAME IDB
+ * transaction as the resource operation. No caller-supplied ownership claim is
+ * accepted. Epoch fencing also rejects a revoked A→B→A closure.
+ */
+async function withOwnedStore<T>(
+  name: Exclude<StoreName, "workspaces">,
+  mode: IDBTransactionMode,
+  workspaceId: string,
+  action: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
+  requireOwned(workspaceId);
+  const owner = activePrincipal;
+  const generation = principalGeneration;
+  const db = await openDatabase();
+  try {
+    if (!owner || owner !== activePrincipal || generation !== principalGeneration)
+      throw new Error("Storage authorization changed before transaction.");
+    return await new Promise<T>((resolve, reject) => {
+      const transaction = db.transaction(["workspaces", name], mode);
+      if (mode === "readwrite") trackWrite(transaction);
+      let reason: Error | null = null;
+      let result!: T;
+      let hasResult = false;
+      const abortWith = (error: Error) => {
+        reason = error;
+        try { transaction.abort(); } catch { reject(error); }
+      };
+      transaction.oncomplete = () => {
+        if (reason) return reject(reason);
+        if (!hasResult || activePrincipal !== owner || generation !== principalGeneration)
+          return reject(new Error("Storage authority changed or result was not acknowledged."));
+        resolve(result);
+      };
+      transaction.onabort = () => reject(reason ?? transaction.error ??
+        new Error("Authorized resource transaction aborted."));
+      transaction.onerror = () => reject(reason ?? transaction.error ??
+        new Error("Authorized resource transaction failed."));
+      const proof = transaction.objectStore("workspaces").get(workspaceId);
+      proof.onsuccess = () => {
+        try {
+          if (activePrincipal !== owner || generation !== principalGeneration)
+            throw new Error("Storage authority revoked during transaction.");
+          const persisted = proof.result as WorkspaceSnapshot | undefined;
+          if (!isOwnedWorkspace(persisted, owner))
+            throw new Error("No persisted principal/repository/session ownership proof for resource.");
+          const request = action(transaction.objectStore(name));
+          request.onsuccess = () => {
+            result = request.result;
+            hasResult = true;
+          };
+          request.onerror = () => abortWith(request.error ??
+            new Error("Authorized resource operation failed."));
+        } catch (error) {
+          abortWith(error instanceof Error ? error : new Error(String(error)));
+        }
+      };
+      proof.onerror = () => abortWith(proof.error ??
+        new Error("Workspace ownership lookup failed."));
+    });
+  } finally {
+    db.close();
   }
 }
 
@@ -157,7 +230,8 @@ async function allForWorkspace<T extends { workspaceId: string }>(
   workspaceId: string,
 ) {
   requireOwned(workspaceId);
-  const all = await withStore<T[]>(name, "readonly", (store) => store.getAll());
+  if (name === "workspaces") throw new Error("Workspace-scoped resource store required.");
+  const all = await withOwnedStore<T[]>(name, "readonly", workspaceId, (store) => store.getAll());
   requireOwned(workspaceId);
   return all.filter((item) => item.workspaceId === workspaceId);
 }
@@ -190,12 +264,12 @@ export async function saveBlob(workspaceId: string, sha: string, content: string
     content,
     updatedAt: Date.now(),
   };
-  await withStore("blobs", "readwrite", (store) => store.put(record));
+  await withOwnedStore("blobs", "readwrite", workspaceId, (store) => store.put(record));
 }
 
 export async function loadBlob(workspaceId: string, sha: string) {
   requireOwned(workspaceId);
-  const record = await withStore<BlobRecord | undefined>("blobs", "readonly", (store) =>
+  const record = await withOwnedStore<BlobRecord | undefined>("blobs", "readonly", workspaceId, (store) =>
     store.get(`${workspaceId}:${sha}`),
   );
   requireOwned(workspaceId);
@@ -204,12 +278,12 @@ export async function loadBlob(workspaceId: string, sha: string) {
 
 export async function saveOverlay(file: WorkingFile) {
   requireOwned(file.workspaceId);
-  await withStore("overlays", "readwrite", (store) => store.put(file));
+  await withOwnedStore("overlays", "readwrite", file.workspaceId, (store) => store.put(file));
 }
 
 export async function removeOverlay(workspaceId: string, path: string) {
   requireOwned(workspaceId);
-  await withStore("overlays", "readwrite", (store) => store.delete(`${workspaceId}:${path}`));
+  await withOwnedStore("overlays", "readwrite", workspaceId, (store) => store.delete(`${workspaceId}:${path}`));
 }
 
 
@@ -283,12 +357,12 @@ export function loadOverlays(workspaceId: string) {
 
 export async function saveStaged(file: StagedFile) {
   requireOwned(file.workspaceId);
-  await withStore("staged", "readwrite", (store) => store.put(file));
+  await withOwnedStore("staged", "readwrite", file.workspaceId, (store) => store.put(file));
 }
 
 export async function removeStaged(workspaceId: string, path: string) {
   requireOwned(workspaceId);
-  await withStore("staged", "readwrite", (store) => store.delete(`${workspaceId}:${path}`));
+  await withOwnedStore("staged", "readwrite", workspaceId, (store) => store.delete(`${workspaceId}:${path}`));
 }
 
 export function loadStaged(workspaceId: string) {
@@ -297,12 +371,12 @@ export function loadStaged(workspaceId: string) {
 
 export async function saveCommittedFile(file: CommittedFile) {
   requireOwned(file.workspaceId);
-  await withStore("committed", "readwrite", (store) => store.put(file));
+  await withOwnedStore("committed", "readwrite", file.workspaceId, (store) => store.put(file));
 }
 
 export async function removeCommittedFile(workspaceId: string, path: string) {
   requireOwned(workspaceId);
-  await withStore("committed", "readwrite", (store) => store.delete(`${workspaceId}:${path}`));
+  await withOwnedStore("committed", "readwrite", workspaceId, (store) => store.delete(`${workspaceId}:${path}`));
 }
 
 export function loadCommittedFiles(workspaceId: string) {
@@ -311,12 +385,13 @@ export function loadCommittedFiles(workspaceId: string) {
 
 export async function saveLocalCommit(commit: LocalCommit) {
   requireOwned(commit.workspaceId);
-  await withStore("commits", "readwrite", (store) => store.put(commit));
+  await withOwnedStore("commits", "readwrite", commit.workspaceId, (store) => store.put(commit));
 }
 
 export async function removeLocalCommit(id: string) {
-  requireOwned(id.split(":local:")[0]);
-  await withStore("commits", "readwrite", (store) => store.delete(id));
+  const workspaceId = id.split(":local:")[0];
+  requireOwned(workspaceId);
+  await withOwnedStore("commits", "readwrite", workspaceId, (store) => store.delete(id));
 }
 
 export async function loadLocalCommits(workspaceId: string) {
