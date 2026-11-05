@@ -128,6 +128,7 @@ function fakeMultiStore(records: Record<string, TestRecord[]>, expectedReads: nu
         abort: () => void;
         objectStore: (name: string) => {
           getAll: () => unknown;
+          get: (key: string) => unknown;
           put: (value: unknown) => unknown;
           add: (value: unknown) => unknown;
           delete: (value: unknown) => unknown;
@@ -141,6 +142,14 @@ function fakeMultiStore(records: Record<string, TestRecord[]>, expectedReads: nu
         },
         objectStore(name: string) {
           return {
+            get(key: string) {
+              const request: { result?: WorkspaceSnapshot; onsuccess?: () => void } = {};
+              queueMicrotask(() => {
+                request.result = name === "workspaces" && key === id ? fixture() : undefined;
+                request.onsuccess?.();
+              });
+              return request;
+            },
             getAll() {
               const request: { result?: TestRecord[]; onsuccess?: () => void } = {};
               queueMicrotask(() => {
@@ -192,7 +201,7 @@ describe("atomic GHCode staged commits and remote-push cleanup", () => {
       let acknowledged = false;
       const pending = commitLocalChanges(operation, [staged]).then(() => { acknowledged = true; });
       await mock.readsReady;
-      expect(mock.transactionStores).toEqual([["staged", "overlays", "committed", "commits"]]);
+      expect(mock.transactionStores).toEqual([["workspaces", "staged", "overlays", "committed", "commits"]]);
       expect(mock.actions.map(action => `${action.store}.${action.op}`).sort()).toEqual([
         "commits.add", "committed.put", "overlays.delete", "staged.delete",
       ].sort());
@@ -235,7 +244,7 @@ describe("atomic GHCode staged commits and remote-push cleanup", () => {
     try {
       const pending = clearLocalGitState(id);
       await mock.readsReady;
-      expect(mock.transactionStores).toEqual([["staged", "committed", "commits"]]);
+      expect(mock.transactionStores).toEqual([["workspaces", "staged", "committed", "commits"]]);
       expect(mock.actions.filter(a => a.op === "delete")).toHaveLength(3);
       expect(mock.actions.some(a => String(a.value).includes("private"))).toBe(false);
       mock.complete();
