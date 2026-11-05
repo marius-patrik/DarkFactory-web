@@ -112,3 +112,33 @@ Source-history and snapshot provenance are stronger, and meaningful new security
 ## M. Suggested W04 (not dispatched)
 
 Complete one coherent **GHCode durable authority + full lifecycle acceptance** wave: explicit account/repository/session-bound v3 resources; non-destructive legacy backup and attribution; transactional CAS for all mutators; crash-safe sealed recovery; every Dockview/native tab close and transfer; remote push conflict-reconciliation UX with provider contract and fault injection. Preserve source-only snapshots under `migrate/`, then undertake a distinct independent W04 acceptance audit. Only after those gates should the orchestrator consider merging the source-only baseline and starting unified app construction.
+
+---
+
+## W03 continuation — resource-bound IndexedDB authority (2026-11-05)
+
+**Current canonical GitHub repository:** `marius-patrik/Wrkbench` (stable repository ID `1357326589`, renamed from `marius-patrik/DarkFactory-web`). This is the same repository, issue #31, and still-open draft PR #39—not a replacement project. Original Git history, archives, and production `main` are unchanged.
+
+### Implemented security and transaction corrections
+
+- **Authority generations:** `bindStoragePrincipal` invalidates asynchronous A→B→A transactions even when the caller's original principal string matches again; pending write transactions are aborted at every identity change.
+- **Persisted workspace proof:** common resource data-boundary operations now verify the actual `workspaces` IDB record's principal, immutable numeric repository, session and ref *inside the same transaction* as the resource request. A caller-controlled, correctly encoded workspace ID alone no longer authorizes reading or writing arbitrary records.
+- **Key containment:** working/staged/committed/local-commit primary keys and canonical paths are checked before write. Corrupt owned-row keys fail closed on read. Blob reads validate the stored record's workspace/key/SHA, and blob IDs must contain a full immutable object SHA. Workspace snapshots cannot replace an existing workspace with a different immutable repository/session identity or an older update timestamp.
+- **Transactional repository operations:** document overlay CAS, local commit transition, staged/committed clear, push intent preparation, journal phase CAS and finalization use persisted ownership evidence. Read queries on workspace resources are IDB key-prefix bounded.
+- **Atomic staging:** `compareAndApplyStaged` checks the complete durable staged snapshot before applying any group of changes. Multi-file rename/source-deletion pairs, stage-all, single stage/unstage, and unstage-all are a single IDB transaction. Divergent concurrent editor/tab changes abort instead of silently overwriting staged content.
+- **Push recovery UX:** source control now shows an unresolved durable push's journal phase, expected remote SHA, last observed SHA, intended target SHA, local commit count, conflict reason and safe inspect/retry/export actions. A target already present remotely may be reconciled after a lost mutation acknowledgment without issuing another ref mutation. No force-push or unrelated auto-merge fallback is introduced.
+
+### Added real Chromium acceptance
+
+- Forged same-account workspace ID with no persisted repository proof: reads, overlay writes, staged writes, blobs and document CAS rejected.
+- Account-A resource pretending to use account-B's primary IDB key, plus immutable repository ID reassignment: rejected; both records remain unchanged.
+- Two competing staged-set CAS writers: exactly one may succeed. Stale unstage, cross-account access and malformed batch fail. Rename plus source-delete are written together.
+- GitHub GraphQL conditional ref mutation succeeds remotely but HTTP response fails; journal persists, UI survives reload and finalizes safely without second ref mutation. No real repository token required.
+
+### Historical proof versus current verification
+
+The W03 baseline at `8a2d5067fb3715398f8d0713e85f4ab46e04472a` passed all four source jobs, root Verify and root Runtime, as documented above. The post-rename continuation changes are **separate commits** and must receive their **own exact-head** source, root and runtime CI. Intermediate GHCode/RSCode failures are not suppressed; the frozen historical GHC-00 reproduction evidence is preserved unchanged.
+
+**Known exclusions:** full legacy v2→v3 non-destructive migration/backup attribution; completed typed all-resource CAS and secure import/export; crash-durable revoked-principal drafts; exhaustive Dockview native close/group/drag/layout guards; real-provider protected-branch permissions and error matrix; RSCode frame/PTY/native four-platform reliability; authenticated unified Canvas adapter and browser context-switching acceptance; complete asset/license-rights decisions; independent original ZIP/Git-bundle restoration.
+
+**Verdict: CHANGES REQUIRED.** Retain PR #39 as draft. No main merge, production deployment, release, GHCode recreation or template deletion.
