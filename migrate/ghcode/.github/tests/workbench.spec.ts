@@ -481,3 +481,42 @@ test("keyboard shortcuts toggle root regions and focus both omnibar modes", asyn
   await page.keyboard.press("Control+p");
   await expect(omnibar).toBeFocused();
 });
+
+
+test("uncertain remote push survives reload and safely reconciles without a second ref mutation", async ({ page }) => {
+  const github = await installGithubMock(page);
+  await seedAuthenticatedSession(page);
+  await openPrivateRepository(page);
+
+  await tab(page, "primary", "Explorer").click();
+  await surface(page, "primary").getByTitle("README.md").click();
+  await expect(tab(page, "main", "README.md")).toBeVisible();
+  await editActiveMonaco(page, "# Durable pending push\\n");
+  await stageAndCommit(page, "recover after missing acknowledgment");
+
+  github.failAfterConditionalMutationOnce();
+  await surface(page, "primary").getByTitle("Push local commits").click();
+  await expect.poll(() => github.state.pushed).toBe(true);
+  const unresolved = surface(page, "primary").getByRole("status", { name: "Unresolved push" });
+  await expect(unresolved).toBeVisible();
+  await expect(unresolved).toContainText("Expected remote revision");
+  await expect(unresolved).toContainText("Intended target revision");
+  await expect(unresolved).toContainText("Unpublished local commits");
+  const remoteAfterWrite = github.state.remoteHead;
+  expect(github.state.writes.filter((entry) => entry === "graphql-ref-cas")).toHaveLength(1);
+
+  await page.reload();
+  await expect(page.getByTitle("Sign out")).toBeVisible();
+  await openPrivateRepository(page);
+  await tab(page, "primary", "Source Control").click();
+  const recovered = surface(page, "primary").getByRole("status", { name: "Unresolved push" });
+  await expect(recovered).toBeVisible();
+  await expect(recovered).toContainText(remoteAfterWrite);
+  await expect(recovered).toContainText("Unfinished publication is durable");
+
+  await recovered.getByRole("button", { name: "Retry recorded push safely" }).click();
+  await expect(surface(page, "primary").getByText("No local changes.")).toBeVisible();
+  await expect(recovered).toHaveCount(0);
+  expect(github.state.remoteHead).toBe(remoteAfterWrite);
+  expect(github.state.writes.filter((entry) => entry === "graphql-ref-cas")).toHaveLength(1);
+});
