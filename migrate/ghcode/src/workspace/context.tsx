@@ -55,6 +55,7 @@ import {
   bindStoragePrincipal,
   beginPushOperation,
   compareAndSetOverlay,
+  compareAndApplyStaged,
   advancePushOperation,
   finalizeConfirmedPush,
   loadPendingPushOperation,
@@ -739,25 +740,30 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     async (path: string) => {
       if (!workspace) throw new Error("No workspace is open.");
       const lease = capture();
-      for (const file of stageGroupFor(path)) {
-        await saveStaged({ ...file, stagedAt: Date.now() });
-      }
+      const now = Date.now();
+      const changes = stageGroupFor(path).map((file) => ({
+        path: file.path, next: { ...file, stagedAt: now },
+      }));
+      await compareAndApplyStaged(workspace.id, staged, changes);
       const next = await loadStaged(workspace.id);
       assertCurrent(lease);
       setStaged(next);
     },
-    [assertCurrent, capture, stageGroupFor, workspace],
+    [assertCurrent, capture, stageGroupFor, staged, workspace],
   );
 
   const stageAll = useCallback(async () => {
     if (!workspace) throw new Error("No workspace is open.");
     const lease = capture();
     const now = Date.now();
-    for (const file of overlays) await saveStaged({ ...file, stagedAt: now });
+    await compareAndApplyStaged(
+      workspace.id, staged,
+      overlays.map((file) => ({ path: file.path, next: { ...file, stagedAt: now } })),
+    );
     const next = await loadStaged(workspace.id);
     assertCurrent(lease);
     setStaged(next);
-  }, [assertCurrent, capture, overlays, workspace]);
+  }, [assertCurrent, capture, overlays, staged, workspace]);
 
   const unstageFile = useCallback(
     async (path: string) => {
@@ -772,7 +778,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         );
         if (target) paths.add(target.path);
       }
-      for (const candidate of paths) await removeStaged(workspace.id, candidate);
+      await compareAndApplyStaged(
+        workspace.id, staged,
+        [...paths].map((candidate) => ({ path: candidate, next: null })),
+      );
       const next = await loadStaged(workspace.id);
       assertCurrent(lease);
       setStaged(next);
@@ -783,10 +792,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const unstageAll = useCallback(async () => {
     if (!workspace) throw new Error("No workspace is open.");
     const lease = capture();
-    await clearStaged(workspace.id);
+    await compareAndApplyStaged(
+      workspace.id, staged,
+      staged.map((file) => ({ path: file.path, next: null })),
+    );
     assertCurrent(lease);
     setStaged([]);
-  }, [assertCurrent, capture, workspace]);
+  }, [assertCurrent, capture, staged, workspace]);
 
   const discardFile = useCallback(
     async (path: string) => {
