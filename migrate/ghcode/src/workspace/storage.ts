@@ -580,6 +580,7 @@ export async function commitLocalChanges(commit: LocalCommit, expectedStaged: St
   for (const file of expectedStaged) {
     requireOwned(file.workspaceId);
     if (file.workspaceId !== commit.workspaceId ||
+        !validDocumentPath(file.path) ||
         file.key !== `${commit.workspaceId}:${file.path}` || keys.has(file.key)) {
       throw new Error("Invalid staged ownership, key, or duplicate path.");
     }
@@ -823,6 +824,15 @@ export async function beginPushOperation(
           const local = commits.filter((item) => item.workspaceId === workspace.id);
           if (!sameCommitSet(local, expectedCommitIds))
             throw new Error("Local commits changed while preparing push; reload and retry.");
+          for (const item of local) {
+            if (!item.id.startsWith(workspace.id + ":local:") ||
+                !Array.isArray(item.files) ||
+                item.files.some((file) =>
+                  file.workspaceId !== workspace.id ||
+                  !validDocumentPath(file.path) ||
+                  file.key !== workspace.id + ":" + file.path))
+              throw new Error("Malformed or foreign local commit cannot be pushed.");
+          }
           result = {
             id: `${workspace.id}:push:${crypto.randomUUID()}`,
             workspaceId: workspace.id, principalKey: owner,
@@ -999,6 +1009,15 @@ export async function finalizeConfirmedPush(
             .filter((item) => item.workspaceId === previous.id);
           if (!sameCommitSet(local, operation.commitIds))
             throw new Error("New local commits exist; confirmed remote push needs reconciliation.");
+          for (const item of local) {
+            if (!item.id.startsWith(previous.id + ":local:") ||
+                !Array.isArray(item.files) ||
+                item.files.some((file) =>
+                  file.workspaceId !== previous.id ||
+                  !validDocumentPath(file.path) ||
+                  file.key !== previous.id + ":" + file.path))
+              throw new Error("Corrupt local commit; refusing remote-push cleanup.");
+          }
           const committedStore = tx.objectStore("committed");
           for (const file of reqs.committed.result as CommittedFile[]) {
             if (file.workspaceId !== previous.id) continue;
