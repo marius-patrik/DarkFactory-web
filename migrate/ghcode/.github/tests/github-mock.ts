@@ -164,6 +164,7 @@ export type GithubMock = {
     writes: string[];
   };
   setRemoteHead: (sha: string) => void;
+  failAfterConditionalMutationOnce: () => void;
 };
 
 export async function installGithubMock(page: Page): Promise<GithubMock> {
@@ -176,6 +177,7 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
   const createdBlobs = new Map<string, string>();
   let createdTree = 0;
   let createdCommit = 0;
+  let failAfterMutationOnce = false;
   const trees = new Map<string, ReturnType<typeof tree>>();
   trees.set(BASE_TREE, tree(BASE_TREE));
   const commits = new Map<string, ReturnType<typeof commit>>();
@@ -220,6 +222,10 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
         state.remoteHead = update.afterOid as string;
         state.pushed = true;
         state.writes.push("graphql-ref-cas");
+        if (failAfterMutationOnce) {
+          failAfterMutationOnce = false;
+          return json(route, { message: "Remote ref changed but acknowledgment was lost" }, 503);
+        }
         return json(route, { data: { updateRefs: { clientMutationId: null } } });
       }
       if (query.includes("RepositoryProjects")) {
@@ -436,6 +442,9 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
     setRemoteHead(sha: string) {
       state.remoteHead = sha;
       commits.set(sha, commit(sha, BASE_TREE, "Remote divergence"));
+    },
+    failAfterConditionalMutationOnce() {
+      failAfterMutationOnce = true;
     },
   };
 }
