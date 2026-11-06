@@ -113,7 +113,11 @@ export function RuntimeRepositoryProvider({
     setLoading(true);
     const active = selection;
     if (!active) {
-      setError(invalidSelection.current ? "Invalid repository identity." : "Select a repository to load source context.");
+      setError(
+        invalidSelection.current
+          ? "Invalid repository identity."
+          : "Select a repository to load source context.",
+      );
       setLoading(false);
       return () => controller.abort();
     }
