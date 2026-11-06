@@ -16,7 +16,7 @@ MANIFEST = ROOT / "migrate" / "manifest.json"
 ALLOWED_NEW_PREFIXES = ("migrate/", "docs/migrations/")
 ALLOWED_ADDITIONS = (
     "bunfig.toml", ".github/workflows/migration-source-verification.yml",
-    ".github/workflows/release.yml",
+    ".github/workflows/migration-native-distribution.yml", ".github/workflows/release.yml",
     "biome.json", ".github/workflows/darkfactory-control.yml",
 )
 EXPECTED_BIOME_BLOB = "d55c587aabb0b3a3f9155c93631d0b7b6da71e50"
@@ -67,6 +67,12 @@ def main() -> int:
             and all(f"  {job}:" in migration_workflow
                     for job in ("history-and-isolation", "rscode", "ghcode", "canvas")),
             "source verifier is PR-only, read-only and covers all three sources", errors)
+    native_workflow = (ROOT / ".github/workflows/migration-native-distribution.yml").read_text(encoding="utf-8")
+    require("pull_request:" in native_workflow and "permissions:\n  contents: read" in native_workflow
+            and "\"migrate/rscode/**\"" in native_workflow
+            and not re.search(r"(?m)^\\s*(?:push|workflow_dispatch|pages|id-token):\\s*", native_workflow)
+            and not re.search(r"(?im)\\b(?:gh release|npm publish|bun publish|deploy-pages)\\b", native_workflow),
+            "native acceptance workflow stays PR-only, read-only and nonpublishing", errors)
     original_release = git("show", f"{root_baseline}:.github/workflows/release.yml").stdout
     expected_release = original_release.replace(
         "  push:\n    branches: [main]\n",
@@ -82,7 +88,7 @@ def main() -> int:
             == EXPECTED_MANAGED_WORKFLOW_BLOB,
             "managed root CI retains root jobs; migratory nested matrix dispatch excluded", errors)
     require(not any(p.startswith(".github/workflows/") and p not in ALLOWED_ADDITIONS for p in changes),
-            "no root workflow changes beyond source verification and release push guard", errors)
+            "no root workflow changes beyond PR-only source/native verification and release push guard", errors)
 
     for name, minimum in MIN_FILES.items():
         base = "migrate/" + name
