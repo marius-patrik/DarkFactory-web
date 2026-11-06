@@ -19,7 +19,7 @@
       "originalSHA": "39341ce5f8459b834c8e20b5227c25980078a87e",
       "reconciliationSourceSHA": "0e797adca5315e859d61e216d8a763f2920c39fc",
       "additionalSourceSHA": "6ed334bcad6e89a1837c299937c4c50207904541",
-      "snapshotTreeSHA": "bdc4fd0befab0dbb9c9d7ac8b60c0bd06130f6c7",
+      "snapshotTreeSHA": "339ad0f8a3143165df59dcb7a5cd8df1eb7a667e",
       "expectedOwner": "DarkFactory-web unified local provider",
       "acceptedChanges": [
         "RSC-03 exact-origin loopback security code and tests from existing verified integration tree",
@@ -27,7 +27,8 @@
       ],
       "provisionalChanges": [
         "RSC-05 native distribution scripts and documentation from PR #28; packaging issues unresolved",
-        "W04: host-native path.isAbsolute validates resolved Windows drive/UNC workspace roots; Git staging rejects win32 absolute, UNC and drive-relative pathspecs. New cross-platform source regression tests; OS acceptance pending."
+        "W04: host-native path.isAbsolute validates resolved Windows drive/UNC workspace roots; Git staging rejects win32 absolute, UNC and drive-relative pathspecs. New cross-platform source regression tests; OS acceptance pending.",
+        "W04: PR-only, read-only native distribution matrix executes real four-OS portable archive creation and out-of-checkout acceptance. Native run results pending; no binaries published."
       ],
       "knownUnresolved": [
         "Windows path/UNC/PTTY/Chromium acceptance",
@@ -62,12 +63,13 @@
       },
       "w04SourceDelta": {
         "codeHeadSHA": "4ecdfa612d3ed4a46eb91f3e6bf72e13d9105fcc",
-        "snapshotTreeSHA": "bdc4fd0befab0dbb9c9d7ac8b60c0bd06130f6c7",
+        "snapshotTreeSHA": "339ad0f8a3143165df59dcb7a5cd8df1eb7a667e",
         "changedFiles": [
           "src/server/store.ts",
-          "src/tests/store.test.ts"
+          "src/tests/store.test.ts",
+          "scripts/distribution/build.ts"
         ],
-        "testState": "PENDING_EXACT_HEAD_CI",
+        "testState": "W04_UBUNTU_SOURCE_AND_WINDOWS_STORE_PASS_AT_1DF63B0_NATIVE_MATRIX_PENDING",
         "limitations": [
           "Windows source suite not yet verified",
           "Native four-OS extracted distribution acceptance not run",
