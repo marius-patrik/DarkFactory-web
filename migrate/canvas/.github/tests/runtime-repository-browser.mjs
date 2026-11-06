@@ -31,6 +31,19 @@ try {
     throw new Error("Repository B content was not cleared at the A selection boundary");
   await page.waitForFunction(() => document.querySelector("#source")?.textContent === "PRIVATE_SOURCE_101");
 
+  // Malformed selection must invalidate the prior in-flight A promise even
+  // though it does not select a replacement repository.
+  await page.locator("#repo-b").click();
+  await page.waitForFunction(() => document.querySelector("#source")?.textContent === "PRIVATE_SOURCE_202");
+  await page.locator("#repo-a").click();
+  await page.locator("#repo-invalid").click();
+  await page.waitForTimeout(350);
+  if (await page.locator("#selected").innerText() !== "none" ||
+      await page.locator("#source").innerText() !== "")
+    throw new Error("Pending A request leaked private source after malformed identity revocation");
+  if (!(await page.getByRole("alert").innerText()).includes("Invalid repository identity"))
+    throw new Error("Malformed identity was not rejected");
+
   // An adapter response forged for A while C is selected must be rejected.
   await page.locator("#repo-forged").click();
   if (await page.locator("#source").innerText() !== "")
