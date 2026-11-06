@@ -219,31 +219,34 @@ test(
     tempRoot = await mkdtemp(join(tmpdir(), "canvas-browser-"));
     const service = new BrowserFrameService(join(tempRoot, "profiles"), () => undefined);
     const session = browserSession(
-      "<title>Dialog fixture</title><script>setTimeout(() => { document.title = confirm('Proceed?') ? 'confirmed' : 'cancelled'; }, 1200);</script>",
+      '<title>Dialog fixture</title><button style="position:absolute;left:20px;top:20px;width:120px;height:32px" onclick="document.title = confirm(\'Proceed?\') ? \'confirmed\' : \'cancelled\'">Ask</button>',
     );
     const messages: Array<{ type: string; message?: string }> = [];
     try {
-      console.error("DIALOG_TIMER_TRACE before stream");
       const handle = await service.stream(session, { send: (message) => { messages.push(message); } });
-      console.error("DIALOG_TIMER_TRACE stream ready");
       try {
-        console.error("DIALOG_TIMER_TRACE waiting for dialog");
-        await waitFor(() => messages.some((message) => message.type === "dialog"), "browser confirmation dialog");
-        console.error("DIALOG_TIMER_TRACE dialog received");
-        expect(messages.some((message) => message.message === "Proceed?")).toBe(true);
-        await service.interact(session, { type: "dialogResponse", accept: true });
-        console.error("DIALOG_TIMER_TRACE accepted");
-        const state = await service.stateFor(session);
-        console.error("DIALOG_TIMER_TRACE state read");
-        expect(state.title).toBe("confirmed");
+        // A timer firing during the initial screencast/page setup can block
+        // launch itself and deadlock this test before its dialog subscriber is ready.
+        // Initiate the dialog only after the subscriber has been established.
+        await service.interact(session, { type: "mouse", event: "down", x: 40, y: 36, button: "left" });
+        const clicked = service.interact(session, { type: "mouse", event: "up", x: 40, y: 36, button: "left" });
+        try {
+          await waitFor(() => messages.some((message) => message.type === "dialog"), "browser confirmation dialog");
+          expect(messages.some((message) => message.message === "Proceed?")).toBe(true);
+          await service.interact(session, { type: "dialogResponse", accept: true });
+          await clicked;
+          const state = await service.stateFor(session);
+          expect(state.title).toBe("confirmed");
+        } finally {
+          // Ensure a pending dialog never survives into browser process disposal.
+          await service.interact(session, { type: "dialogResponse", accept: false }).catch(() => undefined);
+          await clicked.catch(() => undefined);
+        }
       } finally {
-        console.error("DIALOG_TIMER_TRACE handle closing");
         handle.close();
       }
     } finally {
-      console.error("DIALOG_TIMER_TRACE service closing");
       await service.close();
-      console.error("DIALOG_TIMER_TRACE service closed");
     }
   },
   20_000,
