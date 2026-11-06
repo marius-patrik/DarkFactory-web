@@ -19,14 +19,15 @@
       "originalSHA": "39341ce5f8459b834c8e20b5227c25980078a87e",
       "reconciliationSourceSHA": "0e797adca5315e859d61e216d8a763f2920c39fc",
       "additionalSourceSHA": "6ed334bcad6e89a1837c299937c4c50207904541",
-      "snapshotTreeSHA": "d3588b5ea1f3c4184728f6036a40da3b174dbd09",
+      "snapshotTreeSHA": "bdc4fd0befab0dbb9c9d7ac8b60c0bd06130f6c7",
       "expectedOwner": "DarkFactory-web unified local provider",
       "acceptedChanges": [
         "RSC-03 exact-origin loopback security code and tests from existing verified integration tree",
         "RSC-04 single-flight Chromium implementation and concurrency tests"
       ],
       "provisionalChanges": [
-        "RSC-05 native distribution scripts and documentation from PR #28; packaging issues unresolved"
+        "RSC-05 native distribution scripts and documentation from PR #28; packaging issues unresolved",
+        "W04: host-native path.isAbsolute validates resolved Windows drive/UNC workspace roots; Git staging rejects win32 absolute, UNC and drive-relative pathspecs. New cross-platform source regression tests; OS acceptance pending."
       ],
       "knownUnresolved": [
         "Windows path/UNC/PTTY/Chromium acceptance",
@@ -58,6 +59,20 @@
         ],
         "platform": "GitHub-hosted Ubuntu + Chromium where exercised",
         "limitation": "Ubuntu source suite only; native OS artifacts, Windows, startup races and repeat stress NOT RUN in this wave."
+      },
+      "w04SourceDelta": {
+        "codeHeadSHA": "4ecdfa612d3ed4a46eb91f3e6bf72e13d9105fcc",
+        "snapshotTreeSHA": "bdc4fd0befab0dbb9c9d7ac8b60c0bd06130f6c7",
+        "changedFiles": [
+          "src/server/store.ts",
+          "src/tests/store.test.ts"
+        ],
+        "testState": "PENDING_EXACT_HEAD_CI",
+        "limitations": [
+          "Windows source suite not yet verified",
+          "Native four-OS extracted distribution acceptance not run",
+          "No Chromium lifecycle reliability fix"
+        ]
       }
     },
     "ghcode": {
