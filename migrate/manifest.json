@@ -186,7 +186,7 @@
       "originalBranch": "development",
       "originalSHA": "5f462ea6e73c570e483149d6846dcc9190c09d51",
       "reconciliationSourceSHA": "bf17d45c8068a3bda8de5d4786a829bb4c511a86",
-      "snapshotTreeSHA": "468245134c0bca39e9efc44bb32a7ecf40d45c85",
+      "snapshotTreeSHA": "eda33596885a3be40b1aff76346fccb05fc5ed8f",
       "appSubtreeSHA": "9e4880ad5742f73ad5ea482b127fdf80742695e5",
       "expectedOwner": "DarkFactory-web unified app UI layer",
       "acceptedChanges": [
@@ -245,7 +245,7 @@
         "fixture": "migrate/canvas/.github/app/tests/runtime-repository-browser-harness.ts",
         "script": "migrate/canvas/.github/tests/runtime-repository-browser.mjs",
         "validation": "Real Chromium injected adapter, rapid repository switch, stale content rejection, forged identity fail-closed, recovery",
-        "status": "PENDING_CI_WITH_PACKAGE_LOCAL_HARNESS",
+        "status": "PENDING_EXACT_HEAD_CI",
         "privacyFix": "Invalid identity now increments generation, clears selected identity and old source context, preserves validation error. Browser test forces stale completion."
       }
     }
