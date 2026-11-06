@@ -19,7 +19,7 @@
       "originalSHA": "39341ce5f8459b834c8e20b5227c25980078a87e",
       "reconciliationSourceSHA": "0e797adca5315e859d61e216d8a763f2920c39fc",
       "additionalSourceSHA": "6ed334bcad6e89a1837c299937c4c50207904541",
-      "snapshotTreeSHA": "c6e0aed7d15627502f82dc1569c62ae1ffcef1c6",
+      "snapshotTreeSHA": "9d4be4298439eb65204c5e896c796eb50ff8fad9",
       "expectedOwner": "DarkFactory-web unified local provider",
       "acceptedChanges": [
         "RSC-03 exact-origin loopback security code and tests from existing verified integration tree",
@@ -29,7 +29,8 @@
         "RSC-05 native distribution scripts and documentation from PR #28; packaging issues unresolved",
         "W04: host-native path.isAbsolute validates resolved Windows drive/UNC workspace roots; Git staging rejects win32 absolute, UNC and drive-relative pathspecs. New cross-platform source regression tests; OS acceptance pending.",
         "W04: PR-only, read-only native distribution matrix executes real four-OS portable archive creation and out-of-checkout acceptance. Native run results pending; no binaries published.",
-        "W04: real four-OS native acceptance at deeeda6c: Linux x64, macOS ARM64/x64 PASS; Windows workspace mutation now PASS but Chromium probe timed out after 70s. Added phase/launch diagnostics and timeout stdout retention for root cause evidence; current probe fixes unverified."
+        "W04: real four-OS native acceptance at deeeda6c: Linux x64, macOS ARM64/x64 PASS; Windows workspace mutation now PASS but Chromium probe timed out after 70s. Added phase/launch diagnostics and timeout stdout retention for root cause evidence; current probe fixes unverified.",
+        "W04: native acceptance harness avoids PIPE inherited-handle hangs on Windows by directing child output to a temp file and waiting for Bun PID; pending exact-head OS verification."
       ],
       "knownUnresolved": [
         "Windows path/UNC/PTTY/Chromium acceptance",
@@ -64,12 +65,13 @@
       },
       "w04SourceDelta": {
         "codeHeadSHA": "4ecdfa612d3ed4a46eb91f3e6bf72e13d9105fcc",
-        "snapshotTreeSHA": "c6e0aed7d15627502f82dc1569c62ae1ffcef1c6",
+        "snapshotTreeSHA": "9d4be4298439eb65204c5e896c796eb50ff8fad9",
         "changedFiles": [
           "src/server/store.ts",
           "src/tests/store.test.ts",
           "scripts/distribution/build.ts",
           "scripts/distribution/browser-probe.ts",
+          "scripts/distribution/accept.py",
           "scripts/distribution/accept.py"
         ],
         "testState": "W04_UBUNTU_SOURCE_AND_WINDOWS_STORE_PASS_AT_1DF63B0_NATIVE_MATRIX_PENDING",
