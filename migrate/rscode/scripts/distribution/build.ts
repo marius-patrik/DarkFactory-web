@@ -9,7 +9,7 @@ const arch = process.arch;
 if (!["darwin", "win32", "linux"].includes(platform) || !["x64", "arm64"].includes(arch)) {
   throw new Error(`Unsupported native distribution target: ${platform}-${arch}`);
 }
-const sourceSha = process.env.GITHUB_SHA || await gitHead();
+const sourceSha = process.env.RSCODE_SOURCE_SHA || process.env.GITHUB_SHA || await gitHead();
 if (!/^[0-9a-f]{40}$/.test(sourceSha)) throw new Error("Cannot establish 40-character source SHA");
 const name = `RSCode-v${pkg.version}-${platform}-${arch}`;
 const stage = join(outputRoot, name);
