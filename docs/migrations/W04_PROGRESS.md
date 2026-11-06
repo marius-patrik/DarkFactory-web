@@ -127,3 +127,25 @@ Do not advertise a unified application: only reference snapshots exist.
 4. Add Canvas real Chromium runtime injected adapter tests with multiple immutable repository IDs and stale request cancellation.
 5. Independently verify 77-tip offsite bundle restoration, full source capability reconciliation, licensing and source-only post-merge release safety.
 6. Only when **every** M001–M006 gate passes, execute the separately authorized normal merge-commit of PR #39 and prove `main`'s active tree hashes remain unchanged. No unified application rebuild in this W04 wave.
+
+## K. W04 continuation — verified runs and later source changes
+
+The earlier A–J ledger is a checkpoint, not the final current SHA. Subsequent work and exact run IDs:
+
+- [native OS #42222312462](https://github.com/marius-patrik/Wrkbench/actions/runs/42222312462): **Linux x64 PASS, macOS x64 PASS, macOS ARM64 PASS; Windows x64 FAIL**. Windows extracted installation additionally passed `controlled_file_create_and_modify` and `controlled_git_repository_and_status`, then Playwright bundled headless shell `chrome-headless-shell.exe` launched but never completed persistent-context CDP negotiation and failed its real **25-second** timeout. All later PTY/shutdown/restart Windows checks remained unverified. This is not cured by the earlier Python stdout-PIPE handling.
+- Tested Windows browser probe change: `migrate/rscode/scripts/distribution/browser-probe.ts` now experiments with Playwright's **full Chromium** channel on Windows instead of the non-responsive headless-shell process. This is **provisional** until a full installed Windows acceptance succeeds; production `migrate/rscode/src/server/browserService.ts` has **not** been changed to rely on it.
+- [source isolation #42222312434](https://github.com/marius-patrik/Wrkbench/actions/runs/42222312434) was **PASS** all five jobs at `ac3c7170`, including both Windows native source unit tests and complete GHCode/Canvas/RSCode source checks.
+- Root-only [stress #42222373706](https://github.com/marius-patrik/Wrkbench/actions/runs/42222373706) **FAIL 3/3 separate runners** at `e278e964`, despite root [Verify #42222373035](https://github.com/marius-patrik/Wrkbench/actions/runs/42222373035) **PASS** and [Runtime #42222374022](https://github.com/marius-patrik/Wrkbench/actions/runs/42222374022) **PASS**. Two failing replicas hit nondeterministic dialog/blank Chromium tests. PR #40 remains draft and unmerged.
+
+### Canvas real-browser injected adapter coverage
+
+New test-only bundle fixture `migrate/canvas/.github/app/tests/runtime-repository-browser-harness.ts` mounts the **real** `RuntimeRepositoryProvider` under Chromium, not just a standalone build-time context. `migrate/canvas/.github/tests/runtime-repository-browser.mjs` requests rapid A→B switching, delayed A resolution, malformed identity revocation, forged provider response, and valid recovery. Production Canvas provider change advances generation and revokes the previous selection when the next identity is malformed, preventing a late private data load. This does not add another persistent writer.
+
+Initial attempt was rejected by CI because bundling a harness outside the app couldn't resolve React package dependencies; that file was relocated under app. Subsequent source CI `42223657772` failed the **four missing HTML button types** in the harness; those were repaired without disabling any lint rule. Final Chromium-run result must be taken from the newest **exact-head** source verification, not a superseded canceled job. **M004 remains BLOCKED until the new Chromium browser test passes.**
+
+### Root tree equality
+
+Direct original-main vs PR39 tree SHA comparison after W04 edits established exact equal Git tree objects for:
+`src/` (`4799e20e`), `scripts/` (`270dc716`), and equal blobs for `package.json` (`debb8914`), `bun.lock` (`c815a91d`), `rsbuild.config.ts` (`5040386f`), `tsconfig.json` (`a4e1ae76`). Migration safety workflows differ intentionally. The source-only PR must continue to preserve these identities through the final merge, if ever authorized.
+
+**Final merge disposition remains CHANGES REQUIRED — NOT MERGED.** No source-only main merge, release, repository deletion, source-history rewrite, or original RSCode PR closure has been performed. No production runtime reliability fix is accepted. The new native and Canvas tests do not waive GHCode crash-durable draft or legacy migration acceptance blockers.
