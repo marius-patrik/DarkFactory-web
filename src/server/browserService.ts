@@ -147,17 +147,7 @@ export class BrowserFrameService {
     live.subscribers.set(subscriberId, subscriber);
     if (subscriber.onNavigation && live.persistSubscriberId === null) live.persistSubscriberId = subscriberId;
 
-    await this.startScreencast(live);
-    await this.ensurePageUrl(live, session.url);
-    // about:blank does not always repaint after screencast activation.
-    // Make an explicit initial capture so a new pane never waits forever for CDP frames.
-    if (!live.lastFrame || live.lastFrame.url !== browserStoredUrl(live.page.url())) {
-      await this.captureInitialFrame(live);
-    }
-    await this.sendToSubscriber(subscriber, await this.stateForLive(live));
-    if (live.lastFrame) await this.sendToSubscriber(subscriber, live.lastFrame);
-
-    return {
+    const handle: BrowserStreamHandle = {
       close: () => {
         live.subscribers.delete(subscriberId);
         if (live.subscribers.size === 0) {
@@ -178,8 +168,19 @@ export class BrowserFrameService {
         }
       },
     };
-  }
-
+    try {
+      await this.startScreencast(live);
+      await this.ensurePageUrl(live, session.url);
+      if (!live.lastFrame || live.lastFrame.url !== browserStoredUrl(live.page.url())) {
+        await this.captureInitialFrame(live);
+      }
+      await this.sendToSubscriber(subscriber, await this.stateForLive(live));
+      if (live.lastFrame) await this.sendToSubscriber(subscriber, live.lastFrame);
+      return handle;
+    } catch (error) {
+      handle.close();
+      throw error;
+    }
   async frameFor(session: BrowserSession): Promise<BrowserFrameMessage> {
     return new Promise((resolveFrame, rejectFrame) => {
       let settled = false;
