@@ -333,9 +333,8 @@ export class BrowserFrameService {
     const userDataDir = join(session.profilePath, "chromium");
     await mkdir(userDataDir, { recursive: true });
     await clearChromiumSingletonFiles(userDataDir);
-    const context = await retryChromiumNativeCrash(
-      () =>
-        chromium.launchPersistentContext(userDataDir, {
+    const launch = () =>
+      chromium.launchPersistentContext(userDataDir, {
         executablePath,
         headless: true,
         viewport: { width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height },
@@ -349,10 +348,8 @@ export class BrowserFrameService {
           "--no-default-browser-check",
           "--no-first-run",
         ],
-
-        }),
-      () => clearChromiumSingletonFiles(userDataDir),
-    );
+      });
+    const context = await retryChromiumNativeCrash(launch, () => clearChromiumSingletonFiles(userDataDir));
     const page = context.pages()[0] ?? (await context.newPage());
     await page.setViewportSize({ width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height });
     // A newly created about:blank tab may not have a painted compositor surface.
@@ -827,7 +824,7 @@ export async function retryChromiumNativeCrash<T>(
     return await launch();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (!/Received signal 11\\b|SIGSEGV\\b/i.test(message)) throw error;
+    if (!/Received signal 11\b|SIGSEGV\b/i.test(message)) throw error;
     await prepareRetry();
     return launch();
   }
