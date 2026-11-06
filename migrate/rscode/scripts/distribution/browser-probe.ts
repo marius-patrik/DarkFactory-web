@@ -11,6 +11,10 @@ await mkdir(profile, { recursive: true });
 console.error(`[native-browser-probe] ${mode}: launching Chromium persistent context`);
 const context = await chromium.launchPersistentContext(profile, {
   timeout: 25_000,
+  // The Windows headless-shell process starts but fails its Playwright CDP
+  // handshake on Windows-2025. Prefer the bundled full Chromium in new headless
+  // mode there; the source package already provisions both browser builds.
+  channel: process.platform === "win32" ? "chromium" : undefined,
   headless: true,
   args: ["--disable-dev-shm-usage"],
 });
