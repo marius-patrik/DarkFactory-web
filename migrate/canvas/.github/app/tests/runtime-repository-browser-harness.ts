@@ -81,7 +81,11 @@ function Harness() {
     ),
     createElement("output", { id: "selected" }, selection?.id ?? "none"),
     createElement("output", { id: "loading" }, String(loading)),
-    createElement("output", { id: "source" }, context?.documents.map((doc) => doc.content).join("\n") ?? ""),
+    createElement(
+      "output",
+      { id: "source" },
+      context?.documents.map((doc) => doc.content).join("\n") ?? "",
+    ),
     createElement("output", { id: "error", role: error ? "alert" : undefined }, error ?? ""),
   );
 }
