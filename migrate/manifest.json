@@ -186,7 +186,7 @@
       "originalBranch": "development",
       "originalSHA": "5f462ea6e73c570e483149d6846dcc9190c09d51",
       "reconciliationSourceSHA": "bf17d45c8068a3bda8de5d4786a829bb4c511a86",
-      "snapshotTreeSHA": "83a92de0e33027e7688e6867095b0b36b6fd48ec",
+      "snapshotTreeSHA": "ffe7b518cfad671827d3f0aac44e056b51469b51",
       "appSubtreeSHA": "9e4880ad5742f73ad5ea482b127fdf80742695e5",
       "expectedOwner": "DarkFactory-web unified app UI layer",
       "acceptedChanges": [
@@ -240,6 +240,12 @@
         ],
         "currentCI": "PASS migration run 41834186035, 4/4 jobs",
         "lastFullyTestedSourceHead": "8a2d5067fb3715398f8d0713e85f4ab46e04472a"
+      },
+      "w04BrowserAdapterAcceptance": {
+        "fixture": "migrate/canvas/.github/tests/runtime-repository-browser-harness.ts",
+        "script": "migrate/canvas/.github/tests/runtime-repository-browser.mjs",
+        "validation": "Real Chromium injected adapter, rapid repository switch, stale content rejection, forged identity fail-closed, recovery",
+        "status": "PENDING_EXACT_HEAD_CI"
       }
     }
   },
