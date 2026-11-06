@@ -333,21 +333,26 @@ export class BrowserFrameService {
     const userDataDir = join(session.profilePath, "chromium");
     await mkdir(userDataDir, { recursive: true });
     await clearChromiumSingletonFiles(userDataDir);
-    const context = await chromium.launchPersistentContext(userDataDir, {
-      executablePath,
-      headless: true,
-      viewport: { width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height },
-      deviceScaleFactor: DEFAULT_VIEWPORT.deviceScaleFactor,
-      ignoreHTTPSErrors: true,
-      acceptDownloads: true,
-      args: [
-        "--disable-background-networking",
-        "--disable-gpu",
-        "--disable-dev-shm-usage",
-        "--no-default-browser-check",
-        "--no-first-run",
-      ],
-    });
+    const context = await retryChromiumNativeCrash(
+      () =>
+        chromium.launchPersistentContext(userDataDir, {
+        executablePath,
+        headless: true,
+        viewport: { width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height },
+        deviceScaleFactor: DEFAULT_VIEWPORT.deviceScaleFactor,
+        ignoreHTTPSErrors: true,
+        acceptDownloads: true,
+        args: [
+          "--disable-background-networking",
+          "--disable-gpu",
+          "--disable-dev-shm-usage",
+          "--no-default-browser-check",
+          "--no-first-run",
+        ],
+
+        }),
+      () => clearChromiumSingletonFiles(userDataDir),
+    );
     const page = context.pages()[0] ?? (await context.newPage());
     await page.setViewportSize({ width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height });
     // A newly created about:blank tab may not have a painted compositor surface.
@@ -808,7 +813,27 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function clearChromiumSingletonFiles(profilePath: string): Promise<void> {
+async /**
+ * A native Chromium SIGSEGV can terminate its process before CDP initialization.
+ * Retry at most once, only for an observed native crash, after clearing the
+ * exited process's stale singleton locks. Do not retry authorization, profile
+ * contention or other launch failures; a repeat crash remains a hard failure.
+ */
+export async function retryChromiumNativeCrash<T>(
+  launch: () => Promise<T>,
+  prepareRetry: () => Promise<void>,
+): Promise<T> {
+  try {
+    return await launch();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/Received signal 11\\b|SIGSEGV\\b/i.test(message)) throw error;
+    await prepareRetry();
+    return launch();
+  }
+}
+
+function clearChromiumSingletonFiles(profilePath: string): Promise<void> {
   await Promise.all(
     ["SingletonCookie", "SingletonLock", "SingletonSocket"].map((name) =>
       rm(join(profilePath, name), { force: true, recursive: true }),
