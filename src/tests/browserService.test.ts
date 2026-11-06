@@ -192,6 +192,65 @@ test("Chromium recovery never retries non-crash failures or an endlessly crashin
   expect(cleanups).toBe(1);
 });
 
+test("concurrent screencast subscribers await exactly one CDP startup", async () => {
+  const service = new BrowserFrameService(join(tmpdir(), "unused-screencast-test"), () => undefined);
+  let releaseEnable!: () => void;
+  const enable = new Promise<void>((resolve) => { releaseEnable = resolve; });
+  const calls: string[] = [];
+  const subscriptions: string[] = [];
+  const live = {
+    screencastStarted: false,
+    screencastStarting: null as Promise<void> | null,
+    cdp: {
+      send: async (name: string) => {
+        calls.push(name);
+        if (name === "Page.enable") await enable;
+      },
+      on: (name: string) => { subscriptions.push(name); },
+      off: (name: string) => { subscriptions.push(`off:${name}`); },
+    },
+  };
+  const internal = service as unknown as { startScreencast: (live: unknown) => Promise<void> };
+  const first = internal.startScreencast(live);
+  const second = internal.startScreencast(live);
+  expect(calls).toEqual(["Page.enable"]);
+  expect(live.screencastStarted).toBe(false);
+  releaseEnable();
+  await Promise.all([first, second]);
+  expect(calls).toEqual(["Page.enable", "Page.startScreencast"]);
+  expect(subscriptions).toEqual(["Page.screencastFrame"]);
+  expect(live.screencastStarted).toBe(true);
+  expect(live.screencastStarting).toBeNull();
+  await service.close();
+});
+
+test("failed CDP start resets the shared promise and permits exactly one retry", async () => {
+  const service = new BrowserFrameService(join(tmpdir(), "unused-screencast-test"), () => undefined);
+  let attempts = 0;
+  let listeners = 0;
+  const live = {
+    screencastStarted: false,
+    screencastStarting: null as Promise<void> | null,
+    cdp: {
+      send: async (name: string) => {
+        if (name === "Page.startScreencast" && ++attempts === 1) throw new Error("CDP startup failed");
+      },
+      on: () => { listeners++; },
+      off: () => { listeners--; },
+    },
+  };
+  const internal = service as unknown as { startScreencast: (live: unknown) => Promise<void> };
+  await expect(internal.startScreencast(live)).rejects.toThrow("CDP startup failed");
+  expect(live.screencastStarting).toBeNull();
+  expect(live.screencastStarted).toBe(false);
+  expect(listeners).toBe(0);
+  await Promise.all([internal.startScreencast(live), internal.startScreencast(live)]);
+  expect(attempts).toBe(2);
+  expect(listeners).toBe(1);
+  expect(live.screencastStarted).toBe(true);
+  await service.close();
+});
+
 function browserSession(html: string): BrowserSession {
   return {
     workspaceId: "workspace:test",
