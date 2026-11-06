@@ -76,6 +76,7 @@ export function RuntimeRepositoryProvider({
   const [loading, setLoading] = useState(!!adapter);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
+  const invalidSelection = useRef(false);
   const select = useCallback((identity: RepositoryIdentity) => {
     // Clear old repository content synchronously, before any new async load.
     if (!identity.provider || !identity.id || !identity.ref || !identity.revision) {
@@ -89,6 +90,7 @@ export function RuntimeRepositoryProvider({
       setError("Invalid repository identity.");
       return;
     }
+    invalidSelection.current = false;
     generation.current++;
     setData(null);
     setLoading(true);
@@ -110,7 +112,7 @@ export function RuntimeRepositoryProvider({
     setLoading(true);
     const active = selection;
     if (!active) {
-      setError("Select a repository to load source context.");
+      setError(invalidSelection.current ? "Invalid repository identity." : "Select a repository to load source context.");
       setLoading(false);
       return () => controller.abort();
     }
