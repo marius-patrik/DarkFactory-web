@@ -113,7 +113,7 @@ Do not advertise a unified application: only reference snapshots exist.
 | M001 historical preservation | **BLOCKED** | Source CI 77 refs PASS; fresh complete external ZIP/bundle restore of all original tips NOT RUN. |
 | M002 RSCode convergence | **BLOCKED** | Security source reconciled; Unix native installed tests PASS, Windows installed Chromium FAIL, no complete Windows PTY/graceful lifecycle; root Chromium stress FAIL. Diagnose and repair independently. |
 | M003 GHCode convergence | **FAIL** | Crash-durable private draft recovery, full all-record legacy migration/CAS, Dockview and authorized import/export missing. |
-| M004 Canvas convergence | **BLOCKED** | Injected runtime multi-repository Chromium switching / stale-leak acceptance missing. |
+| M004 Canvas convergence | **PASS (source-only)** | Real Chromium injected provider test passed at 65527c8b: stale A rejected after B selection, forged C rejected, invalid identity revocation and recovery verified; 10 context tests and 23 IndexedDB scenarios passed. |
 | M005 source snapshot integrity | **BLOCKED** | Source trees + fingerprints + licenses present; completed capability crosswalk still needs independent review and accepted/rejected asset rights disposition. |
 | M006 migration isolation | **PROVISIONAL** | Root runtime/source isolation and release path guards PASS for tested heads. Full merged-main post-merge check and required root reliability acceptance unavailable until other gates pass. |
 
@@ -149,3 +149,21 @@ Direct original-main vs PR39 tree SHA comparison after W04 edits established exa
 `src/` (`4799e20e`), `scripts/` (`270dc716`), and equal blobs for `package.json` (`debb8914`), `bun.lock` (`c815a91d`), `rsbuild.config.ts` (`5040386f`), `tsconfig.json` (`a4e1ae76`). Migration safety workflows differ intentionally. The source-only PR must continue to preserve these identities through the final merge, if ever authorized.
 
 **Final merge disposition remains CHANGES REQUIRED — NOT MERGED.** No source-only main merge, release, repository deletion, source-history rewrite, or original RSCode PR closure has been performed. No production runtime reliability fix is accepted. The new native and Canvas tests do not waive GHCode crash-durable draft or legacy migration acceptance blockers.
+
+## L. W04 exact-head Canvas and Windows regression outcomes
+
+### M004 upgraded to PASS (source-only)
+
+At `65527c8b50c11cd59ad9874a33feb33566ded4be`, [source CI #42224973977](https://github.com/marius-patrik/Wrkbench/actions/runs/42224973977) reported the Canvas job **PASS**, including exact output:
+
+`{"browser":"Chromium","adapter":"INJECTED","staleA":"REJECTED","forgedC":"REJECTED","recovery":"PASS","secondWriter":"NONE","result":"PASS"}`
+
+The same Canvas job passed 10 unit repository-context/adapter tests, 23 real Chromium IndexedDB scenarios, standalone UI smoke and complete Biome/typecheck/build. Runtime selection invalidation now clears source context and rejects pending old results. **M004 is accepted only for the isolated Canvas source, not an activated unified successor runtime.**
+
+### Windows native and Git reliability remain unaccepted
+
+At the same source snapshot [native CI #42224973771](https://github.com/marius-patrik/Wrkbench/actions/runs/42224973771) again **failed Windows**. Trying Playwright's full Chromium channel launched `chromium-1217/chrome-win64/chrome.exe` but did not establish the CDP pipe session: `persistentContext: Timeout 25000ms exceeded`. This rules out the **headless-shell binary alone** as a sufficient explanation; the cause may involve Bun's Windows Playwright process/transport, runner environment or another shared interface, and remains **unproven**. Windows executable/frontend/workspace/file/Git acceptance still passed before Chromium. The channel experiment is retained as a provisional probe, not a supported production fix. No inflated timeout or bypass.
+
+The same source run's Windows-source job had **12 PASS, 1 FAIL**: preexisting full Git discovery/status/diff integration test timed out at Bun's 5,000ms default after executing multiple child Git operations; the two newly added Windows path tests **PASS**. This intermittency was previously observed. The next source revision removes two redundant Git-config child process startups while retaining actual `.git/config` semantics; performance and behavior must be retested at exact head and the underlying reliability risk remains tracked.
+
+**Conditional merge conclusion unchanged: CHANGES REQUIRED — NOT MERGED.** Historical and GHCode P0 gates remain blocking even though M004 has independent browser evidence.
