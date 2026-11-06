@@ -810,7 +810,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async /**
+/**
  * A native Chromium SIGSEGV can terminate its process before CDP initialization.
  * Retry at most once, only for an observed native crash, after clearing the
  * exited process's stale singleton locks. Do not retry authorization, profile
@@ -830,7 +830,7 @@ export async function retryChromiumNativeCrash<T>(
   }
 }
 
-function clearChromiumSingletonFiles(profilePath: string): Promise<void> {
+async function clearChromiumSingletonFiles(profilePath: string): Promise<void> {
   await Promise.all(
     ["SingletonCookie", "SingletonLock", "SingletonSocket"].map((name) =>
       rm(join(profilePath, name), { force: true, recursive: true }),
