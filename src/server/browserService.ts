@@ -114,6 +114,7 @@ type LiveBrowser = {
   loading: boolean;
   viewport: BrowserViewport;
   screencastStarted: boolean;
+  screencastStarting: Promise<void> | null;
   lastFrame: BrowserFrameMessage | null;
   subscribers: Map<number, BrowserStreamSubscriber>;
   persistSubscriberId: number | null;
@@ -370,6 +371,7 @@ export class BrowserFrameService {
       loading: false,
       viewport: DEFAULT_VIEWPORT,
       screencastStarted: false,
+      screencastStarting: null,
       lastFrame: null,
       subscribers: new Map(),
       persistSubscriberId: null,
@@ -437,12 +439,31 @@ export class BrowserFrameService {
 
   private async startScreencast(live: LiveBrowser): Promise<void> {
     if (live.screencastStarted) return;
-    live.screencastStarted = true;
-    await live.cdp.send("Page.enable");
-    live.cdp.on("Page.screencastFrame", (event) => {
-      void this.handleScreencastFrame(live, event as ScreencastEvent);
-    });
-    await live.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+    if (live.screencastStarting) return live.screencastStarting;
+    // All subscribers must await the *same* CDP initialization, not a boolean
+    // set before Page.enable or Page.startScreencast has acknowledged.
+    const start = (async () => {
+      const onFrame = (event: unknown) => {
+        void this.handleScreencastFrame(live, event as ScreencastEvent)
+          .catch((error) => this.log(`screencast frame processing failed: ${errorMessage(error)}`));
+      };
+      try {
+        await live.cdp.send("Page.enable");
+        live.cdp.on("Page.screencastFrame", onFrame);
+        await live.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+        live.screencastStarted = true;
+      } catch (error) {
+        live.cdp.off("Page.screencastFrame", onFrame);
+        live.screencastStarted = false;
+        throw error;
+      }
+    })();
+    live.screencastStarting = start;
+    try {
+      await start;
+    } finally {
+      if (live.screencastStarting === start) live.screencastStarting = null;
+    }
   }
 
   private async captureInitialFrame(live: LiveBrowser): Promise<void> {
