@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { lookupHandler } from "@/server/api";
@@ -253,8 +253,9 @@ test("discovers git repositories and returns readonly status and diff", async ()
   const repo = await mkdtemp(join(tmpdir(), "canvas-git-"));
   try {
     await run("git", ["init"], repo);
-    await run("git", ["config", "user.email", "test@example.com"], repo);
-    await run("git", ["config", "user.name", "Test User"], repo);
+    // Preserve real Git configuration semantics without spawning two extra
+    // Windows Git processes before the 14-operation integration scenario.
+    await appendFile(join(repo, ".git", "config"), "\n[user]\n  email = test@example.com\n  name = Test User\n");
     await writeFile(join(repo, "file.txt"), "one\n");
     await run("git", ["add", "file.txt"], repo);
     await run("git", ["commit", "-m", "initial"], repo);
