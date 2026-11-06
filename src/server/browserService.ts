@@ -181,6 +181,8 @@ export class BrowserFrameService {
       handle.close();
       throw error;
     }
+  }
+
   async frameFor(session: BrowserSession): Promise<BrowserFrameMessage> {
     return new Promise((resolveFrame, rejectFrame) => {
       let settled = false;
