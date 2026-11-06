@@ -37,18 +37,31 @@ def record(name, value, detail=""):
     print(name + ": " + value + (" — " + detail if detail else ""), flush=True)
 
 def run(args, env, cwd, timeout=40):
-    result["commands"].append(" ".join(map(str, args)))
-    try:
-        completed = subprocess.run([str(x) for x in args], cwd=cwd, env=env,
-            timeout=timeout, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    except subprocess.TimeoutExpired as exc:
-        partial = exc.stdout or b""
-        if isinstance(partial, bytes):
-            partial = partial.decode(errors="replace")
-        raise RuntimeError("Installed probe timed out after " + str(timeout) + "s; last output:\\n" + partial[-6000:]) from exc
-    if completed.returncode:
-        raise RuntimeError("Process exited " + str(completed.returncode) + ": " + completed.stdout[-6000:])
-    return completed.stdout
+    command = [str(x) for x in args]
+    result["commands"].append(" ".join(command))
+    # Chromium descendants on Windows may inherit the parent's stdout PIPE
+    # handles after Bun has exited. Popen.communicate waits for pipe EOF from
+    # *all descendants*, incorrectly classifying a successful probe as hung.
+    # Redirect to a real file and wait for the actual Bun process instead.
+    with tempfile.TemporaryFile(mode="w+t", encoding="utf-8", errors="replace") as output:
+        proc = subprocess.Popen(command, cwd=cwd, env=env, stdout=output,
+            stderr=subprocess.STDOUT)
+        try:
+            code = proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            proc.kill()
+            proc.wait(timeout=5)
+            output.flush()
+            output.seek(0)
+            partial = output.read()
+            raise RuntimeError("Installed probe PID " + str(proc.pid) +
+                " timed out after " + str(timeout) + "s; last output:\\n" + partial[-6000:]) from exc
+        output.flush()
+        output.seek(0)
+        captured = output.read()
+    if code:
+        raise RuntimeError("Process exited " + str(code) + ": " + captured[-6000:])
+    return captured
 
 def api(port, name, body):
     req = Request("http://127.0.0.1:" + str(port) + "/api/" + name,
