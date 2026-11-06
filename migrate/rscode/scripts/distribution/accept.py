@@ -165,6 +165,28 @@ try:
         record("controlled_workspace_create", "BLOCKED",
             "store.ts safeAbsolute rejects Windows drive-letter paths: " + body[:300])
         workspace_id = api(port, "workspace.list", {})["activeWorkspaceId"]
+    if controlled_write:
+        sentinel_path = user_dir / "native-validation.md"
+        api(port, "fs.createFile", {"path": str(sentinel_path), "kind": "markdown"})
+        sentinel_body = "# Real native filesystem sentinel\\n"
+        api(port, "fs.writeFile", {"path": str(sentinel_path), "body": sentinel_body})
+        if api(port, "fs.readFile", {"path": str(sentinel_path)})["body"] != sentinel_body:
+            raise RuntimeError("Installed application failed to read its persisted file bytes")
+        if sentinel_path.read_text() != sentinel_body:
+            raise RuntimeError("Installed application file edits did not reach host filesystem")
+        record("controlled_file_create_and_modify", "PASS")
+        run(["git", "init", "--quiet", str(user_dir)], env, user_dir)
+        repositories = api(port, "git.repositories", {"rootPath": str(user_dir)})["repositories"]
+        matches = [repo for repo in repositories if Path(repo["rootPath"]).resolve() == user_dir.resolve()]
+        if len(matches) != 1:
+            raise RuntimeError("Installed Git repository discovery did not identify controlled root")
+        status = api(port, "git.status", {"repoPath": str(user_dir)})["status"]
+        if not any(file["path"] == sentinel_path.name for file in status["files"]):
+            raise RuntimeError("Installed Git status did not expose controlled untracked file")
+        record("controlled_git_repository_and_status", "PASS")
+    else:
+        record("controlled_file_create_and_modify", "BLOCKED", "Workspace mutation not verified")
+        record("controlled_git_repository_and_status", "BLOCKED", "Workspace mutation not verified")
     browser_env = dict(env)
     browser_env["PLAYWRIGHT_BROWSERS_PATH"] = str(installed / "browsers")
     browser_env["DEBUG"] = "pw:browser"
