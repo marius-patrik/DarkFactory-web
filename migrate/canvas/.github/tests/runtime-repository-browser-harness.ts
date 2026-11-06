@@ -42,6 +42,7 @@ function Harness() {
     createElement("button", { id: "repo-a", onClick: () => select(A) }, "Repository A"),
     createElement("button", { id: "repo-b", onClick: () => select(B) }, "Repository B"),
     createElement("button", { id: "repo-forged", onClick: () => select(FORGED) }, "Forged repository"),
+    createElement("button", { id: "repo-invalid", onClick: () => select({ ...A, id: "" }) }, "Invalid identity"),
     createElement("output", { id: "selected" }, selection?.id ?? "none"),
     createElement("output", { id: "loading" }, String(loading)),
     createElement("output", { id: "source" }, context?.documents.map((doc) => doc.content).join("\n") ?? ""),
