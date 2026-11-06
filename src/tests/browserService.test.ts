@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type BrowserFrameMessage, BrowserFrameService, type BrowserStateMessage } from "@/server/browserService";
+import { type BrowserFrameMessage, BrowserFrameService, type BrowserStateMessage, retryChromiumNativeCrash } from "@/server/browserService";
 import type { BrowserSession } from "@/shared/schema";
 
 let tempRoot = "";
@@ -156,6 +156,41 @@ test(
   },
   20_000,
 );
+
+test("native Chromium SIGSEGV during launch retries once after profile cleanup", async () => {
+  let launches = 0;
+  let cleanups = 0;
+  const value = await retryChromiumNativeCrash(
+    async () => {
+      launches++;
+      if (launches === 1) throw new Error("persistentContext: browser closed [pid][err] Received signal 11 SI_KERNEL");
+      return "recovered";
+    },
+    async () => { cleanups++; },
+  );
+  expect(value).toBe("recovered");
+  expect(launches).toBe(2);
+  expect(cleanups).toBe(1);
+});
+
+test("Chromium recovery never retries non-crash failures or an endlessly crashing process", async () => {
+  let launches = 0;
+  let cleanups = 0;
+  await expect(retryChromiumNativeCrash(async () => {
+    launches++;
+    throw new Error("Profile is in use by another Chromium process");
+  }, async () => { cleanups++; })).rejects.toThrow("Profile is in use");
+  expect(launches).toBe(1);
+  expect(cleanups).toBe(0);
+
+  launches = 0;
+  await expect(retryChromiumNativeCrash(async () => {
+    launches++;
+    throw new Error("persistentContext: Received signal 11 SIGSEGV");
+  }, async () => { cleanups++; })).rejects.toThrow("Received signal 11");
+  expect(launches).toBe(2);
+  expect(cleanups).toBe(1);
+});
 
 function browserSession(html: string): BrowserSession {
   return {
