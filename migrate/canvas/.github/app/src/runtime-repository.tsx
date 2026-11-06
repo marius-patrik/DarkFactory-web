@@ -79,7 +79,13 @@ export function RuntimeRepositoryProvider({
   const select = useCallback((identity: RepositoryIdentity) => {
     // Clear old repository content synchronously, before any new async load.
     if (!identity.provider || !identity.id || !identity.ref || !identity.revision) {
+      // Invalid selections are still revocation boundaries. Without advancing
+      // the generation and clearing the old selection, an outstanding request
+      // could repopulate private content after the error was displayed.
+      generation.current++;
       setData(null);
+      setSelection(null);
+      setLoading(false);
       setError("Invalid repository identity.");
       return;
     }
