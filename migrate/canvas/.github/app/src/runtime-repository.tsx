@@ -83,6 +83,7 @@ export function RuntimeRepositoryProvider({
       // Invalid selections are still revocation boundaries. Without advancing
       // the generation and clearing the old selection, an outstanding request
       // could repopulate private content after the error was displayed.
+      invalidSelection.current = true;
       generation.current++;
       setData(null);
       setSelection(null);
