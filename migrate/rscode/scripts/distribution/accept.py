@@ -38,10 +38,16 @@ def record(name, value, detail=""):
 
 def run(args, env, cwd, timeout=40):
     result["commands"].append(" ".join(map(str, args)))
-    completed = subprocess.run([str(x) for x in args], cwd=cwd, env=env,
-        timeout=timeout, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        completed = subprocess.run([str(x) for x in args], cwd=cwd, env=env,
+            timeout=timeout, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    except subprocess.TimeoutExpired as exc:
+        partial = exc.stdout or b""
+        if isinstance(partial, bytes):
+            partial = partial.decode(errors="replace")
+        raise RuntimeError("Installed probe timed out after " + str(timeout) + "s; last output:\\n" + partial[-6000:]) from exc
     if completed.returncode:
-        raise RuntimeError("Process exited " + str(completed.returncode) + ": " + completed.stdout[-2500:])
+        raise RuntimeError("Process exited " + str(completed.returncode) + ": " + completed.stdout[-6000:])
     return completed.stdout
 
 def api(port, name, body):
@@ -148,6 +154,7 @@ try:
         workspace_id = api(port, "workspace.list", {})["activeWorkspaceId"]
     browser_env = dict(env)
     browser_env["PLAYWRIGHT_BROWSERS_PATH"] = str(installed / "browsers")
+    browser_env["DEBUG"] = "pw:browser"
     run([binary, installed / "bin" / "browser-probe.ts", "first"], browser_env, user_dir, 70)
     record("bundled_chromium_and_first_browser_profile", "PASS")
     if os.name == "nt":
