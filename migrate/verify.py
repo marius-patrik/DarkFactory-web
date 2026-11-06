@@ -70,8 +70,8 @@ def main() -> int:
     native_workflow = (ROOT / ".github/workflows/migration-native-distribution.yml").read_text(encoding="utf-8")
     require("pull_request:" in native_workflow and "permissions:\n  contents: read" in native_workflow
             and "\"migrate/rscode/**\"" in native_workflow
-            and not re.search(r"(?m)^\\s*(?:push|workflow_dispatch|pages|id-token):\\s*", native_workflow)
-            and not re.search(r"(?im)\\b(?:gh release|npm publish|bun publish|deploy-pages)\\b", native_workflow),
+            and not re.search(r"(?m)^\s*(?:push|workflow_dispatch|pages|id-token):\s*", native_workflow)
+            and not re.search(r"(?im)\b(?:gh release|npm publish|bun publish|deploy-pages)\b", native_workflow),
             "native acceptance workflow stays PR-only, read-only and nonpublishing", errors)
     original_release = git("show", f"{root_baseline}:.github/workflows/release.yml").stdout
     expected_release = original_release.replace(
