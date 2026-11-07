@@ -13,13 +13,13 @@ export class BrowserFiles{
  private readonly listeners=new Set<(event:FileChange)=>void>();
  private connect():Promise<IDBDatabase>{
   if(this.pending)return this.pending;
-  this.pending=new Promise((resolve,reject)=>{
+  this.pending=new Promise<IDBDatabase>((resolve,reject)=>{
    const req=indexedDB.open(this.dbName,3);
    req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('files'))db.createObjectStore('files',{keyPath:'path'})};
    req.onsuccess=()=>{req.result.onversionchange=()=>{req.result.close();this.pending=null};resolve(req.result)};
    req.onerror=()=>reject(req.error??new Error('IndexedDB unavailable'));
   }).catch(e=>{this.pending=null;throw e});
-  return this.pending;
+  return this.pending!;
  }
  subscribe(listener:(event:FileChange)=>void){
   this.listeners.add(listener);

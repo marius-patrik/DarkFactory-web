@@ -5,6 +5,7 @@ import {useUI,RUNTIMES,resolvedContext} from '../../../packages/client/src/state
 import {Icon} from '../../../packages/ui/src/icons.tsx';
 import {notify,tools,invocationContext,openPluginView} from '../../../packages/client/src/services.ts';
 import {ToolbarButton,ViewToolbar} from '../../../packages/ui/src/components.tsx';
+const EMPTY_AGENT_MESSAGES:ReadonlyArray<{id:string;role:string;text:string;time:number}>=[];
 export function AgentView({id}:{id:string}){
  const messages=useUI(s=>s.agentSessions[id]??EMPTY_AGENT_MESSAGES),append=useUI(s=>s.appendAgent),clear=useUI(s=>s.clearAgent);
  const [input,setInput]=useState(''),[backend,setBackend]=useState('Codex'),[model,setModel]=useState('gpt-6');const end=useRef<HTMLDivElement>(null);
