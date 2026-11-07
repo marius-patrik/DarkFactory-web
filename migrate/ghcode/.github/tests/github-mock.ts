@@ -164,6 +164,7 @@ export type GithubMock = {
     writes: string[];
   };
   setRemoteHead: (sha: string) => void;
+  failAfterConditionalMutationOnce: () => void;
 };
 
 export async function installGithubMock(page: Page): Promise<GithubMock> {
@@ -173,8 +174,10 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
     writes: [] as string[],
   };
   let createdBlob = 0;
+  const createdBlobs = new Map<string, string>();
   let createdTree = 0;
   let createdCommit = 0;
+  let failAfterMutationOnce = false;
   const trees = new Map<string, ReturnType<typeof tree>>();
   trees.set(BASE_TREE, tree(BASE_TREE));
   const commits = new Map<string, ReturnType<typeof commit>>();
@@ -197,6 +200,34 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
         variables?: Record<string, unknown>;
       };
       const query = body.query || "";
+      if (query.includes("PushRepositoryIdentity")) {
+        return json(route, { data: { repository: { id: "R_mock_42" } } });
+      }
+      if (query.includes("ConditionalPushRefs")) {
+        const variables = body.variables as {
+          input?: { repositoryId?: string; refUpdates?: Array<{
+            name?: string; beforeOid?: string; afterOid?: string; force?: boolean;
+          }> };
+        } | undefined;
+        const updates = variables?.input?.refUpdates;
+        const update = updates?.[0];
+        if (variables?.input?.repositoryId !== "R_mock_42" ||
+            updates?.length !== 1 ||
+            update?.name !== "refs/heads/main" ||
+            update?.beforeOid !== state.remoteHead ||
+            update?.force !== false ||
+            !/^[a-f0-9]{40}$/.test(update.afterOid ?? "")) {
+          return json(route, { errors: [{ message: "beforeOid mismatch or invalid ref update" }] });
+        }
+        state.remoteHead = update.afterOid as string;
+        state.pushed = true;
+        state.writes.push("graphql-ref-cas");
+        if (failAfterMutationOnce) {
+          failAfterMutationOnce = false;
+          return json(route, { message: "Remote ref changed but acknowledgment was lost" }, 503);
+        }
+        return json(route, { data: { updateRefs: { clientMutationId: null } } });
+      }
       if (query.includes("RepositoryProjects")) {
         return json(route, { data: { repository: { projectsV2: { nodes: [project] } } } });
       }
@@ -302,16 +333,30 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
       });
     }
 
+    if (path.startsWith(`/repos/${MOCK_REPOSITORY}/git/blobs/`) && method === "GET") {
+      const sha = decodeURIComponent(path.split("/").at(-1) ?? "");
+      const blob = createdBlobs.get(sha);
+      if (blob !== undefined) {
+        return json(route, { encoding: "base64", content: btoa(blob) });
+      }
+    }
+
     if (path === `/repos/${MOCK_REPOSITORY}/git/blobs` && method === "POST") {
+      const body = request.postDataJSON() as { content?: string; encoding?: string };
+      if (typeof body.content !== "string" || !["utf-8", "base64"].includes(body.encoding ?? "utf-8")) {
+        return json(route, { message: "Invalid blob creation" }, 422);
+      }
       createdBlob += 1;
       state.writes.push("blob");
-      return json(route, { sha: `created-blob-${createdBlob}` }, 201);
+      const sha = createdBlob.toString(16).padStart(40, "b");
+      createdBlobs.set(sha, body.encoding === "base64" ? atob(body.content) : body.content);
+      return json(route, { sha }, 201);
     }
 
     if (path === `/repos/${MOCK_REPOSITORY}/git/trees` && method === "POST") {
       createdTree += 1;
       state.writes.push("tree");
-      const sha = `created-tree-${createdTree}`;
+      const sha = createdTree.toString(16).padStart(40, "d");
       trees.set(sha, tree(sha));
       return json(route, { sha, tree: tree(sha).tree }, 201);
     }
@@ -320,20 +365,14 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
       createdCommit += 1;
       state.writes.push("commit");
       const body = request.postDataJSON() as { message?: string; tree?: string };
-      const sha = `created-commit-${createdCommit}`;
+      const sha = createdCommit.toString(16).padStart(40, "c");
       commits.set(sha, commit(sha, body.tree || BASE_TREE, body.message || "Local commit"));
       return json(route, { sha, tree: { sha: body.tree || BASE_TREE } }, 201);
     }
 
+    // REST ref mutation is intentionally rejected: only GraphQL exact beforeOid CAS is allowed.
     if (path === `/repos/${MOCK_REPOSITORY}/git/refs/heads/main` && method === "PATCH") {
-      const body = request.postDataJSON() as { sha: string };
-      state.remoteHead = body.sha;
-      state.pushed = true;
-      state.writes.push("ref-update");
-      return json(route, {
-        ref: "refs/heads/main",
-        object: { sha: state.remoteHead, type: "commit", url: "https://api.github.com/mock" },
-      });
+      return json(route, { message: "Unsafe REST ref write disabled" }, 409);
     }
 
     if (path === `/repos/${MOCK_REPOSITORY}/issues` && method === "GET") {
@@ -403,6 +442,9 @@ export async function installGithubMock(page: Page): Promise<GithubMock> {
     setRemoteHead(sha: string) {
       state.remoteHead = sha;
       commits.set(sha, commit(sha, BASE_TREE, "Remote divergence"));
+    },
+    failAfterConditionalMutationOnce() {
+      failAfterMutationOnce = true;
     },
   };
 }

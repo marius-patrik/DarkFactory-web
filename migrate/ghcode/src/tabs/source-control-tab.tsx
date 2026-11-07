@@ -177,10 +177,10 @@ export function SourceControlTab() {
               !workspace.commits.length ||
               !workspace.token ||
               !branchWorkspace ||
-              Boolean(diverged)
+              (Boolean(diverged) && !workspace.pendingPush)
             }
             onClick={() => void run(workspace.pushLocalCommits)}
-            title="Push local commits"
+            title={workspace.pendingPush ? "Retry recorded push safely" : "Push local commits"}
           >
             <Upload size={12} />
           </button>
@@ -251,6 +251,36 @@ export function SourceControlTab() {
           Remote moved from {workspace.workspace.baseSha.slice(0, 7)} to{" "}
           {workspace.remoteHeadSha?.slice(0, 7)}. Push is blocked until explicit sync.
         </div>
+      )}
+      {workspace.pendingPush && (
+        <section className="scm-warning" role="status" aria-label="Unresolved push">
+          <strong>Unresolved push · {workspace.pendingPush.phase}</strong>
+          <p>{workspace.pendingPush.reason}</p>
+          <dl>
+            <dt>Expected remote revision</dt>
+            <dd><code>{workspace.pendingPush.expectedRemoteSha}</code></dd>
+            <dt>Last observed remote revision</dt>
+            <dd><code>{workspace.pendingPush.observedRemoteSha ?? "Not yet inspected"}</code></dd>
+            <dt>Intended target revision</dt>
+            <dd><code>{workspace.pendingPush.intendedTargetSha ?? "Remote objects not prepared"}</code></dd>
+            <dt>Unpublished local commits</dt>
+            <dd>{workspace.pendingPush.localCommitIds.length}</dd>
+          </dl>
+          <p>Local commits remain preserved. No force push or automatic merge is performed.</p>
+          <div className="scm-change-actions">
+            <button type="button" disabled={busy} onClick={() => void run(workspace.refreshWorkspace)}>
+              Inspect remote
+            </button>
+            <button type="button" disabled={busy || !workspace.token}
+              onClick={() => void run(workspace.pushLocalCommits)}>
+              Retry recorded push safely
+            </button>
+            <button type="button" disabled={busy || !workspace.commits.length}
+              onClick={() => void run(() => workspace.exportPatch("commits"))}>
+              Export unpublished commits
+            </button>
+          </div>
+        </section>
       )}
       {localError && <div className="explorer-error">{localError}</div>}
       <div className="scm-commit-box">

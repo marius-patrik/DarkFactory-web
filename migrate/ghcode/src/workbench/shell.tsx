@@ -23,6 +23,7 @@ import { isPublicReviewPreview } from "@/github/auth";
 import { useFactory, type FactoryConcern } from "@/factory/context";
 import { useWorkbenchSettings, type AppearanceMode } from "@/settings";
 import { useWorkspace } from "@/workspace/context";
+import { documentService } from "@/workspace/document-service";
 import { useWorkbenchShortcuts } from "./commands";
 import type {
   PersistedWorkbench,
@@ -212,6 +213,16 @@ export function WorkbenchShell() {
     document.documentElement.dataset.theme = settings.theme;
     persist(settings.theme);
   }, [persist, settings.theme]);
+
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!documentService.hasAnyUnacknowledgedChanges()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, []);
 
   useEffect(() => {
     const handleResize = () =>
@@ -423,6 +434,12 @@ export function WorkbenchShell() {
       const found = locate(id);
       const tab = found ? paramsOf(found.panel) : null;
       if (!found || !tab || tab.pinned) return;
+      try {
+        documentService.assertSafeToNavigate();
+      } catch (reason) {
+        window.alert(reason instanceof Error ? reason.message : String(reason));
+        return;
+      }
       found.api.removePanel(found.panel);
       persist();
     },
