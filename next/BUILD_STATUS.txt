@@ -1,0 +1,18 @@
+Wrkbench React 19 / Cordis / Dockview source — build verification record
+Generated: 2026-11-07
+
+COMPLETED IN THIS ENVIRONMENT:
+- Source authored to import actual React 19, Cordis 4, Dockview 8, Monaco, xterm and Radix libraries.
+- All 31 Cordis feature package registration entries present.
+- Node source-structure test suite: 5 passed, 0 failed.
+- TypeScript AST syntax parse (global TypeScript): 43 TS/TSX files, 0 parse diagnostics.
+- Source and specification files packaged into ZIP.
+
+NOT PERFORMED:
+- bun install (Bun executable unavailable; npm registry DNS not reachable).
+- Real dependency-resolved TypeScript typecheck.
+- Rsbuild production bundle.
+- Actual HTTP browser boot / UI acceptance / regression tests.
+- Compiled self-contained HTML file.
+
+Generating a new standalone HTML file by copying the previous React16 prototype would be misleading, so no such output is included. The real single HTML must be built from installed dependencies with `bun run build:single` and inspected before being treated as verified.

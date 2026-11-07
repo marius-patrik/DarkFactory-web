@@ -1,0 +1,8 @@
+import React from 'react';
+import * as Tooltip from '@radix-ui/react-tooltip';
+import {createRoot} from 'react-dom/client';
+import 'dockview-react/dist/styles/dockview.css';
+import '@xterm/xterm/css/xterm.css';
+import './styles.css';
+import {App} from './App.tsx';
+const root=document.getElementById('root');if(!root)throw new Error('Missing root element');createRoot(root).render(<React.StrictMode><Tooltip.Provider delayDuration={420}><App/></Tooltip.Provider></React.StrictMode>);

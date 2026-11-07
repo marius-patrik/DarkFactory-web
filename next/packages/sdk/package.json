@@ -1,0 +1,13 @@
+{
+  "name": "@wrkbench/sdk",
+  "version": "0.3.0-alpha.1",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "cordis": "4.0.0-rc.12",
+    "zod": "^4.3.6",
+    "@wrkbench/core": "workspace:*"
+  }
+}
