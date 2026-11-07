@@ -167,3 +167,32 @@ At the same source snapshot [native CI #42224973771](https://github.com/marius-p
 The same source run's Windows-source job had **12 PASS, 1 FAIL**: preexisting full Git discovery/status/diff integration test timed out at Bun's 5,000ms default after executing multiple child Git operations; the two newly added Windows path tests **PASS**. This intermittency was previously observed. The next source revision removes two redundant Git-config child process startups while retaining actual `.git/config` semantics; performance and behavior must be retested at exact head and the underlying reliability risk remains tracked.
 
 **Conditional merge conclusion unchanged: CHANGES REQUIRED — NOT MERGED.** Historical and GHCode P0 gates remain blocking even though M004 has independent browser evidence.
+
+
+## L. November 7 source-track reconciliation and four-platform native acceptance
+
+**Exact W04 integration candidate:** `4fe4b0fc6583b71ef40e9a7d1ffcff7a067b1230`. This continues owner-controlled migration PR #39 without changing production `main` or the separate `pmarius/wrkbench-pages-react19` branch. Three source tracks remain committed and their current selected subtrees match the merged integration branch exactly: `sources/rscode` → `migrate/rscode`, `sources/canvas` → `migrate/canvas`, `sources/ghcode` → `migrate/ghcode`.
+
+### Functional reconciliation of closed RSCode PRs
+
+- **RSC-03 (#25)**: exact-origin privileged local HTTP and WebSocket security, Chromium file/browser protections, resource cleanup, concurrency regressions and existing acceptance tests preserved in `migrate/rscode`; original commit `65331558` remains in source-track ancestry. Closed original PR is not a production deployment.
+- **RSC-05 (#28)**: extracted native Bun/Chromium distribution, provenance, archive hashes, OS runners and host-installed acceptance retained. Windows path and Git containment corrected in W04; Bun **1.4.4** now runs the Windows native package to avoid the documented Bun 1.3 Playwright Chromium CDP-pipe problem, whereas Unix native CI retains pinned Bun 1.3.11. Original distribution commit `6ed334bc` remains reachable.
+- **RSC-ROOT (#40)**: bounded one-time `SIGSEGV` Chromium startup retry was incorporated into `migrate/rscode` along with two new unit tests; the root fix commit `e278e964` is now an explicit ancestor of the canonical source branch. Existing source single-flight Chromium logic remains authoritative. This does **not** establish that the old active-root blank-frame stress failure is fixed.
+- **Windows ConPTY**: migrated RSCode now starts `ComSpec`/cmd.exe rather than `/bin/bash` on Windows; distribution acceptance verifies actual terminal command execution (not echoed input), then browser startup. Native host process is started in its own Windows process group, receives `CTRL_BREAK_EVENT`, and the Bun server handles `SIGBREAK` to shut down cleanly. Host tests check service log, port reuse, stop/restart, workspace and browser persistence.
+
+### Executable exact-head evidence
+
+| Workflow | Result |
+| --- | --- |
+| [Migration Source Verification #42386215075](https://github.com/marius-patrik/Wrkbench/actions/runs/42386215075) | **PASS** |
+| [Root Verify #42386215039](https://github.com/marius-patrik/Wrkbench/actions/runs/42386215039) | **PASS** |
+| [DarkFactory Runtime #42386215422](https://github.com/marius-patrik/Wrkbench/actions/runs/42386215422) | **PASS** |
+| [Four-OS migrated RSCode native acceptance #42386215082](https://github.com/marius-patrik/Wrkbench/actions/runs/42386215082) | **PASS all four host-native jobs** |
+
+The actual Windows installed-payload log shows `controlled_workspace_create`, `controlled_file_create_and_modify`, `controlled_git_repository_and_status`, `terminal_pty`, `bundled_chromium_and_first_browser_profile`, `graceful_shutdown`, `browser_profile_persistence`, and `shutdown_and_port_reuse` all **PASS**. Real Windows runner use is demonstrated, not inferred from source tests.
+
+**NOT CLAIMED:** signed/notarized native releases, independent cross-run bytewise reproducibility, a production root Chromium stress fix, GHCode lossless legacy migration, durable account-scoped drafts or exhaustive Dockview lifecycle. These remain separate integration/release blockers. The migration PR must remain draft until those P0 contracts are accepted.
+
+### Branch convergence
+
+The original RSCode security, native distribution and root Chromium PR commit tips are all reachable through `sources/rscode`, and that source branch is a merge ancestor of the integration branch. The three source directory hashes match exactly. Once the above acceptance evidence and source-provenance DAG are retained, the original `agent/rscode-03-security-acceptance`, `agent/rscode-05-native-distribution`, `fix/root-chromium-native-crash-recovery`, and three `sources/*` remote branch pointers are redundant and may be deleted without deleting their commit objects; the connected GitHub action lacks a ref-deletion operation. The unrelated `pmarius/wrkbench-pages-react19` branch must not be touched. A new unrelated `agent/wrkbench-native-client-architecture` ref was observed from concurrent work after this reconciliation and must not be deleted without its independent ownership and incorporation being reviewed.
