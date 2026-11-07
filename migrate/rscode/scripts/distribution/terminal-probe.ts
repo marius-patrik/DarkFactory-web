@@ -7,7 +7,12 @@ const result = await new Promise<string>((resolve, reject) => {
   const ws = new WebSocket(url);
   let output = "";
   const timeout = setTimeout(() => { ws.close(); reject(new Error(`Terminal timeout: ${output.slice(-500)}`)); }, 12000);
-  ws.onopen = () => ws.send(JSON.stringify({ type: "input", data: "printf 'RSCODE_NATIVE_%s\\n' TERMINAL_OK\nexit\n" }));
+  // Split the marker in the input so a terminal that merely echoes the
+  // command cannot pass acceptance without executing it.
+  const input = process.platform === "win32"
+    ? "set RSCODE_NATIVE_TERMINAL_SPLIT=\\r\\necho RSCODE_NATIVE_%RSCODE_NATIVE_TERMINAL_SPLIT%TERMINAL_OK\\r\\nexit\\r\\n"
+    : "printf 'RSCODE_NATIVE_%s\\\\n' TERMINAL_OK\\nexit\\n";
+  ws.onopen = () => ws.send(JSON.stringify({ type: "input", data: input }));
   ws.onmessage = (event) => {
     output += String(event.data);
     if (output.includes(marker)) {
