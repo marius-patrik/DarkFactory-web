@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { lookupHandler } from "@/server/api";
@@ -51,6 +51,28 @@ test("creating an existing file never destroys its contents", async () => {
   const created = join(canvasHome, "new.md");
   expect(await createFsFile(created, "markdown")).toBe(created);
   expect(await readFile(created, "utf8")).toBe("# untitled\n");
+});
+
+test("workspace creation accepts host-native absolute paths, including Windows drive roots", async () => {
+  const store = new CanvasStore();
+  await store.ensureInitialized();
+  const created = await store.createWorkspace({ label: "Native workspace", rootPath: canvasHome });
+  expect(created.rootPath).toBe(canvasHome);
+  expect((await store.getWorkspace(created.id)).rootPath).toBe(canvasHome);
+});
+
+test("Git staging rejects Windows drive, UNC and relative drive traversal on every host", async () => {
+  const store = new CanvasStore();
+  for (const path of [
+    "C:\\outside\\secret.txt",
+    "D:relative.txt",
+    "\\\\server\\share\\secret.txt",
+    "/etc/passwd",
+    "../escape.txt",
+    "..\\escape.txt",
+  ]) {
+    await expect(store.stageGitPath(canvasHome, path)).rejects.toThrow(/repository-relative/);
+  }
 });
 
 test("workspace persistence produces valid JSON without orphan temporary writes", async () => {
@@ -231,8 +253,9 @@ test("discovers git repositories and returns readonly status and diff", async ()
   const repo = await mkdtemp(join(tmpdir(), "canvas-git-"));
   try {
     await run("git", ["init"], repo);
-    await run("git", ["config", "user.email", "test@example.com"], repo);
-    await run("git", ["config", "user.name", "Test User"], repo);
+    // Preserve real Git configuration semantics without spawning two extra
+    // Windows Git processes before the 14-operation integration scenario.
+    await appendFile(join(repo, ".git", "config"), "\n[user]\n  email = test@example.com\n  name = Test User\n");
     await writeFile(join(repo, "file.txt"), "one\n");
     await run("git", ["add", "file.txt"], repo);
     await run("git", ["commit", "-m", "initial"], repo);

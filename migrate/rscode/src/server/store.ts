@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, win32 } from "node:path";
 import { browserStoredUrl } from "@/shared/browser";
 import { getPaths } from "@/shared/paths";
 import {
@@ -67,7 +67,9 @@ function safeAbsolute(absPath: string): string {
     throw new Error("path must be a non-empty string");
   }
   const normalized = resolve(absPath);
-  if (!normalized.startsWith("/")) {
+  // A Windows drive-letter or UNC path is absolute even though it does not
+  // begin with "/". Validate using the host platform rather than POSIX syntax.
+  if (!isAbsolute(normalized)) {
     throw new Error(`expected absolute path, got: ${absPath}`);
   }
   return normalized;
@@ -624,7 +626,8 @@ async function discoverGitRepositories(root: string, depth: number): Promise<str
 }
 
 function checkedGitPath(path: string): string {
-  if (!path.trim() || path.startsWith("/") || path.includes(String.fromCharCode(0)) || path.split(/[\\/]/).includes("..")) {
+  if (!path.trim() || isAbsolute(path) || win32.isAbsolute(path) || /^[a-zA-Z]:/.test(path) ||
+      path.includes(String.fromCharCode(0)) || path.split(/[\\/]/).includes("..")) {
     throw new Error("Git file path must be repository-relative and cannot traverse parents");
   }
   return path;
