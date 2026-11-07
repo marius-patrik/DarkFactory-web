@@ -19,7 +19,7 @@
       "originalSHA": "39341ce5f8459b834c8e20b5227c25980078a87e",
       "reconciliationSourceSHA": "0e797adca5315e859d61e216d8a763f2920c39fc",
       "additionalSourceSHA": "6ed334bcad6e89a1837c299937c4c50207904541",
-      "snapshotTreeSHA": "c93f7db8c44e2c75d8b9c1c78f1d01131ca6d07f",
+      "snapshotTreeSHA": "b7dcab0889a5217e8096ab3a3ce62185a27b084c",
       "expectedOwner": "DarkFactory-web unified local provider",
       "acceptedChanges": [
         "RSC-03 exact-origin loopback security code and tests from existing verified integration tree",
@@ -36,7 +36,8 @@
         "W04: real Windows source job at 65527c8b failed old 5s Git discovery/status/diff integration test (12/13 tests passed). Eliminated two redundant `git config` subprocess startups from fixture while retaining real Git config in .git/config; exact-head retest pending.",
         "2026-11-07 source reconciliation: bounded one-shot Chromium SIGSEGV startup retry imported from root PR #40; source tests added. This does not fix intermittent blank frames.",
         "2026-11-07 Windows native test path uses Bun 1.4.4 to address upstream Bun 1.3 Windows Playwright remote-debugging-pipe startup failure; exact-head four-OS validation required.",
-        "2026-11-07: Windows direct PTY now uses ComSpec/cmd.exe ConPTY with Bun 1.4.4, extracted native tests exercise terminal before browser; test evidence pending."
+        "2026-11-07: Windows direct PTY now uses ComSpec/cmd.exe ConPTY with Bun 1.4.4, extracted native tests exercise terminal before browser; test evidence pending.",
+        "Windows real native ConPTY smoke found that CMD leaves an undefined %VARIABLE% token unexpanded; test harness corrected to assign non-empty variable before echo. Re-execute full OS acceptance."
       ],
       "knownUnresolved": [
         "Windows path/UNC/PTTY/Chromium acceptance",
@@ -71,7 +72,7 @@
       },
       "w04SourceDelta": {
         "codeHeadSHA": "4ecdfa612d3ed4a46eb91f3e6bf72e13d9105fcc",
-        "snapshotTreeSHA": "c93f7db8c44e2c75d8b9c1c78f1d01131ca6d07f",
+        "snapshotTreeSHA": "b7dcab0889a5217e8096ab3a3ce62185a27b084c",
         "changedFiles": [
           "src/server/store.ts",
           "src/tests/store.test.ts",
@@ -81,7 +82,7 @@
           "scripts/distribution/accept.py",
           "src/tests/store.test.ts"
         ],
-        "testState": "PENDING_EXACT_HEAD_NATIVE_4OS_BUN_1_4_4_AND_CONPTY_TEST",
+        "testState": "PENDING_NATIVE_WINDOWS_CONPTY_RECHECK_AT_NEW_SOURCE",
         "limitations": [
           "Windows source suite not yet verified",
           "Native four-OS extracted distribution acceptance not run",
