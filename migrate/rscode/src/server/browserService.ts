@@ -408,7 +408,7 @@ export class BrowserFrameService {
       throw new Error("Chromium user-data directory resolves outside browser profiles");
     }
     await clearChromiumSingletonFiles(userDataDir);
-    const context = await chromium.launchPersistentContext(userDataDir, {
+    const launch = () => chromium.launchPersistentContext(userDataDir, {
       executablePath,
       headless: true,
       viewport: { width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height },
@@ -424,6 +424,7 @@ export class BrowserFrameService {
         "--no-first-run",
       ],
     });
+    const context = await retryChromiumNativeCrash(launch, () => clearChromiumSingletonFiles(userDataDir));
     try {
       const page = context.pages()[0] ?? (await context.newPage());
       await page.setViewportSize({ width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height });
@@ -941,6 +942,25 @@ function validBase64(value: string): boolean {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * One bounded retry for confirmed native SIGSEGV during Chromium process launch.
+ * No retry for profile contention, permissions, ordinary CDP timeout, or cancel.
+ * Does not claim to fix unrelated flaky blank-page CDP frame capture.
+ */
+export async function retryChromiumNativeCrash<T>(
+  launch: () => Promise<T>,
+  prepareRetry: () => Promise<void>,
+): Promise<T> {
+  try {
+    return await launch();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/Received signal 11\b|SIGSEGV\b/i.test(message)) throw error;
+    await prepareRetry();
+    return launch();
+  }
 }
 
 async function clearChromiumSingletonFiles(profilePath: string): Promise<void> {

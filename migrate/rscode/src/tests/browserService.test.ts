@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type BrowserFrameMessage, BrowserFrameService, type BrowserStateMessage } from "@/server/browserService";
+import { type BrowserFrameMessage, BrowserFrameService, type BrowserStateMessage, retryChromiumNativeCrash } from "@/server/browserService";
 import type { BrowserSession } from "@/shared/schema";
 
 let tempRoot = "";
@@ -157,6 +157,38 @@ test(
   20_000,
 );
 
+
+test("native Chromium SIGSEGV startup retries exactly once after cleanup", async () => {
+  let launches = 0;
+  let cleanups = 0;
+  const result = await retryChromiumNativeCrash(async () => {
+    launches++;
+    if (launches === 1) throw new Error("Chromium process Received signal 11 SIGSEGV");
+    return "ready";
+  }, async () => { cleanups++; });
+  expect(result).toBe("ready");
+  expect(launches).toBe(2);
+  expect(cleanups).toBe(1);
+});
+
+test("native Chromium recovery never retries unrelated failures or repeats an observed crash", async () => {
+  let launches = 0;
+  let cleanups = 0;
+  await expect(retryChromiumNativeCrash(async () => {
+    launches++;
+    throw new Error("Chromium profile is owned by another process");
+  }, async () => { cleanups++; })).rejects.toThrow("profile is owned");
+  expect(launches).toBe(1);
+  expect(cleanups).toBe(0);
+
+  launches = 0;
+  await expect(retryChromiumNativeCrash(async () => {
+    launches++;
+    throw new Error("Chromium Received signal 11 SIGSEGV");
+  }, async () => { cleanups++; })).rejects.toThrow("SIGSEGV");
+  expect(launches).toBe(2);
+  expect(cleanups).toBe(1);
+});
 
 test(
   "disconnected browser streams release orphan Chromium contexts",
