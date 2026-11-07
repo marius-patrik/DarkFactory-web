@@ -30,5 +30,20 @@ jobs:
       - name: Build React 19, Cordis and Dockview
         working-directory: next
         run: bun run build
+      - name: Install Chromium for real HTTP browser acceptance
+        working-directory: next
+        run: bunx playwright install --with-deps chromium
+      - name: Test the running app through HTTP
+        working-directory: next
+        run: bun run test:e2e
+      - name: Preserve browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wrkbench-architecture-playwright
+          path: |
+            next/test-results
+            next/playwright-report
+          if-no-files-found: ignore
       - name: Verify deployment entrypoint
         run: test -s next/dist/index.html
