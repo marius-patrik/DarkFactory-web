@@ -23,7 +23,9 @@ test('Dockview is actual layout owner',()=>{
  assert.match(source,/api\.toJSON/);
  assert.match(source,/closeEmptyGroups=\{false\}/);
  assert.match(source,/getTabContextMenuItems/);
- assert.match(source,/layoutHistory=\{\{enabled:true\}\}/);
+ assert.doesNotMatch(source,/layoutHistory=\\{\\{enabled:true\\}\\}/);
+ assert.doesNotMatch(source,/keyboardNavigation=\\{true\\}/);
+ assert.match(source,/DockLayoutHistory/);
  assert.doesNotMatch(source,/class\s+(CustomDock|FakeDock|TabTree)/);
 });
 test('Cordis owns plugin lifecycle and feature registry',()=>{
@@ -58,4 +60,34 @@ test('single-file step demands a genuine Rsbuild bundle',()=>{
  assert.match(source,/Standalone HTML contains external/);
  assert.match(read('rsbuild.config.ts'),/inlineScripts:\s*inline/);
  assert.match(read('rsbuild.config.ts'),/inlineStyles:\s*inline/);
+});
+
+test('every feature owns an actual renderer instead of shell renderer switch',()=>{
+ const app=read('apps/web/src/App.tsx');
+ assert.match(app,/catalog\.getView\(kind\)/);
+ assert.doesNotMatch(app,/switch\s*\(kind\)/);
+ const folders=readdirSync(path.join(root,'features'),{withFileTypes:true}).filter(f=>f.isDirectory());
+ for(const folder of folders){
+  const p='features/'+folder.name+'/src/';
+  const plugin=read(p+'index.ts');
+  assert.match(plugin,/defineFeature\(/);
+  assert.match(plugin,/createElement\(/);
+  assert.ok(existsSync(path.join(root,p+'view.tsx')),folder.name+' is missing its owned view');
+  const view=read(p+'view.tsx');
+  assert.doesNotMatch(view,/from ['"][.]{2}[/][.]{2}[/][.]{2}[/]apps[/]/);
+ }
+});
+test('WindowManager is Cordis-owned and file changes are transaction scoped',()=>{
+ const sdk=read('packages/sdk/src/index.ts');
+ assert.match(sdk,/class WindowManager extends Service/);
+ assert.match(sdk,/root\.plugin\(WindowManager\)/);
+ assert.match(sdk,/ctx\.windowManager\.openView/);
+ assert.doesNotMatch(sdk,/window\.dispatchEvent/);
+ const storage=read('packages/storage/src/index.ts');
+ assert.match(storage,/store\.get\(oldPath\)/);
+ assert.match(storage,/store\.get\(newPath\)/);
+ assert.match(storage,/BroadcastChannel/);
+ assert.match(storage,/this\.emit\(\{type:'rename'/);
+ const state=read('packages/client/src/state.ts');
+ assert.match(state,/dirty:doc\.content!==savedContent/);
 });

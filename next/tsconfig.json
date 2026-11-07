@@ -5,5 +5,5 @@
     "esModuleInterop": true, "skipLibCheck": true, "resolveJsonModule": true,
     "noEmit": true, "types": ["node"], "allowImportingTsExtensions": true
   },
-  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "features/**/*.ts", "rsbuild.config.ts"]
+  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "packages/**/*.tsx", "features/**/*.ts", "features/**/*.tsx", "rsbuild.config.ts"]
 }

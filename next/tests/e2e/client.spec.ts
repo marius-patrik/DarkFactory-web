@@ -12,14 +12,14 @@ async function boot(page:import('@playwright/test').Page){
 
 test('loads real Cordis-backed feature host and Dockview over HTTP',async({page})=>{
  const exceptions=await boot(page);
- await expect(page.getByTitle('Create empty editor group (Ctrl/⌘ + \\)')).toBeVisible();
+ await expect(page.getByRole('button',{name:'Split',exact:true})).toBeVisible();
  await expect(page.locator('.dv-tab').first()).toBeVisible();
  expect(exceptions).toEqual([]);
 });
 
 test('switches workbenches without discarding individual layouts',async({page})=>{
  const exceptions=await boot(page);
- await page.getByTitle('Create empty editor group (Ctrl/⌘ + \\)').click();
+ await page.getByRole('button',{name:'Split',exact:true}).click();
  const before=await page.locator('.dv-groupview').count();
  expect(before).toBeGreaterThan(1);
  await page.getByRole('button',{name:'Research workbench'}).click();
@@ -51,10 +51,34 @@ test('command palette, contextual status menus and appearance',async({page})=>{
 test('local file survives real navigation and browser reload',async({page})=>{
  const exceptions=await boot(page);
  page.once('dialog',d=>void d.accept('src/acceptance-check.ts'));
- await page.getByTitle('New local file').click();
+ await page.getByRole('button',{name:'New local file'}).click();
  await expect(page.locator('.dv-groupview').first()).toBeVisible();
  await page.reload();
  await expect(page.locator('.dv-groupview').first()).toBeVisible();
  await expect(page.getByText('acceptance-check.ts').first()).toBeVisible();
+ expect(exceptions).toEqual([]);
+});
+
+test('a tab moves into another editor group through native Dockview dragging',async({page})=>{
+ const exceptions=await boot(page);
+ const explorer=page.getByRole('tab',{name:'Explorer',exact:true});
+ const agent=page.getByRole('tab',{name:'Agent',exact:true});
+ await expect(explorer).toBeVisible();
+ await expect(agent).toBeVisible();
+ await explorer.dragTo(agent);
+ const agentGroup=agent.locator('xpath=ancestor::*[contains(@class,"dv-groupview")][1]');
+ await expect(agentGroup.getByRole('tab',{name:'Explorer',exact:true})).toBeVisible();
+ expect(exceptions).toEqual([]);
+});
+
+test('layout snapshot undo and redo restore Dockview groups',async({page})=>{
+ const exceptions=await boot(page);
+ const initial=await page.locator('.dv-groupview').count();
+ await page.getByRole('button',{name:'Split',exact:true}).click();
+ await expect(page.locator('.dv-groupview')).toHaveCount(initial+1);
+ await page.getByRole('button',{name:'Undo layout change'}).click();
+ await expect(page.locator('.dv-groupview')).toHaveCount(initial);
+ await page.getByRole('button',{name:'Redo layout change'}).click();
+ await expect(page.locator('.dv-groupview')).toHaveCount(initial+1);
  expect(exceptions).toEqual([]);
 });
