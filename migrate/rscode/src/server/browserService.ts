@@ -957,7 +957,7 @@ export async function retryChromiumNativeCrash<T>(
     return await launch();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (!/Received signal 11\\b|SIGSEGV\\b/i.test(message)) throw error;
+    if (!/Received signal 11\b|SIGSEGV\b/i.test(message)) throw error;
     await prepareRetry();
     return launch();
   }
