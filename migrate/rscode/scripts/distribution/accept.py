@@ -187,16 +187,15 @@ try:
     else:
         record("controlled_file_create_and_modify", "BLOCKED", "Workspace mutation not verified")
         record("controlled_git_repository_and_status", "BLOCKED", "Workspace mutation not verified")
+    # Exercise the host PTY before browser startup so a Chromium/CDP transport
+    # regression cannot hide an independent terminal acceptance result.
+    run([binary, installed / "bin" / "terminal-probe.ts"], env, user_dir, 30)
+    record("terminal_pty", "PASS")
     browser_env = dict(env)
     browser_env["PLAYWRIGHT_BROWSERS_PATH"] = str(installed / "browsers")
     browser_env["DEBUG"] = "pw:browser"
     run([binary, installed / "bin" / "browser-probe.ts", "first"], browser_env, user_dir, 70)
     record("bundled_chromium_and_first_browser_profile", "PASS")
-    if os.name == "nt":
-        record("terminal_pty", "BLOCKED", "Existing terminal implementation launches /bin/bash on Windows")
-    else:
-        run([binary, installed / "bin" / "terminal-probe.ts"], env, user_dir, 30)
-        record("terminal_pty", "PASS")
     stop()
     if os.name == "nt":
         record("graceful_shutdown", "BLOCKED", "TerminateProcess is not graceful; requires runtime integration")

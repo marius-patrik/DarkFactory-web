@@ -473,7 +473,12 @@ export async function startServer() {
       mode: "direct",
     };
     if (warning) ws.send(`\x1b[33m[${warning}]\x1b[0m\r\n`);
-    const proc = Bun.spawn([process.env.SHELL ?? "/bin/bash", "-l"], {
+    // Windows ConPTY cannot execute /bin/bash; select the native command
+    // interpreter. Bun 1.4+ provides ConPTY for Bun.spawn({ terminal }).
+    const shellCommand = process.platform === "win32"
+      ? [process.env.ComSpec ?? process.env.COMSPEC ?? "cmd.exe"]
+      : [process.env.SHELL ?? "/bin/bash", "-l"];
+    const proc = Bun.spawn(shellCommand, {
       cwd,
       env: { ...process.env, TERM: "xterm-256color" },
       terminal: {
