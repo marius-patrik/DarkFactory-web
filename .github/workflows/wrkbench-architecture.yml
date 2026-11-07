@@ -1,0 +1,34 @@
+name: Wrkbench native client architecture
+on:
+  push:
+    branches:
+      - agent/wrkbench-native-client-architecture
+  pull_request:
+    branches:
+      - pmarius/wrkbench-pages-react19
+
+permissions:
+  contents: read
+
+jobs:
+  architecture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - name: Install actual client dependencies
+        working-directory: next
+        run: bun install
+      - name: Typecheck the entire client workspace
+        working-directory: next
+        run: bun run typecheck
+      - name: Test architecture contracts
+        working-directory: next
+        run: bun run test:core
+      - name: Build React 19, Cordis and Dockview
+        working-directory: next
+        run: bun run build
+      - name: Verify deployment entrypoint
+        run: test -s next/dist/index.html
