@@ -58,3 +58,27 @@ test('local file survives real navigation and browser reload',async({page})=>{
  await expect(page.getByText('acceptance-check.ts').first()).toBeVisible();
  expect(exceptions).toEqual([]);
 });
+
+test('a tab moves into another editor group through native Dockview dragging',async({page})=>{
+ const exceptions=await boot(page);
+ const explorer=page.getByRole('tab',{name:'Explorer',exact:true});
+ const agent=page.getByRole('tab',{name:'Agent',exact:true});
+ await expect(explorer).toBeVisible();
+ await expect(agent).toBeVisible();
+ await explorer.dragTo(agent);
+ const agentGroup=agent.locator('xpath=ancestor::*[contains(@class,"dv-groupview")][1]');
+ await expect(agentGroup.getByRole('tab',{name:'Explorer',exact:true})).toBeVisible();
+ expect(exceptions).toEqual([]);
+});
+
+test('layout snapshot undo and redo restore Dockview groups',async({page})=>{
+ const exceptions=await boot(page);
+ const initial=await page.locator('.dv-groupview').count();
+ await page.getByRole('button',{name:'Split',exact:true}).click();
+ await expect(page.locator('.dv-groupview')).toHaveCount(initial+1);
+ await page.getByRole('button',{name:'Undo layout change'}).click();
+ await expect(page.locator('.dv-groupview')).toHaveCount(initial);
+ await page.getByRole('button',{name:'Redo layout change'}).click();
+ await expect(page.locator('.dv-groupview')).toHaveCount(initial+1);
+ expect(exceptions).toEqual([]);
+});
