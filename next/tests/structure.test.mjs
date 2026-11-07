@@ -23,7 +23,9 @@ test('Dockview is actual layout owner',()=>{
  assert.match(source,/api\.toJSON/);
  assert.match(source,/closeEmptyGroups=\{false\}/);
  assert.match(source,/getTabContextMenuItems/);
- assert.match(source,/layoutHistory=\{\{enabled:true\}\}/);
+ assert.doesNotMatch(source,/layoutHistory=\\{\\{enabled:true\\}\\}/);
+ assert.doesNotMatch(source,/keyboardNavigation=\\{true\\}/);
+ assert.match(source,/DockLayoutHistory/);
  assert.doesNotMatch(source,/class\s+(CustomDock|FakeDock|TabTree)/);
 });
 test('Cordis owns plugin lifecycle and feature registry',()=>{
