@@ -7,8 +7,9 @@ import { notify,tools,invocationContext } from '../services.ts';
 import { ToolbarButton } from './Editors.tsx';
 
 export function ViewToolbar({label,actions,children}:{label:string;actions?:ReactNode;children?:ReactNode}){return <div className="view-toolbar"><span className="section-label">{label.toUpperCase()}</span>{children}<div className="spacer"/>{actions}</div>}
+const EMPTY_AGENT_MESSAGES: ReadonlyArray<{id:string;role:string;text:string;time:number}> = [];
 export function AgentView({id}:{id:string}){
- const messages=useUI(s=>s.agentSessions[id]??[]),append=useUI(s=>s.appendAgent),clear=useUI(s=>s.clearAgent);
+ const messages=useUI(s=>s.agentSessions[id]??EMPTY_AGENT_MESSAGES),append=useUI(s=>s.appendAgent),clear=useUI(s=>s.clearAgent);
  const [input,setInput]=useState(''),[backend,setBackend]=useState('Codex'),[model,setModel]=useState('gpt-6');const end=useRef<HTMLDivElement>(null);
  useEffect(()=>end.current?.scrollIntoView({block:'nearest'}),[messages.length]);
  const submit=()=>{const prompt=input.trim();if(!prompt)return;append(id,{id:uniqueId('message'),role:'user',text:prompt,time:Date.now()});setInput('');append(id,{id:uniqueId('message'),role:'system',text:`${backend} is not connected. The message was saved locally; no model inference, external tool call or network request occurred. Configure an authorized agent backend in Phase 2.`,time:Date.now()})};
