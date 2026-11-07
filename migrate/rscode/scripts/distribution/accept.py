@@ -77,8 +77,11 @@ def start(binary, launch, env, cwd, port):
     global proc
     result["commands"].append(str(binary) + " " + str(launch))
     with log.open("ab") as output:
+        # CTRL_BREAK_EVENT must be scoped to the installed server's own
+        # process group; never broadcast it to the test runner console.
+        flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
         proc = subprocess.Popen([str(binary), str(launch)], cwd=cwd, env=env,
-            stdout=output, stderr=subprocess.STDOUT)
+            stdout=output, stderr=subprocess.STDOUT, creationflags=flags)
     for _ in range(100):
         if proc.poll() is not None:
             raise RuntimeError("Installed server exited unexpectedly: " + str(proc.returncode))
@@ -97,8 +100,9 @@ def stop():
     if proc.poll() is not None:
         raise RuntimeError("Installed server exited before controlled shutdown")
     if os.name == "nt":
-        # TerminateProcess has no graceful signal semantics; document this limitation.
-        proc.terminate()
+        # The server handles SIGBREAK after CTRL_BREAK_EVENT. TerminateProcess
+        # does not run application shutdown hooks, so it is not acceptable.
+        proc.send_signal(signal.CTRL_BREAK_EVENT)
     else:
         proc.send_signal(signal.SIGTERM)
     try:
@@ -197,13 +201,11 @@ try:
     run([binary, installed / "bin" / "browser-probe.ts", "first"], browser_env, user_dir, 70)
     record("bundled_chromium_and_first_browser_profile", "PASS")
     stop()
-    if os.name == "nt":
-        record("graceful_shutdown", "BLOCKED", "TerminateProcess is not graceful; requires runtime integration")
-    else:
-        service_log = (canvas_home / "logs" / "service.log").read_text()
-        if "shutdown SIGTERM" not in service_log:
-            raise RuntimeError("Server did not finish SIGTERM shutdown")
-        record("graceful_shutdown", "PASS")
+    service_log = (canvas_home / "logs" / "service.log").read_text()
+    expected_signal = "SIGBREAK" if os.name == "nt" else "SIGTERM"
+    if "shutdown " + expected_signal not in service_log:
+        raise RuntimeError("Server did not complete graceful " + expected_signal + " shutdown")
+    record("graceful_shutdown", "PASS")
     restarted = start(binary, launch, env, user_dir, port)
     persisted = api(port, "workspace.list", {})
     if not any(w["id"] == workspace_id for w in persisted["workspaces"]):
@@ -219,8 +221,7 @@ try:
     run([binary, installed / "bin" / "browser-probe.ts", "restart"], browser_env, user_dir, 70)
     record("browser_profile_persistence", "PASS")
     stop()
-    record("shutdown_and_port_reuse", "PASS" if os.name != "nt" else "BLOCKED",
-        "Windows lifecycle is not gracefully controlled" if os.name == "nt" else "")
+    record("shutdown_and_port_reuse", "PASS")
 except Exception as exc:
     record("acceptance", "FAIL", str(exc))
     if log.exists():
