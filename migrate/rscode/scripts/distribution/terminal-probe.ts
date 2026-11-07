@@ -10,8 +10,8 @@ const result = await new Promise<string>((resolve, reject) => {
   // Split the marker in the input so a terminal that merely echoes the
   // command cannot pass acceptance without executing it.
   const input = process.platform === "win32"
-    ? "set RSCODE_NATIVE_TERMINAL_SPLIT=\\r\\necho RSCODE_NATIVE_%RSCODE_NATIVE_TERMINAL_SPLIT%TERMINAL_OK\\r\\nexit\\r\\n"
-    : "printf 'RSCODE_NATIVE_%s\\\\n' TERMINAL_OK\\nexit\\n";
+    ? "set RSCODE_NATIVE_TERMINAL_SPLIT=\r\necho RSCODE_NATIVE_%RSCODE_NATIVE_TERMINAL_SPLIT%TERMINAL_OK\r\nexit\r\n"
+    : "printf 'RSCODE_NATIVE_%s\\n' TERMINAL_OK\nexit\n";
   ws.onopen = () => ws.send(JSON.stringify({ type: "input", data: input }));
   ws.onmessage = (event) => {
     output += String(event.data);
