@@ -320,6 +320,14 @@ export async function startServer() {
   process.once("SIGTERM", () => {
     void shutdown("SIGTERM");
   });
+  // Windows CTRL_BREAK_EVENT is the graceful counterpart of Unix SIGTERM.
+  // The native distribution starts in a dedicated process group so this
+  // signal never targets the GitHub Actions runner or unrelated processes.
+  if (process.platform === "win32") {
+    process.once("SIGBREAK", () => {
+      void shutdown("SIGBREAK");
+    });
+  }
 
   return server;
 
